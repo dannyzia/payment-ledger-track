@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Production builds
+build/
+dist/
+.svelte-kit/
+.vercel/
+.output/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE & Editor
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Temporary files
+*.tmp
+*.bak
