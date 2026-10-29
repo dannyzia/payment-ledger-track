@@ -1,6 +1,6 @@
 # PRD: Payment Ledger App (working name `ledger`)
 
-- Version: 1.10 (reviewed specification — production implementation-ready; resolved Section 7 DDL schema column mismatches in new RPCs, Mode B statement_lines ingestion, closed-month mutation guards, RLS select policies, and Section 18 readiness gate alignments)
+- Version: 1.11 (reviewed specification — production implementation-ready; resolved settlement recalculation trigger trg_entries_recalc_settlements, engine_version check, device tracking & honest-client heuristic, unmatch_statement_line RPC, exception-flip statement invalidation, bootstrap runbook §7.4, recovery matrix expansions, measured contrast tokens, and milestone readiness mapping)
 - Date: 2026-10-29
 - Owner: Zia (Bangladesh)
 - Audience: AI coding agents and AI reviewers. Humans may read it, but it is written to be executed.
@@ -128,6 +128,7 @@ type Poisha = bigint;
 interface RateSnapshot {
   rateProfileId: string;
   version: number;
+  engineVersion: number;            // H2: integer calculation engine version (current: 1)
   vat: { mode: 'manual' | 'percent_of_gross' | 'percent_inclusive'; bp: number };
   commission: { bp: number; base: 'gross' | 'gross_minus_vat' };
   chargeBp: number;                 // basis points for the chosen payment method
@@ -216,22 +217,23 @@ Guards and Precedence Rules:
 The server NEVER trusts client-supplied snapshots or authorization claims:
 1. **Identity & Role Enforcement**: Derives user ID and role strictly from the verified Supabase Auth JWT (`auth.uid()`). Any client-supplied `created_by` or role field in the operation payload is ignored.
 2. **Account Status Check**: Checks that the user account is active in `profiles` (`active = true`). If deactivated, rejects with `403 user_deactivated`.
-3. **Effective Date Rate Verification & Stale Rate Reconciliation (Finding A3, Rule #4)**:
+3. **Effective Date Rate Verification & Stale Rate Reconciliation (Finding A3, Rule #4, H3)**:
    - Checks whether the submitted profile was published and effective for `entry_date`:
      `SELECT * FROM rate_profiles WHERE id = $submitted_profile_id AND status = 'published' AND effective_from <= $entry_date;`
      If no row is returned, the profile was never valid for that date (e.g., forward-dated profile or unpublished draft) $\to$ hard-rejects with `403 rate_profile_date_mismatch`.
-   - **Client Rate Watermark Check (Anti-Cherry-Picking)**:
+   - **Client Rate Watermark Check (Honest-Client Anti-Cherry-Picking Heuristic, H3)**:
      Queries the expected profile against the client's cached rate profile watermark (`maxKnownRateVersion` recorded in `OutboxOp` at entry creation, defaulting to submitted snapshot version if omitted):
      `SELECT id FROM rate_profiles WHERE status = 'published' AND effective_from <= $entry_date AND version <= $op_max_known_rate_version ORDER BY effective_from DESC, version DESC LIMIT 1;`
      If `submitted.id != expected.id`: The client already possessed a newer applicable profile in its local cache and cherry-picked an older one $\to$ hard-rejects with `403 rate_profile_date_mismatch` (passes Test #41).
+     *Defense-in-Depth Device Grounding (H3)*: The server cross-references `op_max_known_rate_version` against `devices.last_rate_version` for registered devices; if an entry claims a watermark strictly lower than a rate version already delivered to that device during `/sync/pull`, the op is rejected as tampered.
    - **Authoritative Server Watermark Check (Offline Stale Rate Preservation, Rule #4)**:
      Queries the latest published profile in the database effective for `entry_date`:
      `SELECT id FROM rate_profiles WHERE status = 'published' AND effective_from <= $entry_date ORDER BY effective_from DESC, version DESC LIMIT 1;`
      - If `submitted.id == latest.id`: Entry was recorded with the current rate profile $\to$ sets `entries.stale_rates = false`.
-     - If `submitted.id != latest.id`: A newer profile was published on the server while the client was offline. The server honors Rule #4 (entries are immutable snapshots), preserves the client snapshot and calculated components, inserts the entry with `entries.stale_rates = true`, and raises an alert on the Admin/Owner dashboard (passes Test #46 and Test #9).
-   - **Snapshot Integrity Check**: Confirms that the profile exists, that `method_id` is covered in `method_rates`, and that stored values (`version`, `vat`, `commission`, `charge_bp`, `charges_borne_by`) match the submitted snapshot identically. If snapshot values do not match, rejects with `403 invalid_snapshot_rules`.
-4. **Engine Version Skew Check**:
-   - The snapshot contains `engine_version: "1.0"`. If server engine version is incompatible with client snapshot engine version, rejects with `426 upgrade_required`.
+     - If `submitted.id != latest.id`: A newer profile was published on the server while the client was offline. The server honors Rule #4 (entries are immutable snapshots), preserves the client snapshot and calculated components, inserts the entry with `entries.stale_rates = true`, and raises an alert on the Admin/Owner dashboard (passes Test #46 and Test #9). Stale-rate entries exceeding ৳50,000 gross require administrative review flag confirmation.
+   - **Snapshot Integrity Check**: Confirms that the profile exists, that `method_id` is covered in `method_rates`, and that stored values (`version`, `engineVersion`, `vat`, `commission`, `charge_bp`, `charges_borne_by`) match the submitted snapshot identically. If snapshot values do not match, rejects with `403 invalid_snapshot_rules`.
+4. **Engine Version Skew Check (H2)**:
+   - The snapshot contains `engineVersion: 1` (integer). If the server engine version is incompatible with the client snapshot engine version, the server rejects with `426 upgrade_required` and logs `sync.upgrade_required`.
 5. **Independent Recomputation**:
    - Server extracts the explicit inputs: `gross_poisha`, verified snapshot, `vat_input_poisha`, `vat_override_poisha`, and `commission_override_poisha`.
    - Recomputes `packages/calc`.
@@ -364,6 +366,17 @@ create unique index one_owner on profiles ((role)) where role = 'owner';
 -- Prevents zero active owners while permitting atomic ownership handoff in a single transaction.
 -- Initial owner is provisioned via migration bootstrap.
 
+create table devices (                              -- H3, M4: device registry, remote killswitch, and rate watermark tracking
+  id text primary key,                              -- client-generated device UUID / hardware identifier
+  user_id uuid not null references profiles on delete cascade,
+  device_name text,                                 -- e.g., "Zia's Samsung A54"
+  last_seen_at timestamptz not null default now(),
+  last_rate_version int not null default 0,         -- tracks highest rate profile version pulled by this device
+  revoked boolean not null default false,           -- remote killswitch (lost/stolen device session revocation)
+  created_at timestamptz not null default now()
+);
+create index idx_devices_user on devices (user_id);
+
 create table payment_methods (
   id uuid primary key default gen_random_uuid(),
   code text unique not null,                        -- immutable machine code (e.g., 'bkash', 'visa')
@@ -422,7 +435,7 @@ create table entries (
   entry_number bigint unique default nextval('entry_number_seq'), -- human-readable ID; UI: E-YYYYMM-XXXXXX (e.g. E-202610-000042)
   entry_date date not null,
   customer_name text not null,
-  sub_qty int not null default 1 check (sub_qty >= 0), -- countable session/service quantity (sums to 16 in fixture)
+  sub_qty int not null default 1 check (sub_qty >= 0), -- countable quantity (m3: sub_qty >= 0 allows 0 for fee-only/retainer deposits with no physical service units)
   sub_description text,                              -- optional qualitative description
   txn_ref text,
   method_id uuid not null references payment_methods,
@@ -456,6 +469,7 @@ create table entries (
   updated_at timestamptz not null default now(),     -- set by trigger on update
   supersedes_id uuid references entries,
   superseded_at timestamptz,
+  original_entry_date date,                          -- M5: preserves original intended date when reassigned from closed month
   void_requested_by uuid references profiles,
   void_requested_at timestamptz,
   void_request_reason text,                          -- mandatory when void is requested (F25)
@@ -474,6 +488,8 @@ create table entries (
       (coalesce(snapshot->'vat'->>'mode', '') in ('percent_of_gross','percent_inclusive') and vat_input_poisha is null)
     )
   ),
+  constraint chk_vat_override_bound check (vat_override_poisha is null or vat_override_poisha <= gross_poisha), -- m4
+  constraint chk_comm_override_bound check (commission_override_poisha is null or commission_override_poisha <= gross_poisha), -- m4
   constraint chk_vat_override_reason check (vat_override_poisha is null or (vat_override_reason is not null and length(trim(vat_override_reason)) > 0)),
   constraint chk_comm_override_reason check (commission_override_poisha is null or (commission_override_reason is not null and length(trim(commission_override_reason)) > 0)),
   constraint chk_void_request_reason check (void_requested_by is null or (void_request_reason is not null and length(trim(void_request_reason)) > 0)),
@@ -485,6 +501,7 @@ create index on entries (method_id);
 create index on entries (server_seq);
 create index on entries (txn_ref);
 create index on entries (entry_number);
+create index on entries (created_by, entry_date);   -- M3: speeds up staff-scoped RLS and personal metric queries
 create index on entries (status) where status = 'active';
 create unique index uq_active_superseding_entry on entries (supersedes_id) where status = 'active';
 -- Immutability trigger (F19): blocks DELETE unconditionally; blocks UPDATE on financial, snapshot,
@@ -726,7 +743,7 @@ create table sync_ops (                 -- idempotency table for sync push opera
   payload jsonb not null,                            -- full operation payload preserved for server retry and admin review queue
   payload_hash text not null,                        -- SHA-256 of canonical operation ({type, payload, supersedesRejectedOpId, clientCreatedAt})
   client_created_at timestamptz not null,            -- F39: client timestamp for offline duration audit
-  supersedes_rejected_op_id uuid references sync_ops(op_id),
+  supersedes_rejected_op_id uuid references sync_ops(op_id) on delete set null, -- M2: safe 90-day retention pruning
   result text not null check (result in ('ok','duplicate','rejected')),
   resolution_status text not null default 'pending' check (resolution_status in ('pending', 'resolved', 'discarded')),
   reason text,
@@ -750,8 +767,8 @@ create table app_settings (            -- single row
 
 ### 7.1 Database Security, Table Revocations & Single Trust Model (Findings A4, A5)
 
-1. **Table-Level Direct Write Revocation on All 17 Tables (Finding A4)**:
-   To guarantee that no user (including Admin and Owner) can bypass financial constraints, overpayment gates, or draft-publish lifecycle checks via direct PostgREST table access, direct `INSERT`, `UPDATE`, and `DELETE` privileges are explicitly revoked across all 17 public tables from `anon` and `authenticated`:
+1. **Table-Level Direct Write Revocation on All 18 Tables (Finding A4, H3, M4)**:
+   To guarantee that no user (including Admin and Owner) can bypass financial constraints, overpayment gates, or draft-publish lifecycle checks via direct PostgREST table access, direct `INSERT`, `UPDATE`, and `DELETE` privileges are explicitly revoked across all 18 public tables from `anon` and `authenticated`:
    ```sql
    REVOKE INSERT, UPDATE, DELETE ON
      entries,
@@ -770,6 +787,7 @@ create table app_settings (            -- single row
      profiles,
      payment_methods,
      payables,
+     devices,
      app_settings
    FROM anon, authenticated;
 
@@ -790,6 +808,7 @@ create table app_settings (            -- single row
    ALTER TABLE month_close_events ENABLE ROW LEVEL SECURITY;
    ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
    ALTER TABLE sync_ops ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
    ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
    ```
    All table mutations execute exclusively through privileged `SECURITY DEFINER` RPCs running with `search_path = public, pg_temp` invoked by the server under `service_role`.
@@ -800,6 +819,7 @@ create table app_settings (            -- single row
    - **Table RLS**: Read-level access (`SELECT`) is permitted via RLS for authenticated users:
      - `entries`: Staff `select` where `created_by = auth.uid()`; Admin and Owner `select` all.
      - `profiles`: Staff `select` where `id = auth.uid()`; Admin and Owner `select` all.
+     - `devices`: Staff `select, update` where `user_id = auth.uid()`; Admin and Owner `select, insert, update, delete` all (M4).
      - `rate_profiles`, `method_rates`, `payment_methods`, `payables`, `app_settings`: all authenticated users `select`.
      - `entry_reconciliation_exceptions`: Admin and Owner `select`.
      - `settlements`, `settlement_payments`, `statements`, `statement_payables`, `statement_lines`, `month_closes`, `month_close_events`, `audit_log`: Admin and Owner `select`.
@@ -878,7 +898,7 @@ All procedures are defined with `SECURITY DEFINER` and strict `SET search_path =
   6. Asserts `original.status = 'active'` (Finding 3). Rejects with `cannot_supersede_non_active` if voided or already superseded.
   7. Sets original `status = 'superseded', superseded_at = now()`.
   8. Inserts replacement entry with published rate profile valid for replacement date; trigger assigns sequence.
-- `review_entry_reconciliation_exception(p_entry_id uuid, p_payable_id uuid, p_action text, p_reason text, p_actor_id uuid)` (Finding 5, F65, F66, F67, Item 2.1, Item 3):
+- `review_entry_reconciliation_exception(p_entry_id uuid, p_payable_id uuid, p_action text, p_reason text, p_actor_id uuid)` (Finding 5, F65, F66, F67, Item 2.1, Item 3, H5):
   Admin or Owner only. Asserts `p_action in ('approved', 'rejected')` and `length(trim(p_reason)) > 0`.
   Normalizes target month: `v_month := date_trunc('month', (select entry_date from entries where id = p_entry_id))::date;`
   Adheres strictly to the global lock order (F66, Item 2.1):
@@ -890,6 +910,9 @@ All procedures are defined with `SECURITY DEFINER` and strict `SET search_path =
   Asserts `entries.status = 'active'`. Asserts payable applicability: `(payables.kind = 'vat') OR (payables.kind = 'method_charge' and payables.method_id = entries.method_id)`.
   Inserts or updates `entry_reconciliation_exceptions` (F67):
   `insert into entry_reconciliation_exceptions (entry_id, payable_id, month, status, reason, reviewed_by, reviewed_at) values (p_entry_id, p_payable_id, v_month, p_action, p_reason, p_actor_id, now()) on conflict (entry_id, payable_id, month) do update set status = excluded.status, reason = excluded.reason, reviewed_by = excluded.reviewed_by, reviewed_at = excluded.reviewed_at, updated_at = now();`
+  Reconciliation Invalidation Cascade (H5): If `p_action = 'rejected'` (or if an existing approved exception is altered), automatically invalidates any currently reconciled statements covering `p_payable_id` in `v_month`:
+  `UPDATE statements s SET status = 'open', updated_at = now() FROM statement_payables sp WHERE sp.statement_id = s.id AND sp.payable_id = p_payable_id AND s.month = v_month AND s.status = 'reconciled';`
+  `UPDATE statement_payables SET status = 'open' WHERE payable_id = p_payable_id AND month = v_month AND status = 'reconciled';`
   Appends `entry.reconciliation_exception` to `audit_log`.
 - `approve_settlement_overpayment(p_settlement_id uuid, p_reason text, p_actor_id uuid)` (Finding 5, F65, F68, Item 2.1, Item 3):
   Owner only (F65). Asserts `length(trim(p_reason)) > 0`.
@@ -985,8 +1008,9 @@ All procedures are defined with `SECURITY DEFINER` and strict `SET search_path =
   `IF (v_vat_bp + v_comm_bp + v_max_charge_bp > 10000) THEN RAISE EXCEPTION '422 deductions_exceed_100_percent'; END IF;`
   Acquires `pg_advisory_xact_lock(1003, 1)`, assigns version, sets `status = 'published'`, `published_at = now()`.
 
-- `record_settlement_payment(p_settlement_id uuid, p_amount_poisha bigint, p_paid_on date, p_reference text, p_receipt_path text, p_note text, p_is_reversal boolean, p_reverses_id uuid, p_actor_id uuid)` (F17, F36, F50, Finding 6, Item 1, Item 2.1, Item 3, Item 4):
+- `record_settlement_payment(p_settlement_id uuid, p_amount_poisha bigint, p_paid_on date, p_reference text, p_receipt_path text, p_note text, p_is_reversal boolean, p_reverses_id uuid, p_actor_id uuid)` (F17, F36, F50, Finding 6, Item 1, Item 2.1, Item 3, Item 4, m5):
   Admin or Owner only. Asserts `p_amount_poisha > 0`.
+  Asserts `p_paid_on <= (now() at time zone 'Asia/Dhaka')::date` (m5: prevents future-date typos; raises `422 future_payment_date`).
   1. Queries month from `settlements WHERE id = p_settlement_id;` normalizes `v_month`.
   2. Acquires month advisory lock (Step 1, Item 2.1): `perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);`
   3. Closed-Month Payout Policy (Item 3): Since `close_month()` gates on statements being reconciled and overpayments approved, businesses close the accounting month once reconciled and record the actual payout on `due_day` of the following month. If `v_month` is closed:
@@ -1053,6 +1077,19 @@ All procedures are defined with `SECURITY DEFINER` and strict `SET search_path =
   8. Updates line: `UPDATE statement_lines SET matched_entry_id = p_entry_id, match_status = 'matched', is_active_match = true, updated_at = now() WHERE id = p_line_id;`
   9. Appends `statement.match_line` to `audit_log`.
 
+- `unmatch_statement_line(p_line_id uuid, p_reason text, p_actor_id uuid)` (H4):
+  Admin or Owner only. Asserts `length(trim(p_reason)) > 0`.
+  1. Queries month and statement ID from line: `SELECT s.month, sl.statement_id INTO v_month, v_statement_id FROM statement_lines sl JOIN statements s ON s.id = sl.statement_id WHERE sl.id = p_line_id;`
+  2. Acquires month advisory lock `(1001, v_month)`.
+  3. Asserts month is open: `IF EXISTS (SELECT 1 FROM month_closes WHERE month = v_month AND status = 'closed') THEN RAISE EXCEPTION '422 month_closed'; END IF;`
+  4. Row-locks line: `SELECT * FROM statement_lines WHERE id = p_line_id FOR UPDATE;`
+  5. Asserts `match_status = 'matched'` and `matched_entry_id IS NOT NULL`.
+  6. Updates line: `UPDATE statement_lines SET match_status = 'unmatched', matched_entry_id = null, is_active_match = false, updated_at = now() WHERE id = p_line_id;`
+  7. Invalidation cascade (F47, H4): If parent statement or child `statement_payables` were `'reconciled'`, cascades them back to `'open'`:
+     `UPDATE statements SET status = 'open', updated_at = now() WHERE id = v_statement_id AND status = 'reconciled';`
+     `UPDATE statement_payables SET status = 'open' WHERE statement_id = v_statement_id AND status = 'reconciled';`
+  8. Appends `statement.unmatch_line` to `audit_log`.
+
 - `admin_manage_payment_method(p_action text, p_id uuid, p_code text, p_name text, p_sort_order int, p_active boolean, p_requires_txn_ref boolean, p_actor_id uuid)` (F43, F53, Item 1, Item 4):
   Admin or Owner only.
   If `p_action = 'create'`: asserts `p_code` and `p_name` are not null; inserts into `payment_methods (code, name, sort_order, active, requires_txn_ref)`. Logs `payment_method.create`.
@@ -1075,12 +1112,37 @@ All procedures are defined with `SECURITY DEFINER` and strict `SET search_path =
   If `p_action = 'update_role'`: updates `profiles.role`. Logs `user.role_change`.
   If `p_action = 'deactivate'`: sets `profiles.active = false`. Logs `user.deactivate`.
 
+- `admin_manage_device(p_device_id text, p_action text, p_actor_id uuid)` (H3, M4):
+  Admin or Owner only.
+  If `p_action = 'revoke'`: sets `devices.revoked = true` (remote killswitch; immediate revocation of lost/stolen device session). Logs `device.revoke`.
+  If `p_action = 'unrevoke'`: sets `devices.revoked = false`. Logs `device.unrevoke`.
+
+- Maintenance Routine `purge_expired_sync_ops()` (M2):
+  Scheduled via `pg_cron` (runs daily at 03:00 Asia/Dhaka):
+  Deletes resolved sync operations (`resolution_status in ('resolved', 'discarded')`) where `created_at < now() - interval '90 days'`.
+  Deletes child superseding operations first, or leverages `ON DELETE SET NULL` on `supersedes_rejected_op_id` to prevent FK constraint violations.
+  Unresolved rejected operations (`resolution_status = 'pending'`) are permanently preserved until explicitly resolved or discarded.
+
 Database Triggers:
 - Commit-order cursor trigger `trg_entries_server_seq` (F3, F54): sole authoritative sequence allocator; BEFORE INSERT OR UPDATE ON entries assigns `NEW.server_seq := nextval('entry_seq')` under sequence advisory lock on **every** INSERT and UPDATE (including voids and supersedes).
 - Rate profile draft/publish lock (F18, F41): blocks UPDATE and DELETE on `rate_profiles` once published; blocks INSERT, UPDATE, and DELETE on `method_rates` for published profiles.
 - Payment method code lock (F43): blocks UPDATE on `payment_methods.code`.
 - Payment method active profile guard (F53): blocks setting `active = true` on `payment_methods` unless covered by the currently effective published rate profile.
 - Financial entries immutability trigger (F19): blocks DELETE on `entries`; blocks direct UPDATE on financial/identity fields.
+- Settlement dynamic recalculation trigger `trg_entries_recalc_settlements` (H1, Test #6): AFTER INSERT OR UPDATE OF `status, entry_date, method_id, gross_poisha, vat_poisha, business_charge_poisha` ON `entries` FOR EACH ROW WHEN `(NEW.status = 'active' OR (TG_OP = 'UPDATE' AND OLD.status = 'active'))`:
+  1. Identifies affected month(s): `NEW` month, and if date shifted, `OLD` month.
+  2. For each open month (`NOT EXISTS (SELECT 1 FROM month_closes mc WHERE mc.month = v_month AND mc.status = 'closed')`):
+     - For VAT payable: recalculates `COALESCE(SUM(vat_poisha), 0)` from active entries in `v_month`.
+     - For affected Method Charge payable(s) (`NEW.method_id`, `OLD.method_id`): recalculates `COALESCE(SUM(business_charge_poisha), 0)` from active entries in `v_month`.
+     - Live Upsert into `settlements`:
+       ```sql
+       INSERT INTO settlements (payable_id, month, expected_poisha, paid_poisha, status)
+       VALUES (v_payable_id, v_month, v_expected, 0, calc_settlement_status(v_expected, 0))
+       ON CONFLICT (payable_id, month) DO UPDATE
+       SET expected_poisha = EXCLUDED.expected_poisha, updated_at = now()
+       WHERE NOT EXISTS (SELECT 1 FROM month_closes mc WHERE mc.month = v_month AND mc.status = 'closed');
+       ```
+     - Statement Invalidation Cascade (F47): If `expected_poisha` changed and a statement covering `v_payable_id` in `v_month` was marked `'reconciled'`, automatically reverts statement and child `statement_payables` status to `'open'`.
 - Settlement status recalculation & overpayment invalidation trigger `trg_settlements_recalc_status_and_overpayment` (Items 2.2, F68, Finding 1): BEFORE UPDATE OF `expected_poisha`, `paid_poisha` ON `settlements` automatically computes `NEW.status := calc_settlement_status(NEW.expected_poisha, NEW.paid_poisha);`.
   - Overpayment Invalidation Rule (Finding 1):
     Whenever `(OLD.overpayment_review_status = 'approved' AND (NEW.status != 'overpaid' OR (NEW.paid_poisha - NEW.expected_poisha) IS DISTINCT FROM OLD.overpayment_approved_amount_poisha))` OR `(OLD.overpayment_review_status = 'pending_approval' AND NEW.status != 'overpaid')`:
@@ -1092,9 +1154,95 @@ Database Triggers:
     `NEW.overpayment_approved_at := null;`
     If transitioning from `'approved'`, appends `settlement.overpayment_invalidated` to `audit_log`.
 - Statement line unmatching trigger `trg_entries_unmatch_statement_lines` (Item 3.1): AFTER UPDATE OF `status, entry_date, method_id` ON `entries` FOR EACH ROW WHEN `(OLD.status = 'active' AND (NEW.status IN ('voided', 'superseded') OR date_trunc('month', NEW.entry_date) != date_trunc('month', OLD.entry_date) OR NEW.method_id != OLD.method_id))` sets `statement_lines.matched_entry_id = null, statement_lines.match_status = 'unmatched' WHERE matched_entry_id = OLD.id AND is_active_match = true`.
+- Reconciliation exception invalidation trigger `trg_entry_exceptions_invalidate_reconciliation` (H5, Test #54): AFTER UPDATE OR DELETE ON `entry_reconciliation_exceptions` FOR EACH ROW WHEN `(OLD.status = 'approved' AND (TG_OP = 'DELETE' OR NEW.status != 'approved'))`:
+  Automatically invalidates any reconciled statement covering `OLD.payable_id` in `OLD.month`:
+  `UPDATE statements s SET status = 'open', updated_at = now() FROM statement_payables sp WHERE sp.statement_id = s.id AND sp.payable_id = OLD.payable_id AND s.month = OLD.month AND s.status = 'reconciled';`
+  `UPDATE statement_payables SET status = 'open' WHERE payable_id = OLD.payable_id AND month = OLD.month AND status = 'reconciled';`
 - Settlement payment reversal lock & reduction trigger (F17, F36, F50, Finding 6): locks target row with `SELECT FOR UPDATE`, validates cumulative reversals <= original amount, recalculates `settlements.paid_poisha` via `UPDATE settlements`. Blocks direct UPDATE and DELETE on `settlement_payments`.
 - Statement invalidation & supersession trigger (F22, F37, F47): when entries modify liabilities in an open month, resets parent `statements.status = 'open'` and cascades `statement_payables.status = 'open'`; on supersession, sets `is_active_match = false` on child `statement_lines` and updates `statement_payables.status = 'superseded'`.
 - Audit log immutability trigger (F19): blocks UPDATE and DELETE on `audit_log`.
+
+### 7.4 Bootstrap Runbook & Seed Script (M0, H6)
+
+Because `profiles.id` references Supabase `auth.users`, and `publish_rate_profile()` strictly prohibits backdating, initial database provisioning cannot execute via pure static DDL. The initial system baseline is provisioned via an automated bootstrap runner script (`scripts/bootstrap.ts`) using Supabase Auth Admin API and `service_role` credentials:
+
+1. **Step 1: Provision Initial Owner Auth User**:
+   Invokes Supabase Auth Admin API:
+   ```ts
+   const { data: user, error } = await supabase.auth.admin.createUser({
+     email: process.env.BOOTSTRAP_OWNER_EMAIL,
+     password: process.env.BOOTSTRAP_OWNER_PASSWORD,
+     email_confirm: true,
+     user_metadata: { full_name: 'Primary Owner' }
+   });
+   ```
+2. **Step 2: Insert Owner Profile**:
+   Inserts the corresponding row in `profiles`:
+   ```sql
+   INSERT INTO profiles (id, full_name, role, active)
+   VALUES (user.id, 'Primary Owner', 'owner', true);
+   ```
+3. **Step 3: Seed Canonical Payment Methods**:
+   ```sql
+   INSERT INTO payment_methods (code, name, requires_txn_ref, sort_order, active) VALUES
+     ('cash', 'Cash', false, 1, true),
+     ('bkash', 'bKash', true, 2, true),
+     ('visa', 'Visa', false, 3, true),
+     ('mastercard', 'Mastercard', false, 4, true),
+     ('bank_transfer', 'Bank Transfer', true, 5, true);
+   ```
+4. **Step 4: Seed Canonical Payables**:
+   ```sql
+   INSERT INTO payables (code, name, kind, method_id, due_day, remind_days_before, active) VALUES
+     ('vat_payable', 'Government VAT Challan', 'vat', null, 15, 3, true),
+     ('bkash_charge_payable', 'bKash Merchant Charge', 'method_charge', (SELECT id FROM payment_methods WHERE code = 'bkash'), 10, 3, true),
+     ('visa_charge_payable', 'Visa Merchant Charge', 'method_charge', (SELECT id FROM payment_methods WHERE code = 'visa'), 15, 3, true),
+     ('mastercard_charge_payable', 'Mastercard Merchant Charge', 'method_charge', (SELECT id FROM payment_methods WHERE code = 'mastercard'), 15, 3, true);
+   ```
+5. **Step 5: Seed & Publish Rate Profile v1 (Bootstrap Exemption)**:
+   Inserts Profile v1 directly with `status = 'published'` effective from the current business date:
+   ```sql
+   INSERT INTO rate_profiles (id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, charges_borne_by, note, created_by, published_at)
+   VALUES (
+     gen_random_uuid(),
+     1,
+     'published',
+     (now() at time zone 'Asia/Dhaka')::date,
+     'manual',
+     0,
+     'gross_minus_vat',
+     4200,
+     'business',
+     'Initial system rate profile v1 (seeded via M0 bootstrap)',
+     user.id,
+     now()
+   );
+   ```
+   *(Note: Documented in `DECISIONS.md`: Seeding Profile v1 directly under `service_role` establishes the initial published rate profile so day-one transaction sync succeeds without violating `publish_rate_profile()` runtime backdating constraints).*
+6. **Step 6: Seed `method_rates` for Profile v1**:
+   Covers all active payment methods:
+   ```sql
+   INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
+   SELECT p.id, m.id,
+     CASE m.code
+       WHEN 'bkash' THEN 115
+       WHEN 'visa' THEN 150
+       WHEN 'mastercard' THEN 150
+       ELSE 0
+     END
+   FROM rate_profiles p CROSS JOIN payment_methods m
+   WHERE p.version = 1 AND p.status = 'published';
+   ```
+7. **Step 7: Initialize `app_settings`**:
+   ```sql
+   INSERT INTO app_settings (id, timezone, currency, locale, net_label, reconcile_tolerance_poisha)
+   VALUES (true, 'Asia/Dhaka', 'BDT', 'en-BD', 'Net after deductions', 100)
+   ON CONFLICT (id) DO NOTHING;
+   ```
+8. **Step 8: Initialize Monthly Settlements**:
+   Executes `generate_monthly_settlements((now() at time zone 'Asia/Dhaka')::date)` to populate initial settlement rows.
+
+Verification: The M0 Definition of Done requires running `scripts/bootstrap.ts` against a blank Supabase instance, asserting all 18 tables, profile v1, payables, and settlements exist.
 
 ## 8. Functional requirements
 
@@ -1102,9 +1250,9 @@ Database Triggers:
 
 - Fields:
   - Entry date: default today (Asia/Dhaka timezone). When changed, the form dynamically loads the cached published profile effective for that `entry_date` (`effective_from <= entry_date`, sorted by `effective_from DESC, version DESC LIMIT 1`) from Dexie, alerting the user if historical rates differ from current rates (Finding A3).
-  - Human-readable ID: While offline / pending sync, shows a temporary badge `#LOCAL-xxxx` (first 6 characters of client UUID). Once synced, the server assigns a sequential `entry_number` formatted as `E-YYYYMM-XXXXXX` (e.g., `E-202610-000042`).
+  - Human-readable ID: While offline / pending sync, shows a temporary badge `#LOCAL-xxxx` (first 6 characters of client UUID). Once synced, the server assigns a sequential `entry_number` formatted as `E-YYYYMM-XXXXXX` (e.g., `E-202610-000042`). Semantics (m2): `YYYYMM` is derived from the transaction's business `entry_date`, while `XXXXXX` is zero-padded from the monotonically increasing global sequence `entry_number_seq`.
   - Customer name: required, free text.
-  - Sub quantity: integer, default `1`, min `0` (e.g. number of items, sessions, or services; sums to 16 in fixture).
+  - Sub quantity: integer, default `1`, min `0` (m3: e.g. countable sessions, services, or units; sums to 16 in fixture; `sub_qty = 0` is valid for non-unit retainer, deposit, or fee-only adjustments).
   - Sub description: optional text for qualitative notes.
   - Gross amount: entered in BDT (converted to integer poisha on keystroke).
   - Payment method: dropdown/chips (bKash, Visa, Mastercard, Cash, Bank Transfer, etc.).
@@ -1158,8 +1306,8 @@ Computed strictly from active entries (`status = 'active'`, not voided, not supe
 
 - After month end, app generates one `settlements` row per active payable for that month with `expected_poisha` computed from active entries.
 - Settlement lifecycle & live recalculation:
-  - **Prior to Month Close**: `expected_poisha` is dynamic. Any insert, void, or supersede of an active entry in that month automatically triggers a recalculation of `expected_poisha` and updates `variance_poisha`.
-  - **Reconciliation Invalidation (F47)**: If active entries in an open month change after a statement for that payable has already been marked `reconciled`, the parent statement status automatically reverts to `'open'` AND all child `statement_payables` rows revert to `'open'` in the same transaction, with an alert: `Expected liability changed; re-reconciliation required`.
+  - **Prior to Month Close**: `expected_poisha` is dynamic. Maintained continuously by trigger `trg_entries_recalc_settlements` (H1, Test #6): Any insert, void, or supersede of an active entry in an open month automatically creates/updates the corresponding `settlements` row for that payable and month, recomputes `expected_poisha`, and updates `variance_poisha`. Open-month reports and settlement screens always read live, accurate liability figures.
+  - **Reconciliation Invalidation (F47, H1)**: If active entries in an open month change after a statement for that payable has already been marked `reconciled`, the parent statement status automatically reverts to `'open'` AND all child `statement_payables` rows revert to `'open'` in the same transaction, with an alert: `Expected liability changed; re-reconciliation required`.
   - **On Month Close**: `expected_poisha` is permanently frozen and locked.
   - **On Month Reopen**: The lock is released; recalculations resume, and an audit event is logged.
 - Due date = `due_day` of the following month (admin-set per payable). In-app reminders start `remind_days_before` days earlier. Overdue banner appears if unpaid after the due date.
@@ -1177,7 +1325,7 @@ Computed strictly from active entries (`status = 'active'`, not voided, not supe
   - If a device creates an entry offline dated in October, and the Owner closes October before the device syncs, the server push rejects that op with `{ status: 'rejected', reason: 'month_closed' }`.
   - The local client moves the entry into a dedicated "Needs Attention (Closed Month)" queue on the Admin/Owner dashboard.
   - The Admin or Owner has three explicit resolution options:
-    1. **Reassign to Open Month**: Updates `entry_date` to the 1st of the current open month, recalculates snapshot, generates a new operation with a new `op_id` and `supersedes_rejected_op_id`, and pushes to sync.
+    1. **Reassign to Open Month (M5)**: Updates `entry_date` to the 1st of the current open month, preserves original date in `entries.original_entry_date`, requires a mandatory `reassign_reason text`, displays a clear UI warning ("Reassigning this transaction shifts VAT and merchant liability from <Closed Month> to <Open Month>"), recalculates snapshot, generates a new operation with a fresh `op_id` and `supersedes_rejected_op_id`, and pushes to sync.
     2. **Reopen Month (F23, F45 Sequence)**: Owner reopens the historical month (`reopen_month(month, reason)`). This automatically invalidates existing reconciled statements and child `statement_payables` for that month back to `'open'` (F47). **The client generates a fresh `op_id` with `supersedes_rejected_op_id` pointing to the original rejection** (F45). Replaying the original `op_id` is rejected by the server idempotency cache because the original rejection is immutable. The new operation syncs cleanly in the open month, dynamic recalculations update liabilities, Admin/Owner re-reconciles, and Owner re-closes the month.
     3. **Discard (F14, F35)**: Client sends a `discard_rejected_entry` operation with a mandatory reason. The server verifies caller authorization (`sync_ops.actor_id = caller_id` or Admin/Owner), records the discard in `sync_ops`, appends an audit event, and returns confirmation. Only after server confirmation does the client permanently purge the entry from local Dexie storage.
 
@@ -1257,7 +1405,11 @@ interface OutboxOp {
           - `create_entry`:
             - Query database for the authoritative published profile effective on `entry_date`:
               `SELECT id, effective_from FROM rate_profiles WHERE status = 'published' AND effective_from <= (op.payload->>'entryDate')::date ORDER BY effective_from DESC, version DESC LIMIT 1`.
-            - Rate Profile Verification & Anti-Cherry-Picking (Finding A3, Rule #4, Item 3):
+            - Device Check & Remote Killswitch (H3, M4):
+              If `op.deviceId` is provided, server checks `devices WHERE id = op.deviceId`. If `revoked = true`, rejects with `{ opId: op.opId, status: 'rejected', reason: 'device_revoked' }`.
+            - Engine Version Check (H2):
+              If `(op.payload->'snapshot'->>'engineVersion')::int != 1`, rejects with `{ opId: op.opId, status: 'rejected', reason: 'upgrade_required' }`.
+            - Rate Profile Verification & Anti-Cherry-Picking (Finding A3, Rule #4, Item 3, H3):
               1. Submitted `rate_profile_id` MUST have `status = 'published'` and `effective_from <= entry_date` (otherwise reject with `{ opId: op.opId, status: 'rejected', reason: 'rate_profile_date_mismatch' }`).
               2. Let `v_expected_profile` be the highest-version profile with `status = 'published' AND effective_from <= entry_date AND version <= coalesce(op.maxKnownRateVersion, (op.payload->'snapshot'->>'version')::int)`. If `submitted_profile_id != v_expected_profile.id`, the client had a newer applicable profile in its local cache and cherry-picked an older one $\to$ reject with `{ opId: op.opId, status: 'rejected', reason: 'rate_profile_date_mismatch' }` (anti-cherry-picking, Test #41).
               3. Otherwise, let `v_latest_profile` be the highest-version published profile in the database with `effective_from <= entry_date`. If `submitted_profile_id != v_latest_profile.id`, a newer profile for `entry_date` was published on the server while the client was offline $\to$ accept the entry with `stale_rates = true` (offline stale rate preservation, Rule #4, Test #46, Test #9); otherwise `stale_rates = false`.
@@ -1311,7 +1463,7 @@ interface OutboxOp {
     - `400 Bad Request`: `since` missing, non-numeric, or negative.
     - `401 Unauthorized`: missing or invalid auth token.
     - `409 Conflict`: `since` cursor exceeds server max sequence (triggers client cache reset to 0).
-    - `410 Gone`: cursor pruned by retention policy (triggers client full resync).
+    - `410 Gone`: cursor pruned by retention policy (triggers client full resync; note: financial `entries` and `server_seq` are permanent and never pruned; 410 applies only if a future entry-archival window is enabled) (M2).
     - `429 Too Many Requests`: exceeded 60 requests/min; returns `Retry-After: <seconds>`.
 
 ### 9.2 State-Transition & Failure Recovery Matrices
@@ -1349,6 +1501,11 @@ Governs Dexie client `outbox` records across all server rejection reasons:
 | `invalid_snapshot_rules` | Submitted snapshot values do not match historical database profile | `error_invalid_snapshot` | Alert: "Rate snapshot rejected" | Client refreshes `rateProfiles` table via pull sync, re-snapshots against authoritative profile, assigns a fresh `opId`, sets `supersedesRejectedOpId`, and retries. |
 | `missing_txn_ref` | Payment method requires transaction reference, but none was provided | `error_missing_ref` | Alert: "Transaction reference required" | User inputs missing reference, client normalizes `upper(trim(txn_ref))`, assigns a fresh `opId`, sets `supersedesRejectedOpId`, and retries. |
 | `user_deactivated` | User account marked inactive (`active = false`) while device offline | `error_deactivated` | Modal: "Account deactivated" | Local save remains preserved in Dexie; outbox execution pauses; requires active Admin to log in on the device to export or reconcile local records. |
+| `parent_entry_not_found` | Dependent void or supersede operation references an original entry UUID that does not exist in `entries` | `failed_needs_review` | Alert: "Referenced entry not found" | Entry moves to Admin review queue. If original entry creation failed sync, retry original creation first; otherwise discard dependent op with audited reason (M1). |
+| `upgrade_required` | Client snapshot `engineVersion` incompatible with server calculation engine (HTTP 426) | `blocked_upgrade_required` | Modal: "Application update required" | Client reloads application / updates service worker bundle to obtain latest calculation engine; pending entries recompute snapshots and retry sync with fresh `opId` (H2, M1). |
+| `expected_poisha_mismatch` | Statement expected liability recomputation does not match sum of active entries for covered payables | `error_reconcile_mismatch` | Toast: "Expected liability mismatch" | Refresh statement view to load updated active ledger totals before retrying reconciliation (M1). |
+| `variance_exceeds_tolerance` | Statement net variance exceeds `reconcile_tolerance_poisha` and explanatory note is missing | `error_variance_tolerance` | Alert: "Variance exceeds tolerance" | Provide a non-empty explanatory note before re-submitting reconciliation (M1). |
+| `device_revoked` | Device has been marked revoked (`revoked = true`) via administrative killswitch | `blocked_device_revoked` | Modal: "Device access revoked" | Local data remains read-only in Dexie; outbox execution halted; user must contact Administrator to restore access or re-provision device (H3, M4). |
 
 UI: always-visible sync indicator in the header with states:
 - `Synced` (green dot)
@@ -1478,10 +1635,11 @@ When banks provide a single combined card settlement report (Visa + Mastercard):
 4. Line matching matches transaction references against active entries for either Visa or Mastercard.
 5. Month-Close Verification (F42): The `close_month()` procedure asserts that every active payable for that month has an active `statement_payables` record with `status = 'reconciled'` or is zero-liability (`settlements.status = 'not_applicable'`). This eliminates liability ambiguity and guarantees non-overlapping reconciliation.
 
-Matching Algorithm and Completion Criteria (F22, F24, F69):
-1. Exact `reference` equals entry `txn_ref` (within same method / covered scope).
-2. Same date and same gross amount, one-to-one only.
-3. Matching Uniqueness (F22): Enforced via unique index `uq_active_statement_line_entry` on `(statement_id, matched_entry_id) where matched_entry_id is not null and is_active_match = true`. This permits a single active ledger entry to be matched in multiple statements covering distinct payables (e.g., matching Entry #1 in a bKash fee statement and also in a VAT statement), while preventing duplicate matches within the same statement. When an uploaded statement is superseded, its lines transition to `is_active_match = false`, freeing matched entries to be re-matched in the replacement statement without destroying historical audit lines.
+Matching Algorithm and Disambiguation Rules (M6, F22, F24, F69):
+1. **Primary Pass (Exact Reference Equality)**: For statement lines where `reference IS NOT NULL` and entries where `txn_ref IS NOT NULL`, match if `upper(trim(line.reference)) = upper(trim(entry.txn_ref))` and entry payment method is covered by the statement.
+2. **Fallback Pass (Unique Date + Gross Match)**: For statement lines lacking a reference (common in certain card fee or bKash aggregator statements), attempt fallback matching where `line.line_date = entry.entry_date AND line.gross_poisha = entry.gross_poisha`. This fallback matches ONLY when there is **exactly one** unmatched active entry in the statement month with that exact date and gross. If multiple entries share the same date and gross, auto-match skips them to prevent ambiguous matching, leaving them `unmatched` for explicit manual matching via `match_statement_line`.
+3. **Matching Uniqueness (F22)**: Enforced via unique index `uq_active_statement_line_entry` on `(statement_id, matched_entry_id) where matched_entry_id is not null and is_active_match = true`. This permits a single active ledger entry to be matched in multiple statements covering distinct payables (e.g., matching Entry #1 in a bKash fee statement and also in a VAT statement), while preventing duplicate matches within the same statement. When an uploaded statement is superseded, its lines transition to `is_active_match = false`, freeing matched entries to be re-matched in the replacement statement without destroying historical audit lines.
+4. **Operational Unmatch Capability (H4)**: If an entry is mistakenly matched to a line, an Admin or Owner can call `unmatch_statement_line(line_id, reason, actor_id)` while the month is open. This resets the line to `match_status = 'unmatched'`, unlinks `matched_entry_id`, and cascades any reconciled statement covering that payable back to `'open'`.
 4. Line-Item Reconciliation Completion Criteria (F24, Finding 5, F65, F67, F68, F69):
    A file-based statement is strictly Reconciled only when ALL of the following conditions are met:
    - **Statement-Side Review (F69)**: Every statement line must either be `matched` to an active entry (`matched_entry_id is not null and is_active_match = true`) OR explicitly marked `accepted` with verified review evidence (`reviewed_by`, `reviewed_at`, and non-empty `review_note` enforced by database check constraint `chk_statement_line_acceptance`). Unmatched lines are accepted via `accept_statement_line(line_id, review_note, actor_id)` (Admin or Owner only).
@@ -1495,7 +1653,7 @@ Matching Algorithm and Completion Criteria (F22, F24, F69):
 - Local save under 100 ms. Report for a month with a few thousand entries under 1 s.
 - All business dates and month boundaries in Asia/Dhaka. Store `entry_date` as a `date`.
 - Currency BDT, formatted with South Asian grouping (Q12 default).
-- Security: RLS on, HTTPS only, service role key only on the server, input validated with Zod on client and server, audit log on sensitive actions, daily backups.
+- Security: RLS on, HTTPS only, service role key only on the server, input validated with Zod on client and server, audit log on sensitive actions, daily backups with Supabase Point-in-Time Recovery (PITR, 7-day retention horizon), quarterly restore drills, and daily automated encrypted export archives of ledger snapshots stored off-Supabase (e.g., S3/GCS) (m7).
 - Accessibility: WCAG AA contrast, 44px minimum touch targets, keyboard operable (including the floating menu), respects reduced motion and reduced transparency.
 - i18n-ready: no hardcoded UI strings outside the message catalog.
 
@@ -1534,6 +1692,7 @@ Matching Algorithm and Completion Criteria (F22, F24, F69):
       /reconcile/statements/supersede     # POST: supersede_statement
       /reconcile/statements/reconcile     # POST: reconcile_statement
       /reconcile/match-line               # POST: match_statement_line
+      /reconcile/unmatch-line             # POST: unmatch_statement_line (H4)
       /reconcile/accept-line              # POST: accept_statement_line
       /reconcile/exceptions               # POST: review_entry_reconciliation_exception
       /months/close                       # POST: close_month
@@ -1564,33 +1723,33 @@ All light-mode color tokens below are measured and verified against `#F6F5F1` (p
   --pearl-c: #F7EEEA;       /* faint blush */
   --surface: #FFFFFF;
   --ink: #14161A;
-  --muted: #5C6068;         /* 5.2:1 against #F6F5F1 */
-  --accent: #0B6B59;        /* dark jade - 5.2:1 against #F6F5F1, 5.6:1 against #FFFFFF */
+  --muted: #5C6068;         /* 5.78:1 against #F6F5F1 (m1: measured) */
+  --accent: #0B6B59;        /* dark jade - 5.90:1 against #F6F5F1, 6.44:1 against #FFFFFF (m1: measured) */
   --accent-2: #08556B;      /* deep teal, gradient end */
-  --c-commission: #0B6B59;  /* 5.2:1 */
-  --c-vat: #8C4F00;         /* deep amber-ochre - 5.5:1 against #F6F5F1 */
+  --c-commission: #0B6B59;  /* 5.90:1 */
+  --c-vat: #8C4F00;         /* deep amber-ochre - 5.95:1 against #F6F5F1 (m1: measured) */
   --c-vat-bg: #FFE8C2;      /* soft tinted pill background */
-  --c-bkash: #B80053;       /* deep magenta - 5.5:1 against #F6F5F1 */
+  --c-bkash: #B80053;       /* deep magenta - 6.09:1 against #F6F5F1 (m1: measured) */
   --c-bkash-bg: #FFD8EA;
-  --c-visa: #1A54B8;        /* deep royal blue - 5.6:1 against #F6F5F1 */
+  --c-visa: #1A54B8;        /* deep royal blue - 6.41:1 against #F6F5F1 (m1: measured) */
   --c-visa-bg: #DCE8FF;
-  --c-mastercard: #9E3600;  /* deep rust orange - 5.4:1 against #F6F5F1 */
+  --c-mastercard: #9E3600;  /* deep rust orange - 6.46:1 against #F6F5F1 (m1: measured) */
   --c-mastercard-bg: #FFDBC8;
   --radius: 18px;
 }
 [data-theme="dark"] {
   --bg: #0E1116; --surface: #161A21; --ink: #EDEEF0; --muted: #9AA0A8;
   --pearl-a: #14181F; --pearl-b: #181C26; --pearl-c: #1B1A22;
-  --accent: #14B89A;        /* 5.8:1 against dark bg */
+  --accent: #14B89A;        /* 7.52:1 against dark bg (m1: measured) */
   --accent-2: #2BB3D6;
   --c-commission: #14B89A;
-  --c-vat: #F5B041;         /* 7.2:1 */
+  --c-vat: #F5B041;         /* 10.06:1 against dark bg (m1: measured) */
   --c-vat-bg: #3D2B05;
-  --c-bkash: #F75990;       /* 5.4:1 */
+  --c-bkash: #F75990;       /* 6.11:1 against dark bg (m1: measured) */
   --c-bkash-bg: #420A21;
-  --c-visa: #64A0FF;        /* 6.8:1 */
+  --c-visa: #64A0FF;        /* 7.22:1 against dark bg (m1: measured) */
   --c-visa-bg: #0E254A;
-  --c-mastercard: #FF8C42;  /* 6.9:1 */
+  --c-mastercard: #FF8C42;  /* 8.18:1 against dark bg (m1: measured) */
   --c-mastercard-bg: #421B05;
 }
 ```
@@ -1763,6 +1922,10 @@ Every financial, settings, or role state mutation MUST write an append-only row 
 15. **Atomic Ownership Transfer (F15)**: Call `transfer_ownership(new_owner_id)`. Verify previous owner becomes admin, new owner becomes owner, and the deferrable 1-owner invariant trigger passes at transaction commit.
 16. **Multi-Payable Combined Card Reconciliation (F21, F22, F37, F55)**: Upload combined statement covering Visa and Mastercard. Match entries from both methods. Verify both payables satisfy month-close gating. Supersede statement and verify that previously matched entries can be matched in the replacement statement.
 17. **Month Close, Reconciliation, and Entry Sync Multi-Month Race Immunity (F32, F46, F56, Finding 2)**: Simulate concurrent execution of `rpc_push_sync_op` (with a batch touching multiple months in reverse order), `reconcile_statement`, and `close_month`. Verify that ascending month advisory lock acquisition (`pg_advisory_xact_lock(1001, year*12 + month)`) prevents deadlocks and ensures atomic isolation.
+18. **Statement Line Unmatching Cascade (H4, Test #53)**: In Mode B, match an entry to a statement line, then call `unmatch_statement_line(line_id, reason, actor_id)`. Verify line resets to `unmatched`, `matched_entry_id = null`, and any parent statement and covered `statement_payables` previously marked `'reconciled'` revert to `'open'`.
+19. **Reconciliation Exception Flip Invalidation (H5, Test #54)**: Reconcile a statement citing an approved entry reconciliation exception. Later, flip that exception to `rejected` while the month is open. Verify statement and `statement_payables` automatically revert to `'open'`.
+20. **Live Settlement Recalculation Trigger (H1, Test #55)**: Insert, void, and supersede entries in an open month without running `generate_monthly_settlements`. Verify `settlements.expected_poisha` updates dynamically via `trg_entries_recalc_settlements`.
+21. **Engine Version Skew Enforcement (H2, Test #56)**: Submit a sync op with snapshot `engineVersion = 999`. Verify server hard-rejects with `426 upgrade_required`.
 18. **Discard Authorization and Provenance (F14, F35)**: A Staff user calls `discard_rejected_entry` on their own rejected operation. Verify authorization passes. Verify an attempt by another Staff user to discard it is rejected with `403 unauthorized`.
 19. **Non-Overlapping Statement Coverage (F37, F55)**: Attempt to insert a statement for Visa while an active combined card statement covering Visa already exists for the same month. Verify rejection by `uq_active_statement_coverage`.
 20. **Zero-Liability Settlement Status (F38, F50)**: For a month with zero Mastercard entries, verify `settlements.status` is `'not_applicable'` and satisfies `close_month()` gating without requiring payments.
@@ -1810,7 +1973,7 @@ Every financial, settings, or role state mutation MUST write an append-only row 
 
 | M | Scope | Definition of Done |
 |---|---|---|
-| M0 | Monorepo, Supabase project, migrations from section 7 (with table-level write revocations on all 17 public tables, RLS enabled on all 17 tables, 2-integer collision-free advisory lock triggers with sequence lock throughput budget, deferrable owner trigger, draft/published rate profiles with Asia/Dhaka publication check and server-side 100% deduction guard, immutable payment methods code, method activation guard, payable consistency constraints & unique partial indexes, NULL-safe JSONB constraints, first-of-month check constraints, security-invoker views with explicit grants/revokes, composite statement foreign keys, scoped entry_reconciliation_exceptions table, statement_lines acceptance constraint, statement_lines unique index on `(statement_id, matched_entry_id)`, settlement overpayment amount binding with dynamic recalc triggers, `sync_ops` schema with payload jsonb, resolution status, and partial unique index on supersession, and audit log), seed methods and payables, `packages/calc` engine with all fixtures (P1–P6), design tokens and glass components | `packages/calc` fixtures pass (including 6.7 percent_inclusive, P4 percent_of_gross, P5 customer-borne, P6 overrides, and F20 mutual exclusivity); migrations apply cleanly; RLS tests pass; Tests #1 (forged snapshot), #2 (commit-order sequence race), #4 (JSON string precision), #14 (rate profile immutability), #15 & #44 (atomic two-step ownership transfer), #21 (method code immutability), #22 (Postgres privileges), #28 (method activation guard), #29 (statement month FK), #30 (view security isolation), #31 & #48 (lock hierarchy deadlock immunity), #32 (supersede active check), #33 (duplicate payables prevention), #36 (first-of-month date checks), #38 (accepted statement line evidence), #39 (first-time month close upsert), #41 (date-effective rate profile verification), #42 (NULL-safe JSONB constraint), #45 (table-level write revocations), #49 (settlements update & overpayment invalidation), #50 (`txn_ref` normalization & enforcement), and #51 (statement line auto-unmatch on void/supersede) pass |
+| M0 | Monorepo, Supabase project, migrations from section 7 (with table-level write revocations on all 17 public tables, RLS enabled on all 17 tables, 2-integer collision-free advisory lock triggers with sequence lock throughput budget, deferrable owner trigger, draft/published rate profiles with Asia/Dhaka publication check and server-side 100% deduction guard, immutable payment methods code, method activation guard, payable consistency constraints & unique partial indexes, NULL-safe JSONB constraints, first-of-month check constraints, security-invoker views with explicit grants/revokes, composite statement foreign keys, scoped entry_reconciliation_exceptions table, statement_lines acceptance constraint, statement_lines unique index on `(statement_id, matched_entry_id)`, settlement overpayment amount binding with dynamic recalc triggers, `sync_ops` schema with payload jsonb, resolution status, and partial unique index on supersession, and audit log), seed methods and payables, `packages/calc` engine with all fixtures (P1–P6), design tokens and glass components | `packages/calc` fixtures pass (including 6.7 percent_inclusive, P4 percent_of_gross, P5 customer-borne, P6 overrides, and F20 mutual exclusivity); migrations apply cleanly; bootstrap runbook script (`scripts/bootstrap.ts`) runs end-to-end on clean database (H6); RLS tests pass; Tests #1 (forged snapshot), #2 (commit-order sequence race), #4 (JSON string precision), #14 (rate profile immutability), #15 & #44 (atomic two-step ownership transfer), #21 (method code immutability), #22 (Postgres privileges), #28 (method activation guard), #29 (statement month FK), #30 (view security isolation), #31 & #48 (lock hierarchy deadlock immunity), #32 (supersede active check), #33 (duplicate payables prevention), #36 (first-of-month date checks), #38 (accepted statement line evidence), #39 (first-time month close upsert), #41 (date-effective rate profile verification), #42 (NULL-safe JSONB constraint), #45 (table-level write revocations), #49 (settlements update & overpayment invalidation), #50 (`txn_ref` normalization & enforcement), #51 (statement line auto-unmatch on void/supersede), and #55 (live settlement recalculation trigger) pass |
 | M1 | Auth, three roles, role dashboards (basic), admin rates and methods and payables, new entry with live breakdown, ledger list, **local-first save with IndexedDB (Dexie) and outbox** (with date-effective rate profile resolution, embedded `methodRates` in DTO, and offline Supabase JWT expiration handling), initial entry sync endpoint (Rule #7: never block a Save on connectivity) | Entry 1 from 6.6 reproduces exactly, saved locally to Dexie while in airplane mode; automatically syncs to Supabase on reconnect; Staff sees only own entries; Tests #12 (staff cursor watermark) and #27 (Asia/Dhaka timezone metrics) pass |
 | M2 | Full sync engine (`sync_ops` idempotency with independent server hash verification, subtransaction fault isolation, cursor pull pagination with metadata bloat protection, sync indicator, rejected ops queue for Admin/Owner dashboard), reports and payables summary, settlement tracking with `settlement_payments` (including reversals, parent row locking, dynamic status recomputation via trigger, surplus amount binding & invalidation) and reminders, manual reconciliation (totals-only mode shipping first with 100 poisha tolerance, scoped entry exception review evidence), month close gating (Owner overpayment approval evidence matching surplus), CSV and PDF export, audit log viewer | Full offline→sync cycle passes e2e; month totals match 6.6 totals; close month gated by reconciliation and overpayment approvals; Tests #5 & #43 (customer fees settlement isolation), #6 (settlement recalculation), #7 (month close lifecycle), #8 (concurrent supersedes), #11 (server payload hash), #13 (payment reversals), #17 & #48 (multi-month lock ordering & trigger deadlock immunity), #20 & #26 (5-state settlements), #23 (statement invalidation cascade), #24 (subtransaction fault isolation), #34 (reconciliation exception & overpayment gating), #35 (concurrent payment parent locking & dynamic overpayment invalidation), #37 (scoped exception isolation), #40 (totals-only manual reconciliation), #48 (cross-table lock inversion immunity), #49 (settlements status recalc & overpayment invalidation), #50 (`txn_ref` normalization & enforcement), #51 (statement line auto-unmatch), and #52 (dual-payable matching & customer-borne exemption) pass |
 | M3 | PWA service worker and installability, stale-rate handling (Rule #4 offline preservation vs anti-cherry-picking), advanced sync edge cases (closed-month rejection with complete recovery matrix including fresh-op retry, date reassignment, and discard op, void vs supersede conflict, rejected ops dashboard queue), performance tuning | No lost entries on kill and restart; Tests #3 (rejected-op fresh retry), #9 & #25 (offline retention & expiry queue), #10 (account deactivation), #18 (discard authorization), #46 (offline stale rate preservation & admin alert), and #47 (rejected op persistence & dashboard queue) pass; PWA install works |
@@ -1820,7 +1983,9 @@ Every financial, settings, or role state mutation MUST write an append-only row 
 
 ## 18. Implementation Readiness Gate
 
-Before any coding agent or team deploys code to production or closes Milestone M2, the system must satisfy the five Implementation Readiness Gates:
+The five Implementation Readiness Gates establish mandatory verification criteria before deployment. To align with milestone deliverables (M7):
+- **Milestone M2 Gate**: Gates 1, 2, 3, and 4 (Database Proof, Financial Proof, Sync Proof, Lifecycle Proof) MUST be 100% satisfied and verified before signing off Milestone M2.
+- **Production / Launch Gate**: All five gates (including Gate 5: Accessibility & Visual Proof) MUST be 100% satisfied before closing Milestone M3/M5 and deploying to production.
 
 1. **Database Proof**:
    - All migrations apply cleanly to a clean Supabase / PostgreSQL 15+ database instance.
@@ -1832,7 +1997,7 @@ Before any coding agent or team deploys code to production or closes Milestone M
    - Unique partial indexes `uq_active_vat_payable` and `uq_active_method_payable` physically prevent duplicate active liabilities for VAT or any payment method (Finding 4).
    - Unique index on `statement_lines` is scoped to `(statement_id, matched_entry_id) where matched_entry_id is not null and is_active_match = true`, allowing a single entry to match lines across separate payables (e.g. VAT vs bKash charge).
    - Triggers for immutable rate profiles (with Asia/Dhaka publish check and 100% deduction upper-bound guard), immutable entries, immutable settlement payments, immutable payment method codes (`trg_payment_methods_immutable_code`), method activation profile guard (`trg_payment_methods_active_rate_check`), sole sequence allocator (`trg_entries_server_seq`), statement line auto-unmatching on entry void/supersede (`trg_entries_unmatch_statement_lines`), settlement status recalculation and overpayment invalidation (`trg_settlements_recalc_status_and_overpayment`), and append-only `audit_log` block unauthorized mutation or deletion.
-   - Atomic RPC functions (`transfer_ownership`, `publish_rate_profile`, `rpc_push_sync_op`, `rpc_supersede_entry`, `reconcile_statement`, `review_entry_reconciliation_exception`, `approve_settlement_overpayment`, `accept_statement_line`, `close_month`, `reopen_month`, `generate_monthly_settlements`, `record_settlement_payment`, `create_or_update_draft_rate_profile`, `create_statement`, `supersede_statement`, `match_statement_line`, `admin_manage_payment_method`, `admin_manage_payable`, `admin_update_settings`, `admin_manage_user`) execute within single database transactions without partial commits, with strict `search_path = public, pg_temp` (Item 4, Item 5).
+   - Atomic RPC functions (`transfer_ownership`, `publish_rate_profile`, `rpc_push_sync_op`, `rpc_supersede_entry`, `reconcile_statement`, `review_entry_reconciliation_exception`, `approve_settlement_overpayment`, `accept_statement_line`, `close_month`, `reopen_month`, `generate_monthly_settlements`, `record_settlement_payment`, `create_or_update_draft_rate_profile`, `create_statement`, `supersede_statement`, `match_statement_line`, `admin_manage_payment_method`, `admin_manage_payable`, `admin_update_settings`, `admin_manage_user`, `unmatch_statement_line`, `admin_manage_device`) execute within single database transactions without partial commits, with strict `search_path = public, pg_temp` (Item 4, Item 5).
    - Routine execution is explicitly revoked from `PUBLIC`, `anon`, and `authenticated`, and granted exclusively to `service_role` (Finding 1).
    - Views (`v_monthly_totals`, `v_monthly_method_charges`, `v_staff_personal_metrics`) are defined `with (security_invoker = true)` with explicit role permissions (`revoke all ... from public, anon, authenticated; grant select ... to service_role;` on managerial views; `grant select ... to authenticated, service_role;` on staff metrics) and verified under actual Staff, Admin, and Owner credentials (Finding 1).
    - Composite foreign keys guarantee `statement_payables.month` strictly matches parent `statements.month`.
@@ -1871,7 +2036,7 @@ Before any coding agent or team deploys code to production or closes Milestone M
    - Modifying entries in an open month triggers a cascading invalidation resetting both parent `statements` and child `statement_payables` rows to `'open'`, unmatches statement lines pointing to voided/superseded entries, and invalidates stale overpayment approvals.
    - Entry supersession requires the original to be `active` (`original.status = 'active'`) and verifies neither original nor replacement month is closed, preventing historical branching while maintaining the single active successor guarantee and preserving side-by-side audit history (Finding 3).
 5. **Accessibility & Visual Proof**:
-   - Design system tokens verified to meet WCAG AA $\ge 4.5:1$ contrast against `#F6F5F1` in light mode: `--accent: #0B6B59` (5.2:1), `--c-vat: #8C4F00` (5.5:1), `--c-bkash: #B80053` (5.5:1), `--c-visa: #1A54B8` (5.6:1), `--c-mastercard: #9E3600` (5.4:1) (Finding C1).
+   - Design system tokens verified to meet WCAG AA $\ge 4.5:1$ contrast against `#F6F5F1` in light mode: `--muted: #5C6068` (5.78:1), `--accent: #0B6B59` (5.90:1 against `#F6F5F1`, 6.44:1 against `#FFFFFF`), `--c-vat: #8C4F00` (5.95:1), `--c-bkash: #B80053` (6.09:1), `--c-visa: #1A54B8` (6.41:1), `--c-mastercard: #9E3600` (6.46:1), and dark mode tokens $\ge 6.11:1$ (m1: measured).
    - Solid-color fallback for button text ensures readability over variable glass backgrounds and in Android WebView where `background-clip: text` can fail (Finding C2).
    - Floating draggable action menu includes default docked position (`bottom: 24px; right: 24px`) and collision avoidance auto-dodging to ensure it never covers the primary Save button (`#btn-save`) (Finding C3).
    - High-contrast styles (`@media (prefers-contrast: more)`) and reduced-transparency styles (`@media (prefers-reduced-transparency: reduce)`) verified across all views.
@@ -1883,6 +2048,7 @@ Before any coding agent or team deploys code to production or closes Milestone M
 |---|---|
 | Business rules differ from assumptions (VAT, Final, charges) | All rules configurable; per-entry overrides with reasons; fixtures from the paper ledger |
 | Offline entries use old rates | Snapshot per entry, `stale_rates` flag, Admin dashboard alert |
+| Adversarial cherry-picking via client-attested watermark (H3) | `maxKnownRateVersion` is an honest-client heuristic; cross-referenced with server `devices.last_rate_version`; high-value stale-rate entries flagged for admin review |
 | Glass and blur hurt performance on low-end phones | Blur only on menu, buttons, sheets; reduced-transparency fallback; test on a low-end Android |
 | Supabase free tier limits or pausing | Plan for a paid tier in production; verify current limits |
 | Statement formats unknown | Adapter interface plus manual-total path ships first |
