@@ -1,0 +1,391 @@
+import {
+  db,
+  type LocalEntry,
+  type CachedRateProfile,
+  type CachedPaymentMethod,
+  type CachedPayable,
+  type CachedProfile,
+  type CachedSettlement,
+  type CachedStatement,
+} from '$lib/db';
+import { getOrGenerateDeviceId } from '$lib/auth/device';
+import { supabase } from '$lib/supabase/client';
+import { syncRunner } from './runner.svelte';
+
+export interface PullResponseDto {
+  entries: Array<{
+    id: string;
+    server_seq: string | number;
+    entry_number?: string | number | null;
+    entry_date: string;
+    customer_name: string;
+    sub_qty: number;
+    sub_description?: string | null;
+    method_id: string;
+    gross_poisha: string | number;
+    vat_poisha: string | number;
+    commission_poisha: string | number;
+    charge_poisha: string | number;
+    business_charge_poisha: string | number;
+    customer_charge_poisha: string | number;
+    net_poisha: string | number;
+    txn_ref?: string | null;
+    notes?: string | null;
+    status: 'active' | 'voided' | 'superseded';
+    created_by: string;
+    created_at: string;
+    stale_rates: boolean;
+    rate_profile_id: string;
+    supersedes_id?: string | null;
+    device_id?: string | null;
+    snapshot?: Record<string, unknown> | null;
+  }>;
+  hasMore: boolean;
+  nextCursor: string;
+  settings?: Record<string, unknown>;
+  rateProfiles?: Array<{
+    id: string;
+    version: number;
+    status: 'draft' | 'published';
+    effective_from: string;
+    vat_mode: 'manual' | 'percent_of_gross' | 'percent_inclusive';
+    vat_bp: number;
+    commission_bp: number;
+    commission_base: 'gross_minus_vat' | 'gross';
+    charges_borne_by: 'business' | 'customer';
+    note?: string | null;
+    method_rates: Record<string, { fee_bp: number; charges_borne_by: 'business' | 'customer' }>;
+  }>;
+  methods?: Array<{
+    id: string;
+    code: string;
+    name: string;
+    requires_txn_ref: boolean;
+    sort_order: number;
+    active: boolean;
+  }>;
+  payables?: Array<{
+    id: string;
+    kind: 'vat' | 'method_charge';
+    method_id?: string | null;
+    name: string;
+    due_day: number;
+    remind_days_before: number;
+    active: boolean;
+  }>;
+  monthCloses?: Array<{
+    month: string;
+    status: 'open' | 'closed';
+  }>;
+  profiles?: Array<{
+    id: string;
+    full_name: string;
+    role: 'staff' | 'admin' | 'owner';
+    active: boolean;
+  }>;
+  settlements?: Array<{
+    id: string;
+    month: string;
+    payable_id: string;
+    expected_poisha?: string | number | null;
+    paid_poisha?: string | number | null;
+    variance_poisha?: string | number | null;
+    status: CachedSettlement['status'];
+    note?: string | null;
+    overpayment_review_status?: string | null;
+    overpayment_approved_amount_poisha?: string | number | null;
+    overpayment_reason?: string | null;
+    overpayment_approved_by?: string | null;
+    overpayment_approved_at?: string | null;
+  }>;
+  statements?: Array<{
+    id: string;
+    month: string;
+    kind: CachedStatement['kind'];
+    source: CachedStatement['source'];
+    status: CachedStatement['status'];
+    statement_total_poisha?: string | number | null;
+    expected_poisha?: string | number | null;
+    variance_poisha?: string | number | null;
+    reconciled_at?: string | null;
+    reconciled_by?: string | null;
+  }>;
+  rejectedOps?: Array<{
+    op_id: string;
+    actor_id: string;
+    device_id: string;
+    op_type: string;
+    entry_id?: string | null;
+    payload: Record<string, unknown>;
+    reason: string;
+    resolution_status: 'pending' | 'resolved' | 'discarded';
+    created_at: string;
+  }>;
+}
+
+/**
+ * Executes incremental cursor pull with metadata pagination bloat protection.
+ * Handles HTTP error codes (401, 403, 409, 410, 429), normalizes schema columns,
+ * transforms method rates into dictionary maps, and stores cursor with updated_at in db.meta.
+ */
+export async function executeIncrementalPull(): Promise<void> {
+  const deviceId = getOrGenerateDeviceId();
+
+  const metaCursorRow = await db.meta.get('server_cursor');
+  let cursor = (metaCursorRow?.value as string) || localStorage.getItem('clt_server_cursor') || '0';
+
+  let hasMore = true;
+  let isFirstBatch = true;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  let token = session?.access_token;
+
+  while (hasMore) {
+    const includeMeta = isFirstBatch;
+    const url = `/api/v1/sync/pull?since=${cursor}&includeMeta=${includeMeta}&deviceId=${deviceId}`;
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch {
+      // Network drop: throw to let caller update status to offline
+      throw new Error('network_offline');
+    }
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        const refreshed = await supabase.auth.refreshSession();
+        if (refreshed.data.session) {
+          token = refreshed.data.session.access_token;
+          continue;
+        }
+        throw new Error('auth_session_expired');
+      }
+
+      if (res.status === 403) {
+        const err = await res.json().catch(() => ({}));
+        if (err.error === 'device_revoked') {
+          syncRunner.stop();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('clt:device-revoked'));
+          }
+          throw new Error('device_revoked');
+        }
+        throw new Error('user_forbidden');
+      }
+
+      if (res.status === 409) {
+        // Cursor past watermark: reset cursor to '0' and retry immediately (PRD §9.1(b))
+        cursor = '0';
+        localStorage.setItem('clt_server_cursor', '0');
+        await db.meta.put({ key: 'server_cursor', value: '0', updated_at: new Date().toISOString() });
+        continue;
+      }
+
+      if (res.status === 410) {
+        // Sync gap exceeded (>90d ops purged): full resync required
+        cursor = '0';
+        localStorage.setItem('clt_server_cursor', '0');
+        await db.meta.put({ key: 'server_cursor', value: '0', updated_at: new Date().toISOString() });
+        continue;
+      }
+
+      if (res.status === 429) {
+        const retryAfter = res.headers.get('Retry-After') || '60';
+        throw new Error(`rate_limit_exceeded:${retryAfter}`);
+      }
+
+      throw new Error(`pull_failed_http_${res.status}`);
+    }
+
+    const data: PullResponseDto = await res.json();
+
+    // Ingest relational configuration and metadata on first batch only
+    if (includeMeta) {
+      if (data.rateProfiles && Array.isArray(data.rateProfiles)) {
+        const cachedProfiles: CachedRateProfile[] = data.rateProfiles.map((p) => ({
+          id: p.id,
+          version: p.version,
+          status: p.status,
+          effective_from: p.effective_from,
+          vat_mode: p.vat_mode,
+          vat_bp: p.vat_bp,
+          commission_bp: p.commission_bp,
+          commission_base: p.commission_base,
+          charges_borne_by: p.charges_borne_by,
+          note: p.note ?? undefined,
+          method_rates: p.method_rates,
+        }));
+        await db.rateProfiles.bulkPut(cachedProfiles);
+      }
+
+      if (data.methods && Array.isArray(data.methods)) {
+        const mappedMethods: CachedPaymentMethod[] = data.methods.map((m) => ({
+          id: m.id,
+          code: m.code,
+          name: m.name,
+          requires_txn_ref: m.requires_txn_ref,
+          display_order: m.sort_order, // Map Postgres sort_order to Dexie display_order
+          active: m.active,
+        }));
+        await db.methods.bulkPut(mappedMethods);
+      }
+
+      if (data.payables && Array.isArray(data.payables)) {
+        const mappedPayables: CachedPayable[] = data.payables.map((p) => ({
+          id: p.id,
+          name: p.name, // Required DDL column name
+          kind: p.kind,
+          method_id: p.method_id ?? undefined,
+          recipient_name: p.name,
+          recipient_account: '',
+          due_day: p.due_day,
+          active: p.active,
+        }));
+        await db.payables.bulkPut(mappedPayables);
+      }
+
+      if (data.monthCloses && Array.isArray(data.monthCloses)) {
+        await db.monthCloses.bulkPut(data.monthCloses);
+      }
+
+      if (data.settings) {
+        // String key 'true' conforms strictly to W3C IndexedDB spec key requirements
+        await db.appSettings.put({
+          id: 'true',
+          net_label: (data.settings.net_label as string) ?? 'Net after deductions',
+          reconcile_tolerance_poisha: (data.settings.reconcile_tolerance_poisha as string) ?? '100',
+          updated_at: (data.settings.updated_at as string) ?? new Date().toISOString(),
+        });
+      }
+
+      if (data.profiles && Array.isArray(data.profiles)) {
+        const mappedProfiles: CachedProfile[] = data.profiles.map((p) => ({
+          id: p.id,
+          role: p.role,
+          display_name: p.full_name, // Map Postgres full_name to Dexie display_name
+          active: p.active,
+          default_route: p.role === 'staff' ? '/entries/new' : '/dashboard',
+          created_at: new Date().toISOString(),
+        }));
+        await db.profiles.bulkPut(mappedProfiles);
+      }
+
+      if (data.settlements && Array.isArray(data.settlements)) {
+        const mappedSettlements: CachedSettlement[] = data.settlements.map((s) => ({
+          id: s.id,
+          month: s.month,
+          payable_id: s.payable_id,
+          expected_poisha: s.expected_poisha?.toString() ?? '0',
+          paid_poisha: s.paid_poisha?.toString() ?? '0',
+          variance_poisha: s.variance_poisha?.toString() ?? '0',
+          status: s.status,
+          overpayment_review_status:
+            s.overpayment_review_status === 'approved' ? 'approved' : s.overpayment_review_status === 'none' ? 'none' : undefined,
+          note: s.note ?? undefined,
+          overpayment_approved_amount_poisha: s.overpayment_approved_amount_poisha?.toString() ?? undefined,
+          overpayment_reason: s.overpayment_reason ?? undefined,
+          overpayment_approved_by: s.overpayment_approved_by ?? undefined,
+          overpayment_approved_at: s.overpayment_approved_at ?? undefined,
+        }));
+        await db.settlements.bulkPut(mappedSettlements);
+      }
+
+      if (data.statements && Array.isArray(data.statements)) {
+        const mappedStatements: CachedStatement[] = data.statements.map((st) => ({
+          id: st.id,
+          month: st.month,
+          kind: st.kind,
+          source: st.source,
+          status: st.status,
+          total_gross_poisha: st.statement_total_poisha?.toString() ?? undefined,
+          expected_poisha: st.expected_poisha?.toString() ?? undefined,
+          variance_poisha: st.variance_poisha?.toString() ?? undefined,
+          reconciled_at: st.reconciled_at ?? undefined,
+          reconciled_by: st.reconciled_by ?? undefined,
+        }));
+        await db.statements.bulkPut(mappedStatements);
+      }
+
+      if (data.rejectedOps && Array.isArray(data.rejectedOps)) {
+        const serverPendingOpIds = new Set(data.rejectedOps.map((op) => op.op_id));
+
+        // Prune local pending ops that were resolved or discarded on the server
+        const localPending = await db.rejectedOps.where('status').equals('pending').toArray();
+        for (const localOp of localPending) {
+          if (!serverPendingOpIds.has(localOp.opId)) {
+            await db.rejectedOps.delete(localOp.opId);
+          }
+        }
+
+        for (const op of data.rejectedOps) {
+          await db.rejectedOps.put({
+            opId: op.op_id,
+            entry_id: op.entry_id ?? undefined,
+            error_code: op.reason,
+            error_message: op.reason,
+            rejected_at: op.created_at,
+            status: op.resolution_status,
+            payload: op.payload,
+          });
+        }
+      }
+    }
+
+    // Ingest visible entries returned from monotonic SQL query
+    if (data.entries && data.entries.length > 0) {
+      for (const entry of data.entries) {
+        const localEntry: LocalEntry = {
+          id: entry.id,
+          entry_number: entry.entry_number
+            ? `E-${entry.entry_date.replace(/-/g, '').substring(0, 6)}-${entry.entry_number.toString().padStart(6, '0')}`
+            : undefined,
+          local_id: `#LOCAL-${entry.id.substring(0, 6)}`,
+          entry_date: entry.entry_date,
+          customer_name: entry.customer_name,
+          sub_qty: entry.sub_qty,
+          sub_description: entry.sub_description ?? undefined,
+          method_id: entry.method_id,
+          gross_poisha: entry.gross_poisha.toString(),
+          vat_poisha: entry.vat_poisha.toString(),
+          commission_poisha: entry.commission_poisha.toString(),
+          charge_poisha: entry.charge_poisha !== undefined && entry.charge_poisha !== null
+            ? entry.charge_poisha.toString()
+            : (BigInt(entry.business_charge_poisha) + BigInt(entry.customer_charge_poisha)).toString(),
+          business_charge_poisha: entry.business_charge_poisha.toString(),
+          customer_charge_poisha: entry.customer_charge_poisha.toString(),
+          net_poisha: entry.net_poisha.toString(),
+          txn_ref: entry.txn_ref ?? undefined,
+          notes: entry.notes ?? undefined,
+          status: entry.status,
+          sync_status: 'synced',
+          created_by: entry.created_by,
+          created_at: entry.created_at,
+          server_seq: entry.server_seq.toString(),
+          stale_rates: entry.stale_rates,
+          rate_profile_id: entry.rate_profile_id,
+          supersedes_id: entry.supersedes_id ?? undefined,
+          device_id: entry.device_id ?? undefined,
+          snapshot: (entry.snapshot as unknown as LocalEntry['snapshot']) ?? undefined,
+        };
+
+        await db.entries.put(localEntry);
+      }
+    }
+
+    cursor = data.nextCursor;
+    localStorage.setItem('clt_server_cursor', cursor);
+    await db.meta.put({
+      key: 'server_cursor',
+      value: cursor,
+      updated_at: new Date().toISOString(),
+    });
+
+    hasMore = data.hasMore;
+    isFirstBatch = false;
+  }
+}
