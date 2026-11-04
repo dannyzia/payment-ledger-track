@@ -134,4 +134,16 @@ While implementing Plan 004, three spec-block conflicts surfaced between plans 0
 7. **Port note:** a stale `vite preview` of an old static build serves 5173 (no API routes — Plan 011 acceptance ran against a fresh `vite dev` on 5174, then the dev server was stopped).
 
 **Effect:** sync.test.ts 10/10; web suites 41/41; root suite 99/99; svelte-check 0 errors/0 warnings; lint and typecheck clean; unauthenticated `POST /api/v1/sync/push` and `GET /api/v1/sync/pull` return HTTP 401 (curl on the dev server).
+
+## CLT-D-016: Plan 012 snapshot-field alignment and lint/a11y sweep on ledger code (2026-11-04)
+
+1. **Snapshot rates panel realigned to the authoritative `RateSnapshot` (Rule 3):** the plan's `EntryDetailDrawer` invented snapshot field names (`rateProfileVersion`, `vatMode`, `vatBp`, `commissionBp`, `methodFeeBp`, `roundingRule`) that do not exist on `@clt/calc`'s `RateSnapshot`. Mapped to the real fields — `version`, `vat.mode`/`vat.bp`, `commission.bp`/`commission.base`, `chargeBp`, `rounding` — same semantics, plus the snapshot's commission base shown for auditability.
+2. **Drill-down `status` param validated:** `page.url.searchParams.get('status')` cast `as LedgerFilters['status']` before assigning into typed filter state (plan assigned a raw `string`).
+3. **Typed debounce timer:** plan's `searchTimer: any` → `ReturnType<typeof setTimeout> | undefined` (CLT-D-013 pattern).
+4. **Drawer dialog elements:** both verbatim `<aside role="dialog">` wrappers changed to `<div role="dialog">`, matching the Plan 008 `CommandPalette.svelte` precedent; svelte's `a11y_no_noninteractive_element_to_interactive_role` fires for the semantic `<aside>` only. Closing tags adjusted accordingly.
+5. **Filter draft initialized without capturing initial value:** plan's `let draft = $state<LedgerFilters>({ ...filters })` triggered svelte's `state_referenced_locally` warning; the drawer's existing `$effect(() => { draft = { ...filters }; })` already syncs on mount and on filter change, so the initializer became `{}`.
+6. **`VoidRequestModal` submit helper:** verbatim inline `await onsubmit(...)` inside the submit-event handler split into a `submit()` helper invoked non-floating, with `console.error` reduced to the error message (CLT-D-013 catch-pattern).
+7. **Keyed each blocks:** `{#each methods as m (m.id)}`, `profiles as p (p.id)`, and `dayGroups as day (day.date)` keyed for Svelte 5 each-key consistency (plan's method/profile eaches were unkeyed).
+
+**Effect:** ledger.test.ts 9/9 (search prefix normalization + numeric isolation, intra-day ordering, active-only daily subtotals, void request/execute outbox queueing with watermark, closed-month lockout rejecting both paths with no outbox rows, Test #32 inactive guards, Test #57 stale matching); web suites 50/50; root suite 99/99 after `db:reset` (exit 0); svelte-check 0/0; root lint and typecheck clean.
 6. ESLint `@typescript-eslint/no-explicit-any` fired on the verbatim spec code (`syncFromSupabaseSession(sbSession: any)`, `app_metadata` cast, three `catch (err: any)`), plus an unused `session` import in the root layout. Replaced with the supabase-js `Session` type, a `UserSessionProfile['role']` cast, and `err: unknown` narrowing (`err instanceof Error ? err.message : fallback`) — behavior-identical; guard/redirect tests unchanged and passing.
