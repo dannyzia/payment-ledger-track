@@ -1,53 +1,45 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
-import { getCallerContext, requireRole } from '$lib/server/auth';
+import { getCallerContext } from '$lib/server/auth';
 import { getServiceSupabase } from '$lib/server/supabase';
 
 const transferSchema = z.object({
-  newOwnerUserId: z.string().uuid(),
+  newOwnerId: z.string().uuid(),
+  confirmationPhrase: z.literal('TRANSFER OWNERSHIP'),
 });
 
 export const POST: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
-  requireRole(caller, ['owner']);
-
-  const body = await event.request.json().catch(() => null);
-  const parsed = transferSchema.safeParse(body);
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (caller.role !== 'owner') {
+    return new Response(JSON.stringify({ error: 'owner_only_operation' }), { status: 403 });
   }
 
-  const { newOwnerUserId } = parsed.data;
+  const body = await event.request.json();
+  const parsed = transferSchema.safeParse(body);
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ error: 'invalid_confirmation' }), { status: 400 });
+  }
 
-  if (newOwnerUserId === caller.userId) {
-    return new Response(JSON.stringify({ error: 'cannot_transfer_to_self', message: 'Cannot transfer ownership to yourself.' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  // Prevent self-transfer deadlock
+  if (parsed.data.newOwnerId === caller.userId) {
+    return new Response(JSON.stringify({ error: 'cannot_transfer_to_self' }), { status: 400 });
   }
 
   const supabase = getServiceSupabase();
-
   const { error } = await supabase.rpc('transfer_ownership', {
-    p_new_owner_id: newOwnerUserId,
+    p_new_owner_id: parsed.data.newOwnerId,
     p_caller_id: caller.userId,
   });
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 422,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(JSON.stringify({ error: error.message }), { status: 422 });
   }
 
-  // Synchronize app_metadata for both parties
+  // Synchronize GoTrue app_metadata claims for both demoted and promoted owners
   await supabase.auth.admin.updateUserById(caller.userId, {
     app_metadata: { role: 'admin' },
   });
-  await supabase.auth.admin.updateUserById(newOwnerUserId, {
+  await supabase.auth.admin.updateUserById(parsed.data.newOwnerId, {
     app_metadata: { role: 'owner' },
   });
 

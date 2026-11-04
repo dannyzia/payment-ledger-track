@@ -1,78 +1,108 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
-import { getCallerContext, requireRole } from '$lib/server/auth';
+import { getCallerContext } from '$lib/server/auth';
 import { getServiceSupabase } from '$lib/server/supabase';
 
-const manageUserSchema = z.object({
-  targetUserId: z.string().uuid(),
-  action: z.enum(['update_role', 'deactivate', 'reactivate']),
-  newRole: z.enum(['staff', 'admin']).optional(),
-});
+const userManageSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('update_role'),
+    userId: z.string().uuid(),
+    role: z.enum(['staff', 'admin']),
+  }),
+  z.object({
+    action: z.literal('deactivate'),
+    userId: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal('reactivate'),
+    userId: z.string().uuid(),
+  }),
+]);
 
-export const POST: RequestHandler = async (event) => {
+export const GET: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
-  requireRole(caller, ['admin', 'owner']);
-
-  const body = await event.request.json().catch(() => null);
-  const parsed = manageUserSchema.safeParse(body);
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (caller.role !== 'admin' && caller.role !== 'owner') {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
-  const { targetUserId, action, newRole } = parsed.data;
   const supabase = getServiceSupabase();
 
-  if (caller.role === 'admin') {
-    const { data: targetProf } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', targetUserId)
-      .single();
+  // Query profiles (columns per PRD §7.1: id, role, full_name, active, created_at, updated_at)
+  const { data: profileList, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, role, full_name, active, created_at, updated_at')
+    .order('created_at', { ascending: true });
 
-    if (targetProf && targetProf.role !== 'staff') {
-      return new Response(JSON.stringify({ error: 'unauthorized', message: 'Admins may only manage Staff members.' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  if (pErr) {
+    return new Response(JSON.stringify({ error: pErr.message }), { status: 500 });
+  }
 
-    if (action === 'update_role' && newRole !== 'staff') {
-      return new Response(JSON.stringify({ error: 'unauthorized', message: 'Admins cannot promote users to Admin.' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+  // Merge auth emails via Supabase Admin API
+  const { data: authData, error: aErr } = await supabase.auth.admin.listUsers();
+  const emailMap = new Map<string, string>();
+  if (!aErr && authData?.users) {
+    for (const u of authData.users) {
+      if (u.email) emailMap.set(u.id, u.email);
     }
   }
 
-  const pActive = action === 'deactivate' ? false : (action === 'reactivate' ? true : null);
+  const userRoster = (profileList || []).map((p) => ({
+    id: p.id,
+    display_name: p.full_name,
+    email: emailMap.get(p.id) || '',
+    role: p.role,
+    active: p.active,
+    created_at: p.created_at,
+  }));
 
-  // Postgres signatures: p_role/p_active default to NULL. The CLI-generated
-  // types omit the null union, so carry the runtime-identical null through
-  // typed locals instead of weakening the call (CLT-D-012).
-  const NULL_TEXT = null as unknown as string;
-  const NULL_BOOL = null as unknown as boolean;
+  return new Response(JSON.stringify({ users: userRoster, callerRole: caller.role }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
 
-  const { error: rpcErr } = await supabase.rpc('admin_manage_user', {
-    p_action: action,
-    p_user_id: targetUserId,
-    p_role: action === 'update_role' ? newRole ?? NULL_TEXT : NULL_TEXT,
-    p_active: pActive ?? NULL_BOOL,
+export const PATCH: RequestHandler = async (event) => {
+  const caller = await getCallerContext(event);
+  if (caller.role !== 'admin' && caller.role !== 'owner') {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
+  }
+
+  const body = await event.request.json();
+  const parsed = userManageSchema.safeParse(body);
+  if (!parsed.success) {
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+  }
+
+  const supabase = getServiceSupabase();
+
+  let targetRole = 'staff';
+  let targetActive = true;
+
+  if (parsed.data.action === 'update_role') {
+    targetRole = parsed.data.role;
+    targetActive = true;
+  } else if (parsed.data.action === 'deactivate') {
+    targetActive = false;
+  } else if (parsed.data.action === 'reactivate') {
+    targetActive = true;
+  }
+
+  const { error } = await supabase.rpc('admin_manage_user', {
+    p_action: parsed.data.action,
+    p_user_id: parsed.data.userId,
+    p_role: targetRole,
+    p_active: targetActive,
     p_actor_id: caller.userId,
   });
 
-  if (rpcErr) {
-    return new Response(JSON.stringify({ error: rpcErr.message }), {
-      status: 422,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 422 });
   }
 
-  if (action === 'update_role' && newRole) {
-    await supabase.auth.admin.updateUserById(targetUserId, {
-      app_metadata: { role: newRole },
+  // Synchronize GoTrue app_metadata claims so Supabase RLS reflects role immediately upon token refresh
+  if (parsed.data.action === 'update_role') {
+    await supabase.auth.admin.updateUserById(parsed.data.userId, {
+      app_metadata: { role: targetRole },
     });
   }
 

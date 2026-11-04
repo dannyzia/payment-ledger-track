@@ -1,48 +1,34 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
-import { getCallerContext, requireRole } from '$lib/server/auth';
+import { getCallerContext } from '$lib/server/auth';
 import { getServiceSupabase } from '$lib/server/supabase';
 
-const inviteSchema = z.object({
+const inviteUserSchema = z.object({
   email: z.string().email(),
-  role: z.enum(['staff', 'admin', 'owner']),
-  fullName: z.string().trim().min(1, 'Full name is required'),
+  role: z.enum(['staff', 'admin']),
+  fullName: z.string().min(1).max(200),
 });
 
 export const POST: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
-  requireRole(caller, ['admin', 'owner']);
+  if (caller.role !== 'admin' && caller.role !== 'owner') {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
+  }
 
-  const body = await event.request.json().catch(() => null);
-  const parsed = inviteSchema.safeParse(body);
+  const body = await event.request.json();
+  const parsed = inviteUserSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
   }
 
   const { email, role, fullName } = parsed.data;
 
-  // PRD §16.2 Test #59: Owner role cannot be invited; single owner enforced via ownership transfer
-  if (role === 'owner') {
-    return new Response(
-      JSON.stringify({ error: 'cannot_invite_owner', message: 'Owner cannot be invited. Use ownership transfer.' }),
-      { status: 403, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
-  // PRD §3: Admins may only invite Staff members
+  // Admin can only invite staff; only Owner can invite Admin
   if (caller.role === 'admin' && role !== 'staff') {
-    return new Response(
-      JSON.stringify({ error: 'unauthorized', message: 'Admins may only invite Staff members.' }),
-      { status: 403, headers: { 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: 'admin_can_only_invite_staff' }), { status: 403 });
   }
 
   const supabase = getServiceSupabase();
-
-  // Execute database procedure handling role authorization, deactivated account checks, and audit logging
   const { error: rpcErr } = await supabase.rpc('admin_invite_user', {
     p_email: email.toLowerCase(),
     p_role: role,
@@ -69,7 +55,7 @@ export const POST: RequestHandler = async (event) => {
     });
   }
 
-  // Provision Supabase Auth User with raw_app_meta_data (PRD §3, §7.3, Hard Rule 7)
+  // Provision Supabase Auth User with raw_app_meta_data claims sync (PRD §3, §7.3, Hard Rule 7)
   const redirectTo = `${event.url.origin}/callback`;
   const { data: authData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email.toLowerCase(), {
     data: { full_name: fullName },
