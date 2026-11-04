@@ -57,3 +57,14 @@ While implementing Plan 004, three spec-block conflicts surfaced between plans 0
 3. **digest() resolution.** Supabase installs pgcrypto into the `extensions` schema; the RPCs pin `search_path = public, pg_temp`, so the unqualified `digest()` raises 42883 inside `rpc_push_sync_op` (masked into `calc_mismatch`-style rejections via v_err_reason). Chosen: schema-qualify as `extensions.digest(...)` (Supabase standard schema name, no privilege weakening).
 4. **cron.unschedule on fresh DB.** `cron.unschedule('sync-op-retention')` errors when no schedule exists. Chosen: unschedule only when `cron.job` has the row; then schedule. Migration 000005 amended.
 
+
+## CLT-D-008: Overpayment-invalidation audit actor comes from `clt.audit_actor` GUC, not `auth.uid()` (2026-11-04, Plan 005)
+
+**Found:** PRD §15.1 / Plan 005's `fn_settlements_recalc_status_and_overpayment` probe used `auth.uid()` as the audit actor, coalescing to the zero UUID. Under every local and service-side execution path that reaches this trigger — `SECURITY DEFINER` RPCs (`SET LOCAL search_path`, no JWT), direct dev/test SQL running as `postgres`, and the shared-DB regression suites — `auth.uid()` is NULL, and the zero-UUID fallback violates `audit_log.actor → profiles` FK (23503), aborting legitimate settlement payment flows.
+
+**Chosen:**
+1. Every actor-carrying Plan 005 RPC (`record_settlement_payment`, `approve_settlement_overpayment`, `create_statement`, `supersede_statement`, match/unmatch/accept line, `review_entry_reconciliation_exception`, `reconcile_statement`, `close_month`, `reopen_month`) sets the transaction-local setting `clt.audit_actor` at body start; the trigger resolves the actor from that GUC first.
+2. Fallback: the settlement's most recent non-reversal payment's `recorded_by` (the actor who caused the balance change); zero-UUID removed from this trigger.
+3. Migration 000005's `rpc_push_sync_op` and `rpc_supersede_entry` (which mutate entries and can trigger the same recalc) also set the GUC. The orchestrator/owner-facing audit trail remains: cause events (`payment`, `void`, `supersede`) already carry the real actor; the invalidation row now carries the same actor instead of a forged zero UUID when the direct trigger path fires.
+
+**Effect:** no schema change; no grant change; `audit_log` stays append-only with a real FK-satisfying actor on every recalc-triggered invalidation. Regression suites cover FK-valid audit writes after overpay→approve→recalc cascades (Tests #35/#40/#48/#49).

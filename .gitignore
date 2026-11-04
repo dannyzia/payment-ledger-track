@@ -45,3 +45,4 @@ Thumbs.db
 # Build info
 *.tsbuildinfo
 supabase/.temp/
+supabase/.branches/

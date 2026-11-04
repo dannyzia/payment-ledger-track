@@ -34,7 +34,9 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       DELETE FROM statement_lines;
       DELETE FROM statement_payables;
       DELETE FROM statements;
-      DELETE FROM settlement_payments;
+      ALTER TABLE settlement_payments DISABLE TRIGGER trg_settlement_payments_immutable;
+                  DELETE FROM settlement_payments;
+      ALTER TABLE settlement_payments ENABLE TRIGGER trg_settlement_payments_immutable;
       DELETE FROM settlements;
       DELETE FROM entry_reconciliation_exceptions;
       DELETE FROM month_close_events;
@@ -102,7 +104,9 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     await pool.query(`
       ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
       -- audit_log is append-only (Rule 5): test rows are left in place.
-      DELETE FROM settlement_payments WHERE settlement_id IN (SELECT id FROM settlements WHERE month = '2026-10-01');
+      ALTER TABLE settlement_payments DISABLE TRIGGER trg_settlement_payments_immutable;
+                  DELETE FROM settlement_payments WHERE settlement_id IN (SELECT id FROM settlements WHERE month = '2026-10-01');
+      ALTER TABLE settlement_payments ENABLE TRIGGER trg_settlement_payments_immutable;
       DELETE FROM settlements WHERE month = '2026-10-01';
       DELETE FROM sync_ops WHERE actor_id in ('${OWNER_ID}', '${ADMIN_ID}', '${STAFF_ID}');
       DELETE FROM entries WHERE created_by in ('${OWNER_ID}', '${ADMIN_ID}', '${STAFF_ID}');

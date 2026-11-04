@@ -31,7 +31,9 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       DELETE FROM statement_lines;
       DELETE FROM statement_payables;
       DELETE FROM statements;
-      DELETE FROM settlement_payments;
+      ALTER TABLE settlement_payments DISABLE TRIGGER trg_settlement_payments_immutable;
+                  DELETE FROM settlement_payments;
+      ALTER TABLE settlement_payments ENABLE TRIGGER trg_settlement_payments_immutable;
       DELETE FROM settlements;
       DELETE FROM entry_reconciliation_exceptions;
       DELETE FROM month_close_events;
@@ -124,10 +126,13 @@ describe('Database Schema, Security, and Invariant Tests', () => {
         '${OWNER_ID}'
       ) ON CONFLICT (id) DO NOTHING;
 
-      -- Baseline settlement
+      -- Baseline settlement (fixed id claimed even if the entry-recalc trigger
+      -- already auto-created this payable/month row with a generated id)
       INSERT INTO settlements (id, payable_id, month, expected_poisha, paid_poisha, status)
       VALUES ('${SETTLEMENT_ID}', '${PAYABLE_VAT_ID}', '2026-10-01', 100000, 50000, 'partly_paid')
-      ON CONFLICT (payable_id, month) DO NOTHING;
+      ON CONFLICT (payable_id, month) DO UPDATE
+        SET id = '${SETTLEMENT_ID}'::uuid, expected_poisha = 100000,
+            paid_poisha = 50000, status = 'partly_paid';
 
       -- Baseline settlement payment
       INSERT INTO settlement_payments (id, settlement_id, amount_poisha, paid_on, recorded_by)
@@ -143,29 +148,33 @@ describe('Database Schema, Security, and Invariant Tests', () => {
 
   afterAll(async () => {
     // Teardown all test seed records in reverse FK order to prevent database pollution.
-    // Exact IDs only: uuid columns do not support the ~~ LIKE operator.
+    // Global deletes (same scope as beforeAll): the settlement-recalc trigger may
+    // have auto-created settlement rows with generated UUIDs, so exact-ID deletes
+    // would leave orphans and break the payables FK below.
     await pool.query(`
-      DELETE FROM statement_lines WHERE statement_id = '${STATEMENT_ID}';
-      DELETE FROM statement_payables WHERE statement_id = '${STATEMENT_ID}';
-      DELETE FROM statements WHERE id = '${STATEMENT_ID}';
-      DELETE FROM settlement_payments WHERE settlement_id = '${SETTLEMENT_ID}';
-      DELETE FROM settlements WHERE id = '${SETTLEMENT_ID}';
-      DELETE FROM sync_ops WHERE actor_id IN ('${OWNER_ID}', '${STAFF_ID}');
-      DELETE FROM entry_reconciliation_exceptions WHERE entry_id = '${BASE_ENTRY_ID}';
-    ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
-    DELETE FROM entries WHERE id = '${BASE_ENTRY_ID}';
-    ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
+      DELETE FROM statement_lines;
+      DELETE FROM statement_payables;
+      DELETE FROM statements;
+      ALTER TABLE settlement_payments DISABLE TRIGGER trg_settlement_payments_immutable;
+      DELETE FROM settlement_payments;
+      ALTER TABLE settlement_payments ENABLE TRIGGER trg_settlement_payments_immutable;
+      DELETE FROM settlements;
+      DELETE FROM sync_ops;
+      DELETE FROM entry_reconciliation_exceptions;
+      DELETE FROM month_close_events;
+      DELETE FROM month_closes;
+      ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
+      DELETE FROM entries;
+      ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
       ALTER TABLE method_rates DISABLE TRIGGER trg_method_rates_draft_publish_lock;
       ALTER TABLE rate_profiles DISABLE TRIGGER trg_rate_profiles_draft_publish_lock;
-      DELETE FROM method_rates WHERE rate_profile_id = '${RATE_PROFILE_V1_ID}';
-      DELETE FROM rate_profiles WHERE id = '${RATE_PROFILE_V1_ID}';
+      DELETE FROM method_rates;
+      DELETE FROM rate_profiles;
       ALTER TABLE method_rates ENABLE TRIGGER trg_method_rates_draft_publish_lock;
       ALTER TABLE rate_profiles ENABLE TRIGGER trg_rate_profiles_draft_publish_lock;
-      DELETE FROM payables WHERE id IN ('${PAYABLE_VAT_ID}', '${PAYABLE_BKASH_ID}');
-      DELETE FROM payment_methods WHERE id = '${METHOD_BKASH_ID}';
-      DELETE FROM devices WHERE user_id IN ('${OWNER_ID}', '${STAFF_ID}');
-      DELETE FROM month_close_events WHERE month = '2026-10-01' OR month = '2026-11-01';
-      DELETE FROM month_closes WHERE month = '2026-10-01' OR month = '2026-11-01';
+      DELETE FROM payables;
+      DELETE FROM payment_methods;
+      DELETE FROM devices;
       -- Users/profiles are left for the next suite's beforeAll to wipe:
       -- deleting the last active owner would violate the zero-owner invariant.
     `);

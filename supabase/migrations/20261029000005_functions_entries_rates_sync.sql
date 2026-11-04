@@ -1012,6 +1012,8 @@ declare
   v_stale_status text := 'none';
   v_latest_published_id uuid;
 begin
+
+  perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
   select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
@@ -1271,6 +1273,8 @@ declare
   v_device_revoked boolean := false;
   v_stale_threshold_poisha bigint := 5000000; -- 50,000 BDT
 begin
+
+  perform set_config('clt.audit_actor', coalesce(p_caller_id::text, '')::text, true);
   -- 1. Multi-Month Advisory Locks in Ascending Order (PRD §7.2, Finding 2)
   -- Regex guards prevent malformed inputs from aborting the lock gathering query
   for v_m in
