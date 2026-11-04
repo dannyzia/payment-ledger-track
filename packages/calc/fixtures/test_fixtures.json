@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "description": "Comprehensive authoritative fixtures from PRD §6.6 and §6.7 in poisha",
+  "paperLedgerProfile": {
+    "rateProfileId": "00000000-0000-0000-0000-000000000001",
+    "version": 1,
+    "engineVersion": 1,
+    "vat": { "mode": "manual", "bp": 0 },
+    "commission": { "bp": 4200, "base": "gross_minus_vat" },
+    "chargeBp": 0,
+    "chargesBorneBy": "business",
+    "rounding": "half_up"
+  },
+  "paperLedgerRows": [
+    {
+      "row": 1,
+      "customer": "Ayash",
+      "subQty": 2,
+      "method": "bkash",
+      "chargeBp": 115,
+      "grossPoisha": "590900",
+      "vatInputPoisha": "50900",
+      "expectedCommissionPoisha": "226800",
+      "expectedChargePoisha": "6795",
+      "expectedNetPoisha": "306405"
+    },
+    {
+      "row": 2,
+      "customer": "Abida",
+      "subQty": 1,
+      "method": "cash",
+      "chargeBp": 0,
+      "grossPoisha": "330000",
+      "vatInputPoisha": "30000",
+      "expectedCommissionPoisha": "126000",
+      "expectedChargePoisha": "0",
+      "expectedNetPoisha": "174000"
+    },
+    {
+      "row": 3,
+      "customer": "Ahiyan",
+      "subQty": 2,
+      "method": "cash",
+      "chargeBp": 0,
+      "grossPoisha": "590900",
+      "vatInputPoisha": "50900",
+      "expectedCommissionPoisha": "226800",
+      "expectedChargePoisha": "0",
+      "expectedNetPoisha": "313200"
+    },
+    {
+      "row": 4,
+      "customer": "Suhaima (H)",
+      "subQty": 2,
+      "method": "card",
+      "chargeBp": 150,
+      "grossPoisha": "838400",
+      "vatInputPoisha": "58400",
+      "expectedCommissionPoisha": "327600",
+      "expectedChargePoisha": "12576",
+      "expectedNetPoisha": "439824"
+    },
+    {
+      "row": 5,
+      "customer": "Tahra",
+      "subQty": 2,
+      "method": "card",
+      "chargeBp": 150,
+      "grossPoisha": "590900",
+      "vatInputPoisha": "50900",
+      "expectedCommissionPoisha": "226800",
+      "expectedChargePoisha": "8864",
+      "expectedNetPoisha": "304336"
+    },
+    {
+      "row": 6,
+      "customer": "Aaan",
+      "subQty": 2,
+      "method": "card",
+      "chargeBp": 150,
+      "grossPoisha": "590900",
+      "vatInputPoisha": "50900",
+      "expectedCommissionPoisha": "226800",
+      "expectedChargePoisha": "8864",
+      "expectedNetPoisha": "304336"
+    },
+    {
+      "row": 7,
+      "customer": "Azlan",
+      "subQty": 1,
+      "method": "card",
+      "chargeBp": 150,
+      "grossPoisha": "330000",
+      "vatInputPoisha": "30000",
+      "expectedCommissionPoisha": "126000",
+      "expectedChargePoisha": "4950",
+      "expectedNetPoisha": "169050"
+    },
+    {
+      "row": 8,
+      "customer": "Mandisha",
+      "subQty": 1,
+      "method": "cash",
+      "chargeBp": 0,
+      "grossPoisha": "330000",
+      "vatInputPoisha": "30000",
+      "expectedCommissionPoisha": "126000",
+      "expectedChargePoisha": "0",
+      "expectedNetPoisha": "174000"
+    },
+    {
+      "row": 9,
+      "customer": "Autnika",
+      "subQty": 1,
+      "method": "cash",
+      "chargeBp": 0,
+      "grossPoisha": "330000",
+      "vatInputPoisha": "30000",
+      "expectedCommissionPoisha": "126000",
+      "expectedChargePoisha": "0",
+      "expectedNetPoisha": "174000"
+    },
+    {
+      "row": 10,
+      "customer": "Tridha",
+      "subQty": 2,
+      "method": "card",
+      "chargeBp": 150,
+      "grossPoisha": "590900",
+      "vatInputPoisha": "50900",
+      "expectedCommissionPoisha": "226800",
+      "expectedChargePoisha": "8864",
+      "expectedNetPoisha": "304336"
+    }
+  ],
+  "paperLedgerAssertedTotals": {
+    "totalSubQty": 16,
+    "totalGrossPoisha": "5112900",
+    "totalVatPoisha": "432900",
+    "totalCommissionPoisha": "1965600",
+    "totalBkashChargePoisha": "6795",
+    "totalCardChargePoisha": "44118",
+    "totalNetPoisha": "2663487"
+  },
+  "forwardLookingFixtures": {
+    "percentInclusive": [
+      {
+        "id": "P1",
+        "grossPoisha": "590900",
+        "vatBp": 1000,
+        "expectedBasePoisha": "537182",
+        "expectedVatPoisha": "53718"
+      },
+      {
+        "id": "P2",
+        "grossPoisha": "330000",
+        "vatBp": 500,
+        "expectedBasePoisha": "314286",
+        "expectedVatPoisha": "15714"
+      },
+      {
+        "id": "P3",
+        "grossPoisha": "1000000",
+        "vatBp": 1500,
+        "expectedBasePoisha": "869565",
+        "expectedVatPoisha": "130435"
+      }
+    ],
+    "percentOfGross": {
+      "id": "P4",
+      "grossPoisha": "500000",
+      "vatBp": 750,
+      "commissionBp": 4200,
+      "commissionBase": "gross_minus_vat",
+      "chargeBp": 115,
+      "chargesBorneBy": "business",
+      "expectedVatPoisha": "37500",
+      "expectedCommissionBasePoisha": "462500",
+      "expectedCommissionPoisha": "194250",
+      "expectedChargePoisha": "5750",
+      "expectedBusinessChargePoisha": "5750",
+      "expectedCustomerChargePoisha": "0",
+      "expectedNetPoisha": "262500"
+    },
+    "customerBorneCharge": {
+      "id": "P5",
+      "grossPoisha": "590900",
+      "vatInputPoisha": "50900",
+      "commissionBp": 4200,
+      "commissionBase": "gross_minus_vat",
+      "chargeBp": 115,
+      "chargesBorneBy": "customer",
+      "expectedVatPoisha": "50900",
+      "expectedCommissionPoisha": "226800",
+      "expectedChargePoisha": "6795",
+      "expectedBusinessChargePoisha": "0",
+      "expectedCustomerChargePoisha": "6795",
+      "expectedNetPoisha": "313200"
+    },
+    "explicitOverrides": {
+      "id": "P6",
+      "grossPoisha": "1000000",
+      "vatMode": "percent_inclusive",
+      "vatBp": 1500,
+      "vatOverridePoisha": "100000",
+      "vatOverrideReason": "Special statutory exemption agreement",
+      "commissionBase": "gross",
+      "commissionBp": 4000,
+      "commissionOverridePoisha": "300000",
+      "commissionOverrideReason": "Volume bonus waiver",
+      "chargeBp": 150,
+      "chargesBorneBy": "business",
+      "expectedVatPoisha": "100000",
+      "expectedCommissionPoisha": "300000",
+      "expectedChargePoisha": "15000",
+      "expectedBusinessChargePoisha": "15000",
+      "expectedCustomerChargePoisha": "0",
+      "expectedNetPoisha": "585000"
+    }
+  },
+  "roundingBoundaryVectors": [
+    {
+      "amountPoisha": "100",
+      "bp": 50,
+      "expectedPoisha": "1",
+      "note": "Exact half-up boundary: 100*50 + 5000 = 10000 / 10000 = 1"
+    },
+    {
+      "amountPoisha": "100",
+      "bp": 49,
+      "expectedPoisha": "0",
+      "note": "Just below half-up boundary: 100*49 + 5000 = 9900 / 10000 = 0"
+    },
+    {
+      "amountPoisha": "300",
+      "bp": 50,
+      "expectedPoisha": "2",
+      "note": "300*50 + 5000 = 20000 / 10000 = 2"
+    }
+  ],
+  "guardRejectionCases": [
+    {
+      "grossPoisha": "100000",
+      "vatInputPoisha": "20000",
+      "commissionBp": 8000,
+      "chargeBp": 1000,
+      "chargesBorneBy": "business",
+      "expectedError": "DeductionsExceedGrossError",
+      "note": "20000 + 80000 + 10000 = 110000 > 100000"
+    }
+  ]
+}

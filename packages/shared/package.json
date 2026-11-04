@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@clt/calc": "workspace:*",

@@ -1,2 +1,4 @@
-// @clt/calc placeholder scaffold - authoritative calculation functions implemented in Plan 002
-export const CALC_ENGINE_VERSION = 1;
+export * from './types.js';
+export * from './errors.js';
+export * from './rounding.js';
+export * from './calculate.js';
