@@ -94,3 +94,16 @@ While implementing Plan 004, three spec-block conflicts surfaced between plans 0
 2. Button, Card, Chip: per-file `/* eslint-disable svelte/valid-compile */` inside the `<script>` with justification; the normal-compile `svelte-check` gate remains authoritative for compile health and reports 0 errors/0 warnings.
 
 **Effect:** `pnpm lint`, `pnpm typecheck`, and `pnpm --filter @clt/web check` all pass; no component behavior changes; both unit suites (tokens contrast ratios, draggable collision/snap/pinned) pass.
+
+## CLT-D-012: Plan 008 typing and host-runtime accommodations (2026-11-04)
+
+**Found while verifying** the verbatim Plan 008 spec blocks against the actual toolchain:
+
+1. supabase-js typed clients with no Database generic resolve `.from(...)` result rows as `never`, which breaks `svelte-check`. Generated the real `Database` types from the local schema (`supabase gen types typescript --local` → `apps/web/src/lib/database.types.ts`) and added the `<Database>` generic to both the browser client and the server-only client. Spec blocks otherwise unchanged.
+2. `vi.mock('$app/navigation')` added in `auth.test.ts`: SvelteKit's `goto()` refuses to run outside the app browser runtime ("Cannot call goto(...) on the server"), so the redirect call is stubbed while the guard's `cancel()` decisions are asserted directly. Guard code unchanged.
+3. Plan 011 placeholders: block 6.12's `(app)/+layout.svelte` imports `$lib/ui/SyncIndicator.svelte` and `$lib/sync/runner.svelte.ts` (Plan 011 deliverables) while 008's own acceptance demands `check` passing. Created minimal, clearly marked placeholder stubs (Pill indicator + no-op start/stop runner) that Plan 011 replaces (CLT-D-011).
+4. CLI-generated RPC arg types omit the SQL `DEFAULT NULL` unions (`p_role`/`p_active` of `admin_manage_user` typed as `string`/`boolean`), so the route passes the runtime-identical null through typed locals instead of disabling types.
+5. CommandPalette's `autofocus` attribute (a11y "Avoid using autofocus") replaced with an equivalent programmatic `$effect` focus on open; visual/keyboard behavior identical.
+
+**Effect:** `pnpm --filter @clt/web check` → 0 errors/0 warnings; web suites 17/17 (auth 7, tokens 5, draggable 5); root lint/typecheck pass.
+6. ESLint `@typescript-eslint/no-explicit-any` fired on the verbatim spec code (`syncFromSupabaseSession(sbSession: any)`, `app_metadata` cast, three `catch (err: any)`), plus an unused `session` import in the root layout. Replaced with the supabase-js `Session` type, a `UserSessionProfile['role']` cast, and `err: unknown` narrowing (`err instanceof Error ? err.message : fallback`) — behavior-identical; guard/redirect tests unchanged and passing.

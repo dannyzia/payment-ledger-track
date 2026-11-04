@@ -1,3 +1,3 @@
-// PRD §13: SPA mode (ssr = false)
+// PRD §13: SvelteKit SPA mode configuration
 export const ssr = false;
 export const prerender = false;
