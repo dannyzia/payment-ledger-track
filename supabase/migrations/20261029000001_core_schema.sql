@@ -134,12 +134,14 @@ create table entries (
     (stale_review_status in ('none', 'flagged') and stale_reviewed_by is null and stale_reviewed_at is null)
   ),
   constraint chk_reassign check (original_entry_date is null or (reassign_reason is not null and length(trim(reassign_reason)) > 0 and original_entry_date != entry_date)),
+  -- CLT-D-007: canonical snapshot shape is the engine's flat vatMode key
+  -- (packages/calc); nested snapshot->'vat'->>'mode' also accepted for tolerance.
   constraint chk_vat_input_mode_exclusivity check (
-    jsonb_typeof(snapshot) = 'object' and (snapshot ? 'vat') and (snapshot->'vat' ? 'mode') and
+    jsonb_typeof(snapshot) = 'object' and
     (
-      (coalesce(snapshot->'vat'->>'mode', '') = 'manual' and vat_input_poisha is not null and vat_override_poisha is null and vat_input_poisha <= gross_poisha)
+      (coalesce(snapshot->>'vatMode', snapshot->'vat'->>'mode', '') = 'manual' and vat_input_poisha is not null and vat_override_poisha is null and vat_input_poisha <= gross_poisha)
       or
-      (coalesce(snapshot->'vat'->>'mode', '') in ('percent_of_gross','percent_inclusive') and vat_input_poisha is null)
+      (coalesce(snapshot->>'vatMode', snapshot->'vat'->>'mode', '') in ('percent_of_gross','percent_inclusive') and vat_input_poisha is null)
     )
   ),
   constraint chk_vat_override_bound check (vat_override_poisha is null or vat_override_poisha <= gross_poisha),

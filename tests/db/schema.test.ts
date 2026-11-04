@@ -25,6 +25,31 @@ describe('Database Schema, Security, and Invariant Tests', () => {
 
     // Seed baseline prerequisite rows safely (compatible with Plan 004 triggers)
     await pool.query(`
+      -- Generic local-dev cleanup: wipe financial rows and users so seeding is
+      -- deterministic across suite runs (this suite is a writer of the dev DB).
+      -- audit_log rows are kept (Rule 5).
+      DELETE FROM statement_lines;
+      DELETE FROM statement_payables;
+      DELETE FROM statements;
+      DELETE FROM settlement_payments;
+      DELETE FROM settlements;
+      DELETE FROM entry_reconciliation_exceptions;
+      DELETE FROM month_close_events;
+      DELETE FROM month_closes;
+      DELETE FROM payables;
+      DELETE FROM devices;
+      ALTER TABLE method_rates DISABLE TRIGGER trg_method_rates_draft_publish_lock;
+      ALTER TABLE rate_profiles DISABLE TRIGGER trg_rate_profiles_draft_publish_lock;
+      ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
+      DELETE FROM sync_ops;
+      DELETE FROM entries;
+      DELETE FROM method_rates;
+      DELETE FROM rate_profiles;
+      DELETE FROM payment_methods;
+      ALTER TABLE method_rates ENABLE TRIGGER trg_method_rates_draft_publish_lock;
+      ALTER TABLE rate_profiles ENABLE TRIGGER trg_rate_profiles_draft_publish_lock;
+      ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
+      DELETE FROM payment_methods;
       -- Baseline auth users
       INSERT INTO auth.users (id, email, raw_app_meta_data)
       VALUES
@@ -39,9 +64,14 @@ describe('Database Schema, Security, and Invariant Tests', () => {
         ('${STAFF_ID}', 'Staff User', 'staff', true)
       ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, role = EXCLUDED.role, active = EXCLUDED.active;
 
+      --entries_sync's ownership transfer may have left another profile as owner;
+      --restore the sole-owner invariant for this suite (same transaction: commit
+      --still sees exactly one active owner).
+      UPDATE profiles SET role = 'admin' WHERE role = 'owner' AND id != '${OWNER_ID}';
+
       -- Baseline payment methods
       INSERT INTO payment_methods (id, code, name, requires_txn_ref, active, sort_order)
-      VALUES ('${METHOD_BKASH_ID}', 'bkash', 'bKash', true, true, 1)
+      VALUES ('${METHOD_BKASH_ID}', 'bkash', 'bKash', true, false, 1)
       ON CONFLICT (id) DO NOTHING;
 
       -- Baseline rate profile v1 (insert as draft, insert rates, then publish)
@@ -55,6 +85,10 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       ON CONFLICT (rate_profile_id, method_id) DO NOTHING;
 
       UPDATE rate_profiles SET status = 'published' WHERE id = '${RATE_PROFILE_V1_ID}';
+
+      -- Activate methods only after a published profile covers them
+      -- (trg_payment_methods_active_rate_check, plan 004)
+      UPDATE payment_methods SET active = true WHERE id = '${METHOD_BKASH_ID}';
 
       -- Baseline payables
       INSERT INTO payables (id, code, name, kind, method_id, due_day, active)
@@ -118,16 +152,22 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       DELETE FROM settlements WHERE id = '${SETTLEMENT_ID}';
       DELETE FROM sync_ops WHERE actor_id IN ('${OWNER_ID}', '${STAFF_ID}');
       DELETE FROM entry_reconciliation_exceptions WHERE entry_id = '${BASE_ENTRY_ID}';
-      DELETE FROM entries WHERE id = '${BASE_ENTRY_ID}';
+    ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
+    DELETE FROM entries WHERE id = '${BASE_ENTRY_ID}';
+    ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
+      ALTER TABLE method_rates DISABLE TRIGGER trg_method_rates_draft_publish_lock;
+      ALTER TABLE rate_profiles DISABLE TRIGGER trg_rate_profiles_draft_publish_lock;
       DELETE FROM method_rates WHERE rate_profile_id = '${RATE_PROFILE_V1_ID}';
       DELETE FROM rate_profiles WHERE id = '${RATE_PROFILE_V1_ID}';
+      ALTER TABLE method_rates ENABLE TRIGGER trg_method_rates_draft_publish_lock;
+      ALTER TABLE rate_profiles ENABLE TRIGGER trg_rate_profiles_draft_publish_lock;
       DELETE FROM payables WHERE id IN ('${PAYABLE_VAT_ID}', '${PAYABLE_BKASH_ID}');
       DELETE FROM payment_methods WHERE id = '${METHOD_BKASH_ID}';
       DELETE FROM devices WHERE user_id IN ('${OWNER_ID}', '${STAFF_ID}');
       DELETE FROM month_close_events WHERE month = '2026-10-01' OR month = '2026-11-01';
       DELETE FROM month_closes WHERE month = '2026-10-01' OR month = '2026-11-01';
-      DELETE FROM profiles WHERE id IN ('${OWNER_ID}', '${STAFF_ID}', '11111111-1111-1111-1111-111111111119', '11111111-1111-1111-1111-111111111120');
-      DELETE FROM auth.users WHERE id IN ('${OWNER_ID}', '${STAFF_ID}', '11111111-1111-1111-1111-111111111119', '11111111-1111-1111-1111-111111111120');
+      -- Users/profiles are left for the next suite's beforeAll to wipe:
+      -- deleting the last active owner would violate the zero-owner invariant.
     `);
     await pool.end();
   });
@@ -282,8 +322,8 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       VALUES ('${newStaffId}', 'New Staff', 'staff', true)
       ON CONFLICT (id) DO NOTHING;
     `);
-    await pool.query(`DELETE FROM profiles WHERE id = '${newStaffId}'`);
-    await pool.query(`DELETE FROM auth.users WHERE id = '${newStaffId}'`);
+    // The staff profile is kept: it is the shared ADMIN actor of
+    // tests/db/entries_sync.test.ts, pinned by audit_log rows (Rule 5).
   });
 
   it('uq_devices_device_user: Positive & Negative Cases', async () => {
@@ -435,7 +475,11 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       )
       ON CONFLICT (id) DO NOTHING;
     `);
-    await pool.query(`DELETE FROM entries WHERE id = '${validOverrideId}'`);
+    await pool.query(`
+      ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
+      DELETE FROM entries WHERE id = '${validOverrideId}';
+      ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
+    `);
 
     // Negative 1: VAT override > gross throws chk_vat_override_bound
     await expect(
@@ -541,7 +585,11 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       `)
     ).rejects.toThrow(/uq_active_superseding_entry/);
 
-    await pool.query(`DELETE FROM entries WHERE id = '${sup1Id}'`);
+    await pool.query(`
+      ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
+      DELETE FROM entries WHERE id = '${sup1Id}';
+      ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
+    `);
   });
 
   it('chk_overpayment_approval & chk_reversal_reference: Positive & Negative Cases', async () => {

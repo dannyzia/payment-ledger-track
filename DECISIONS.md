@@ -47,3 +47,13 @@ Implementation choices and architectural decisions made where the PRD was silent
 - **Context**: Vite, SvelteKit 2, tsx, and Vitest operate with modern ESM bundler semantics. Using `moduleResolution: "NodeNext"` enforces relative `.js` import extensions in TypeScript files (TS2835).
 - **Decision**: Configured `module: "ESNext"` and `moduleResolution: "bundler"` in `tsconfig.base.json`. Enables seamless cross-workspace type resolution without relative `.js` import extension traps.
 - **Consequences**: Root `pnpm typecheck` compiles `packages/calc` and `packages/shared` with composite project references; `apps/web` is checked by `svelte-check` instead, per Plan 001 rev 2.1.
+## CLT-D-007 — Snapshot VAT-mode shape + nullable device rate version + digests/schema (Plan 004 vs 002/003 conflicts)
+Date: 2026-11-04. Status: implementer decision (Rule 13), pending owner confirmation at gates.
+
+While implementing Plan 004, three spec-block conflicts surfaced between plans 002/003/004 and were resolved as follows:
+
+1. **chk_vat_input_mode_exclusivity shape.** Plan 003's constraint required a nested `snapshot->'vat'->>'mode'`, but the Plan 002 engine emits the flat `snapshot.vatMode` key, and the Plan 004 snapshot verifier accepts both. Chosen: canonical shape is the engine's flat `vatMode`; the nested form is still accepted. Migration 000001 was amended (same constraint name and semantics).
+2. **devices.last_rate_version NOT NULL vs upsert.** Plan 004 `upsert_device_sync_state` inserts explicit NULL for `last_rate_version`, which is `int NOT NULL DEFAULT 0` in Plan 003. Chosen: the upsert coalesces an explicit NULL to the column default `0` (presence without rate-version grounding); no schema change.
+3. **digest() resolution.** Supabase installs pgcrypto into the `extensions` schema; the RPCs pin `search_path = public, pg_temp`, so the unqualified `digest()` raises 42883 inside `rpc_push_sync_op` (masked into `calc_mismatch`-style rejections via v_err_reason). Chosen: schema-qualify as `extensions.digest(...)` (Supabase standard schema name, no privilege weakening).
+4. **cron.unschedule on fresh DB.** `cron.unschedule('sync-op-retention')` errors when no schedule exists. Chosen: unschedule only when `cron.job` has the row; then schedule. Migration 000005 amended.
+

@@ -11,6 +11,8 @@ export default defineWorkspace([
       name: 'root-tests',
       include: ['tests/**/*.test.ts'],
       exclude: ['tests/e2e/**'],
+      // DB suites share one local Postgres and must not race on shared state.
+      fileParallelism: false,
     },
   },
 ]);

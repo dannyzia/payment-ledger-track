@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "pnpm --filter @clt/web dev",
     "build": "pnpm -r build",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --no-file-parallelism",
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "typecheck": "tsc --build packages/calc packages/shared && pnpm --filter @clt/web check",
