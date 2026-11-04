@@ -84,3 +84,13 @@ While implementing Plan 004, three spec-block conflicts surfaced between plans 0
 4. `db:reset` restarts the Kong container after `supabase db reset`: Kong caches the GoTrue upstream IP, which is recreated by the reset and then returns "Connection refused"/502 until Kong re-resolves (local dev operational fixup).
 
 **Effect:** bootstrap creates the owner via Supabase Auth Admin API with `app_metadata: {role:'owner'}`; the profile is provisioned 'staff' by the insert trigger and set to 'owner' by the metadata-update trigger before the transaction commits. Bootstrap verified twice; SSL/registration privilege model unchanged.
+
+## CLT-D-010: Plan 007 lint suppressions for attribute forwarding and the floating-menu a11y hit (2026-11-04)
+
+**Found:** root `pnpm lint` (eslint-plugin-svelte) fails on the verbatim Plan 007 spec code. The plugin compiles every `.svelte` file a second time as a custom element, which emits `custom_element_props_identifier` for Button/Card/Chip — a rest-props note relevant only to custom-element compilation, which this app never uses (the plan's own P2.1 feature is generic attribute forwarding via rest props; svelte-check's normal single compile is clean). Separately, the FloatingMenu's `role="region"` + `tabindex="0"` + keydown container triggers the plugin's static a11y rules; the region is deliberately draggable and keyboard-operable per the plan's Step 4 (arrow navigation, Escape collapse).
+
+**Chosen:**
+1. FloatingMenu: two `svelte-ignore a11y_*` comments directly above the element with an inline justification comment; svelte-check now reports 0 warnings.
+2. Button, Card, Chip: per-file `/* eslint-disable svelte/valid-compile */` inside the `<script>` with justification; the normal-compile `svelte-check` gate remains authoritative for compile health and reports 0 errors/0 warnings.
+
+**Effect:** `pnpm lint`, `pnpm typecheck`, and `pnpm --filter @clt/web check` all pass; no component behavior changes; both unit suites (tokens contrast ratios, draggable collision/snap/pinned) pass.
