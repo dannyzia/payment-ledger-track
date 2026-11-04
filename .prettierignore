@@ -1,0 +1,13 @@
+docs
+*.md
+dist
+node_modules
+.svelte-kit
+build
+.pnpm-store
+supabase/.temp
+pnpm-lock.yaml
+.agents
+.cloud-attachments
+.freebuff
+0

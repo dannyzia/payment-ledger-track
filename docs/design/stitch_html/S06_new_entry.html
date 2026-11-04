@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><title>Cosmo Ledger Track</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "background": "#f8faf8", "primary-fixed-dim": "#85d6bf", "surface-container-high": "#e7e9e6", "surface-container": "#edeeec", "secondary-fixed": "#ffdcc0", "on-error-container": "#93000a", "secondary-fixed-dim": "#ffb875", "on-tertiary": "#ffffff", "secondary": "#8c4f00", "on-tertiary-fixed-variant": "#00419d", "tertiary-fixed": "#d9e2ff", "primary-container": "#0b6b59", "on-tertiary-container": "#ccd9ff", "inverse-on-surface": "#f0f1ef", "on-surface-variant": "#3f4945", "on-secondary-fixed": "#2d1600", "secondary-container": "#fead5d", "surface-container-lowest": "#ffffff", "primary-fixed": "#a1f2db", "inverse-primary": "#85d6bf", "on-primary-fixed": "#002019", "error-container": "#ffdad6", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#005142", "on-secondary-fixed-variant": "#6b3b00", "surface-variant": "#e1e3e1", "outline": "#6f7975", "tertiary-container": "#235abe", "tertiary": "#00429e", "surface-dim": "#d9dad8", "primary": "#005142", "surface": "#f8faf8", "on-error": "#ffffff", "outline-variant": "#bec9c4", "surface-bright": "#f8faf8", "on-tertiary-fixed": "#001945", "on-secondary-container": "#744000", "inverse-surface": "#2e3130", "surface-container-highest": "#e1e3e1", "on-background": "#191c1b", "on-primary": "#ffffff", "tertiary-fixed-dim": "#b0c6ff", "on-primary-container": "#97e8d2", "error": "#ba1a1a", "surface-tint": "#0a6b59", "surface-container-low": "#f2f4f2", "on-surface": "#191c1b" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "margin-tablet": "2rem", "space-sm": "0.5rem", "space-xs": "0.25rem", "margin-desktop": "2.5rem", "space-md": "0.875rem", "gutter": "1.25rem", "margin": "1rem", "space-lg": "1.25rem", "gutter-desktop": "1.5rem", "space-xl": "2rem" }, fontFamily: { "display-lg": ["Geist"], "mono-tabular-lg": ["JetBrains Mono"], "body-md": ["Geist"], "label-caps": ["Geist"], "headline-md": ["Geist"], "headline-sm": ["Geist"], "headline-lg": ["Geist"], "mono-tabular-md": ["JetBrains Mono"], "body-sm": ["Geist"], "mono-tabular-sm": ["JetBrains Mono"], "display-lg-mobile": ["Geist"], "body-lg": ["Geist"] }, fontSize: { "display-lg": ["2.75rem", { "lineHeight": "3.25rem", "letterSpacing": "-0.03em", "fontWeight": "600" }], "mono-tabular-lg": ["1.5rem", { "lineHeight": "2rem", "letterSpacing": "-0.02em", "fontWeight": "600" }], "body-md": ["0.875rem", { "lineHeight": "1.375rem", "letterSpacing": "0em", "fontWeight": "400" }], "label-caps": ["0.6875rem", { "lineHeight": "0.875rem", "letterSpacing": "0.06em", "fontWeight": "600" }], "headline-md": ["1.375rem", { "lineHeight": "1.875rem", "letterSpacing": "-0.015em", "fontWeight": "500" }], "headline-sm": ["1.125rem", { "lineHeight": "1.625rem", "letterSpacing": "-0.01em", "fontWeight": "500" }], "headline-lg": ["1.75rem", { "lineHeight": "2.25rem", "letterSpacing": "-0.02em", "fontWeight": "600" }], "mono-tabular-md": ["0.875rem", { "lineHeight": "1.25rem", "letterSpacing": "-0.01em", "fontWeight": "500" }], "body-sm": ["0.75rem", { "lineHeight": "1.125rem", "letterSpacing": "0.01em", "fontWeight": "400" }], "mono-tabular-sm": ["0.75rem", { "lineHeight": "1rem", "letterSpacing": "0em", "fontWeight": "400" }], "display-lg-mobile": ["2rem", { "lineHeight": "2.5rem", "letterSpacing": "-0.02em", "fontWeight": "600" }], "body-lg": ["1rem", { "lineHeight": "1.5rem", "letterSpacing": "-0.005em", "fontWeight": "400" }] } } } }</script><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; background-color: #f8faf8; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } } ::-webkit-scrollbar { display: none; }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface antialiased"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.03)]"><div class="h-14 px-margin flex items-center justify-between"><div class="flex items-center gap-space-xs"><button aria-label="Go Back" class="w-11 h-11 -ml-2 rounded-full flex items-center justify-center text-on-surface hover:text-primary active:scale-95 transition-transform" onclick="history.back()" type="button"><span class="material-symbols-outlined text-[20px]">arrow_back</span></button><h1 class="font-headline-sm text-headline-sm text-on-surface tracking-tight truncate">New Entry Form</h1></div><div class="flex items-center gap-space-md"><div aria-live="polite" class="flex items-center gap-space-xs px-space-sm py-1 bg-surface-container-low rounded-full" role="status"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span><span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Synced</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="relative w-full min-h-screen pt-14 pb-safe px-margin bg-surface"><div class="flex flex-col w-full pb-20">
+<!-- Top Session Indicator & Status Tag -->
+<div class="flex items-center justify-between py-space-sm mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="inline-flex items-center px-space-sm py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-mono-tabular-sm text-mono-tabular-sm">
+        #LOCAL-a3f9c2
+      </span>
+<span class="text-on-surface-variant font-body-sm text-body-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+        Active Buffer
+      </span>
+</div>
+<span class="font-label-caps text-label-caps uppercase text-on-surface-variant tracking-wider">
+      Batch V-09
+    </span>
+</div>
+<!-- Primary Transaction Input Card (Pure White Solid Plane) -->
+<div class="w-full bg-surface-container-lowest rounded-[18px] p-5 shadow-[0_1px_3px_rgba(28,31,30,0.03),0_10px_26px_-4px_rgba(28,31,30,0.06)] flex flex-col gap-space-md mb-space-lg">
+<!-- Row: Date & Customer Required -->
+<div class="grid grid-cols-1 gap-space-md">
+<div>
+<label class="block font-label-caps text-label-caps uppercase text-on-surface-variant mb-1.5">
+          Entry Date
+        </label>
+<div class="relative flex items-center">
+<input class="w-full h-11 bg-surface-container-lowest text-on-surface font-body-md text-body-md pl-3.5 pr-10 rounded-lg shadow-[inset_0_0_0_1px_rgba(28,31,30,0.12)] focus:outline-none focus:shadow-[inset_0_0_0_2px_#0B6B59]" readonly="" type="text" value="30 Oct 2026"/>
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant absolute right-3 pointer-events-none">
+            calendar_today
+          </span>
+</div>
+</div>
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<label class="font-label-caps text-label-caps uppercase text-on-surface-variant">
+            Customer Name
+          </label>
+<span class="font-label-caps text-label-caps uppercase text-secondary">Required</span>
+</div>
+<input class="w-full h-11 bg-surface-container-lowest text-on-surface font-body-md text-body-md px-3.5 rounded-lg shadow-[inset_0_0_0_1px_rgba(28,31,30,0.12)] focus:outline-none focus:shadow-[inset_0_0_0_2px_#0B6B59]" placeholder="e.g. Salim Merchant" type="text" value="Rahim Uddin"/>
+</div>
+</div>
+<!-- Stepper: Quantity / Count -->
+<div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-xl">
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Units / Scope</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Billable sessions</span>
+</div>
+<div class="flex items-center bg-surface-container-lowest rounded-lg p-1 shadow-sm gap-2">
+<button aria-label="Decrease quantity" class="w-8 h-8 rounded flex items-center justify-center text-on-surface hover:bg-surface-container-high active:scale-95 transition-transform" id="btn-qty-dec" type="button">
+<span class="material-symbols-outlined text-[16px]">remove</span>
+</button>
+<span class="font-mono-tabular-md text-mono-tabular-md w-8 text-center text-on-surface font-semibold" id="qty-val">1</span>
+<button aria-label="Increase quantity" class="w-8 h-8 rounded flex items-center justify-center text-on-surface hover:bg-surface-container-high active:scale-95 transition-transform" id="btn-qty-inc" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+</button>
+</div>
+</div>
+<!-- Large Prominent Gross Amount Input -->
+<div>
+<label class="block font-label-caps text-label-caps uppercase text-on-surface-variant mb-1.5">
+        Gross Transaction Amount
+      </label>
+<div class="relative flex items-center bg-surface-container-low rounded-xl px-4 py-3">
+<span class="font-mono-tabular-lg text-mono-tabular-lg text-primary mr-2 font-semibold">৳</span>
+<input class="w-full bg-transparent font-mono-tabular-lg text-mono-tabular-lg text-on-surface font-semibold focus:outline-none tracking-tight" id="input-gross" type="text" value="5,909.00"/>
+<span class="material-symbols-outlined text-primary text-[20px]">
+          payments
+        </span>
+</div>
+</div>
+<!-- Payment Rails Horizontal Rail -->
+<div>
+<label class="block font-label-caps text-label-caps uppercase text-on-surface-variant mb-2">
+        Payment Channel
+      </label>
+<div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar" id="rail-container">
+<!-- bKash Active -->
+<button class="channel-pill px-3.5 h-9 shrink-0 rounded-full flex items-center gap-1.5 bg-[#B80053] text-white shadow-sm transition-all" data-channel="bkash" type="button">
+<span class="w-2 h-2 rounded-full bg-white"></span>
+<span class="font-body-sm text-body-sm font-semibold tracking-wide">bKash</span>
+</button>
+<!-- Visa -->
+<button class="channel-pill px-3.5 h-9 shrink-0 rounded-full flex items-center gap-1.5 bg-surface-container-low text-[#1A54B8] shadow-sm hover:bg-surface-container transition-all" data-channel="visa" type="button">
+<span class="w-2 h-2 rounded-full bg-[#1A54B8]"></span>
+<span class="font-body-sm text-body-sm font-semibold tracking-wide">Visa</span>
+</button>
+<!-- Mastercard -->
+<button class="channel-pill px-3.5 h-9 shrink-0 rounded-full flex items-center gap-1.5 bg-surface-container-low text-[#9E3600] shadow-sm hover:bg-surface-container transition-all" data-channel="mastercard" type="button">
+<span class="w-2 h-2 rounded-full bg-[#9E3600]"></span>
+<span class="font-body-sm text-body-sm font-semibold tracking-wide">Mastercard</span>
+</button>
+<!-- Cash -->
+<button class="channel-pill px-3.5 h-9 shrink-0 rounded-full flex items-center gap-1.5 bg-surface-container-low text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-channel="cash" type="button">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<span class="font-body-sm text-body-sm font-medium tracking-wide">Cash</span>
+</button>
+<!-- Bank Transfer -->
+<button class="channel-pill px-3.5 h-9 shrink-0 rounded-full flex items-center gap-1.5 bg-surface-container-low text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-channel="bank" type="button">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<span class="font-body-sm text-body-sm font-medium tracking-wide">Bank Transfer</span>
+</button>
+</div>
+</div>
+<!-- Monospace Transaction Reference -->
+<div>
+<label class="block font-label-caps text-label-caps uppercase text-on-surface-variant mb-1.5">
+        Transaction Reference
+      </label>
+<input class="w-full h-11 bg-surface-container-lowest text-on-surface font-mono-tabular-md text-mono-tabular-md uppercase tracking-wider px-3.5 rounded-lg shadow-[inset_0_0_0_1px_rgba(28,31,30,0.12)] focus:outline-none focus:shadow-[inset_0_0_0_2px_#0B6B59]" type="text" value="BJT84920KL"/>
+</div>
+<!-- VAT Amount Input (Manual Mode) -->
+<div>
+<div class="flex items-center justify-between mb-1.5">
+<label class="font-label-caps text-label-caps uppercase text-on-surface-variant">
+          VAT Allocation
+        </label>
+<span class="font-label-caps text-label-caps uppercase px-1.5 py-0.5 rounded bg-surface-container text-secondary">
+          Manual Override
+        </span>
+</div>
+<div class="relative flex items-center">
+<input class="w-full h-11 bg-surface-container-lowest text-on-surface font-mono-tabular-md text-mono-tabular-md px-3.5 rounded-lg shadow-[inset_0_0_0_1px_rgba(28,31,30,0.12)] focus:outline-none focus:shadow-[inset_0_0_0_2px_#0B6B59]" id="input-vat" type="text" value="৳ 509.00"/>
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant absolute right-3 pointer-events-none">
+          edit_note
+        </span>
+</div>
+</div>
+<!-- Sub description / Notes -->
+<div>
+<label class="block font-label-caps text-label-caps uppercase text-on-surface-variant mb-1.5">
+        Sub-description / Notes
+      </label>
+<textarea class="w-full bg-surface-container-lowest text-on-surface font-body-md text-body-md p-3.5 rounded-lg shadow-[inset_0_0_0_1px_rgba(28,31,30,0.12)] focus:outline-none focus:shadow-[inset_0_0_0_2px_#0B6B59] resize-none" rows="2">Quarterly subscription settlement</textarea>
+</div>
+</div>
+<!-- Signature Receipt Breakdown Card (Editorial Precision Plane) -->
+<div class="w-full bg-surface-container-lowest rounded-[18px] p-5 shadow-[0_1px_3px_rgba(28,31,30,0.03),0_8px_24px_-4px_rgba(28,31,30,0.05)] mb-space-lg flex flex-col gap-3">
+<!-- Receipt Header -->
+<div class="flex items-center justify-between pb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[18px]">receipt_long</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Pre-Flight Ledger Audit</span>
+</div>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-on-surface-variant">REC-9941</span>
+</div>
+<!-- Line Item 1: Gross -->
+<div class="flex items-center justify-between text-body-md">
+<span class="text-on-surface-variant">Gross Inbound</span>
+<span class="font-mono-tabular-md text-mono-tabular-md text-on-surface">৳5,909.00</span>
+</div>
+<!-- Line Item 2: VAT -->
+<div class="flex items-center justify-between text-body-md">
+<span class="text-on-surface-variant flex items-center gap-1">
+        VAT Deduction
+        <span class="font-mono-tabular-sm text-mono-tabular-sm text-secondary">(manual)</span>
+</span>
+<span class="font-mono-tabular-md text-mono-tabular-md text-secondary">-৳509.00</span>
+</div>
+<!-- Line Item 3: Commission -->
+<div class="flex items-center justify-between text-body-md">
+<span class="text-on-surface-variant">Merchant Commission (42%)</span>
+<span class="font-mono-tabular-md text-mono-tabular-md text-error">-৳2,268.00</span>
+</div>
+<!-- Line Item 4: Channel Charge -->
+<div class="flex items-center justify-between text-body-md">
+<span class="text-on-surface-variant flex items-center gap-1">
+        bKash Gateway Toll
+        <span class="font-mono-tabular-sm text-mono-tabular-sm text-on-surface-variant">(1.15%)</span>
+</span>
+<span class="font-mono-tabular-md text-mono-tabular-md text-error">-৳67.95</span>
+</div>
+<!-- Receipt Perforation / Dotted Line -->
+<div class="w-full my-1 border-b border-dashed border-stone-300"></div>
+<!-- Calculated Total Net -->
+<div class="flex items-baseline justify-between pt-1">
+<div class="flex flex-col">
+<span class="font-label-caps text-label-caps uppercase text-primary font-bold tracking-wider">
+          Net After Deductions
+        </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Ready for clearance buffer</span>
+</div>
+<span class="font-mono-tabular-lg text-mono-tabular-lg text-primary font-bold tracking-tight" id="label-net">
+        ৳3,064.05
+      </span>
+</div>
+</div>
+<!-- Primary Save Action Button (Dark Jade Frosted Pill) -->
+<div class="flex flex-col items-center gap-2 mb-space-xl">
+<button class="w-full h-12 rounded-full bg-primary hover:bg-primary-container text-on-primary flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(11,107,89,0.22),inset_0_1px_0_rgba(255,255,255,0.2)] active:scale-[0.98] transition-all cursor-pointer" id="btn-save" type="button">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+<span class="font-headline-sm text-headline-sm font-semibold tracking-wide">
+        Save Entry (৳3,064.05 Net)
+      </span>
+</button>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1.5 text-center">
+<span class="material-symbols-outlined text-[14px] text-primary">bolt</span>
+      Writes to local outbox under 100ms • Auto-syncs on connection
+    </p>
+</div>
+<!-- Ambient Floating Utility Pill Docked Bottom-Right -->
+<div class="fixed bottom-6 right-margin z-40 flex items-center gap-1.5 p-1 bg-white/80 backdrop-blur-md rounded-full shadow-[0_8px_24px_rgba(28,31,30,0.12),inset_0_1px_1px_rgba(255,255,255,0.9)]">
+<button class="h-10 pl-3.5 pr-2.5 rounded-full bg-primary text-on-primary font-body-md text-body-md font-medium flex items-center gap-1 active:scale-95 transition-transform" id="btn-quick-new" type="button">
+<span>+ New Entry</span>
+</button>
+<button aria-label="Entry drawer handle" class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface active:scale-95 transition-transform" type="button">
+<span class="material-symbols-outlined text-[20px]">drag_handle</span>
+</button>
+</div>
+</div>
+<script>
+  (function() {
+    // Stepper logic
+    const decBtn = document.getElementById('btn-qty-dec');
+    const incBtn = document.getElementById('btn-qty-inc');
+    const qtyVal = document.getElementById('qty-val');
+    let count = 1;
+
+    if (decBtn && incBtn && qtyVal) {
+      decBtn.addEventListener('click', () => {
+        if (count > 1) {
+          count--;
+          qtyVal.textContent = count;
+        }
+      });
+      incBtn.addEventListener('click', () => {
+        count++;
+        qtyVal.textContent = count;
+      });
+    }
+
+    // Payment Rail Selection Styling
+    const pills = document.querySelectorAll('.channel-pill');
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        pills.forEach(p => {
+          p.classList.remove('bg-[#B80053]', 'text-white');
+          p.classList.add('bg-surface-container-low', 'text-on-surface-variant');
+        });
+        pill.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
+        pill.classList.add('bg-[#B80053]', 'text-white');
+      });
+    });
+
+    // Save Feedback Interaction
+    const saveBtn = document.getElementById('btn-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = `
+          <span class="material-symbols-outlined text-[20px] animate-spin">sync</span>
+          <span class="font-headline-sm text-headline-sm font-semibold">Committed Locally</span>
+        `;
+        saveBtn.classList.add('opacity-90');
+        setTimeout(() => {
+          saveBtn.innerHTML = originalText;
+          saveBtn.classList.remove('opacity-90');
+        }, 1200);
+      });
+    }
+  })();
+</script></main></body></html>

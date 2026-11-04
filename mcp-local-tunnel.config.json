@@ -1,0 +1,14 @@
+{
+  "mode": "agent",
+  "relay": "my-mcp-relay.onrender.com",
+  "servers": {
+    "filesystem": {
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/zia/Documents/My Projects/Cosmo_Ledger_Track"
+      ]
+    }
+  }
+}

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><title>Cosmo Ledger Track</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "background": "#f8faf8", "primary-fixed-dim": "#85d6bf", "surface-container-high": "#e7e9e6", "surface-container": "#edeeec", "secondary-fixed": "#ffdcc0", "on-error-container": "#93000a", "secondary-fixed-dim": "#ffb875", "on-tertiary": "#ffffff", "secondary": "#8c4f00", "on-tertiary-fixed-variant": "#00419d", "tertiary-fixed": "#d9e2ff", "primary-container": "#0b6b59", "on-tertiary-container": "#ccd9ff", "inverse-on-surface": "#f0f1ef", "on-surface-variant": "#3f4945", "on-secondary-fixed": "#2d1600", "secondary-container": "#fead5d", "surface-container-lowest": "#ffffff", "primary-fixed": "#a1f2db", "inverse-primary": "#85d6bf", "on-primary-fixed": "#002019", "error-container": "#ffdad6", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#005142", "on-secondary-fixed-variant": "#6b3b00", "surface-variant": "#e1e3e1", "outline": "#6f7975", "tertiary-container": "#235abe", "tertiary": "#00429e", "surface-dim": "#d9dad8", "primary": "#005142", "surface": "#f8faf8", "on-error": "#ffffff", "outline-variant": "#bec9c4", "surface-bright": "#f8faf8", "on-tertiary-fixed": "#001945", "on-secondary-container": "#744000", "inverse-surface": "#2e3130", "surface-container-highest": "#e1e3e1", "on-background": "#191c1b", "on-primary": "#ffffff", "tertiary-fixed-dim": "#b0c6ff", "on-primary-container": "#97e8d2", "error": "#ba1a1a", "surface-tint": "#0a6b59", "surface-container-low": "#f2f4f2", "on-surface": "#191c1b" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "margin-tablet": "2rem", "space-sm": "0.5rem", "space-xs": "0.25rem", "margin-desktop": "2.5rem", "space-md": "0.875rem", "gutter": "1.25rem", "margin": "1rem", "space-lg": "1.25rem", "gutter-desktop": "1.5rem", "space-xl": "2rem" }, fontFamily: { "display-lg": ["Geist"], "mono-tabular-lg": ["JetBrains Mono"], "body-md": ["Geist"], "label-caps": ["Geist"], "headline-md": ["Geist"], "headline-sm": ["Geist"], "headline-lg": ["Geist"], "mono-tabular-md": ["JetBrains Mono"], "body-sm": ["Geist"], "mono-tabular-sm": ["JetBrains Mono"], "display-lg-mobile": ["Geist"], "body-lg": ["Geist"] }, fontSize: { "display-lg": ["2.75rem", { "lineHeight": "3.25rem", "letterSpacing": "-0.03em", "fontWeight": "600" }], "mono-tabular-lg": ["1.5rem", { "lineHeight": "2rem", "letterSpacing": "-0.02em", "fontWeight": "600" }], "body-md": ["0.875rem", { "lineHeight": "1.375rem", "letterSpacing": "0em", "fontWeight": "400" }], "label-caps": ["0.6875rem", { "lineHeight": "0.875rem", "letterSpacing": "0.06em", "fontWeight": "600" }], "headline-md": ["1.375rem", { "lineHeight": "1.875rem", "letterSpacing": "-0.015em", "fontWeight": "500" }], "headline-sm": ["1.125rem", { "lineHeight": "1.625rem", "letterSpacing": "-0.01em", "fontWeight": "500" }], "headline-lg": ["1.75rem", { "lineHeight": "2.25rem", "letterSpacing": "-0.02em", "fontWeight": "600" }], "mono-tabular-md": ["0.875rem", { "lineHeight": "1.25rem", "letterSpacing": "-0.01em", "fontWeight": "500" }], "body-sm": ["0.75rem", { "lineHeight": "1.125rem", "letterSpacing": "0.01em", "fontWeight": "400" }], "mono-tabular-sm": ["0.75rem", { "lineHeight": "1rem", "letterSpacing": "0em", "fontWeight": "400" }], "display-lg-mobile": ["2rem", { "lineHeight": "2.5rem", "letterSpacing": "-0.02em", "fontWeight": "600" }], "body-lg": ["1rem", { "lineHeight": "1.5rem", "letterSpacing": "-0.005em", "fontWeight": "400" }] } } } }</script><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; background-color: #f8faf8; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } } ::-webkit-scrollbar { display: none; }</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface antialiased"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.03)]"><div class="h-14 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><h1 class="font-headline-sm text-headline-sm text-on-surface tracking-tight truncate">Ledger</h1></div><div class="flex items-center gap-space-md"><div aria-live="polite" class="flex items-center gap-space-xs px-space-sm py-1 bg-surface-container-low rounded-full" role="status"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span><span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Synced</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="relative w-full min-h-screen pt-14 pb-[130px] px-margin bg-surface"><div class="flex flex-col w-full">
+<!-- Sticky Search & Filter Canopy -->
+<div class="sticky top-0 z-30 pt-1 pb-3 -mx-margin px-margin bg-surface/95 backdrop-blur-md">
+<!-- Search Bar Surface (Solid Pearl-White Container) -->
+<div class="flex items-center w-full min-h-[46px] px-3.5 bg-surface-container-lowest rounded-xl shadow-[0_1px_3px_rgba(28,31,30,0.04)] focus-within:shadow-[0_0_0_2px_#0b6b59]">
+<span class="material-symbols-outlined text-[20px] text-outline mr-2.5 shrink-0 select-none">search</span>
+<input aria-label="Search ledger entries" autocomplete="off" class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none" id="ledger-search-input" placeholder="Search entry #, customer, txn ref..." type="search"/>
+<button aria-label="Clear query" class="hidden w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors" id="clear-search-btn" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<!-- Filter Rails (Horizontal Scroll) -->
+<div aria-label="Transaction filters" class="flex items-center gap-space-xs overflow-x-auto no-scrollbar pt-2.5 pb-0.5 select-none" role="tablist">
+<button class="filter-pill shrink-0 min-h-[34px] px-3.5 rounded-full font-body-md text-body-md transition-all active:scale-95 bg-primary text-on-primary shadow-sm" data-filter="all" type="button">
+        All
+      </button>
+<button class="filter-pill shrink-0 min-h-[34px] px-3.5 rounded-full font-body-md text-body-md transition-all active:scale-95 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low" data-filter="bkash" type="button">
+        bKash
+      </button>
+<button class="filter-pill shrink-0 min-h-[34px] px-3.5 rounded-full font-body-md text-body-md transition-all active:scale-95 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low" data-filter="visa" type="button">
+        Visa
+      </button>
+<button class="filter-pill shrink-0 min-h-[34px] px-3.5 rounded-full font-body-md text-body-md transition-all active:scale-95 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low" data-filter="mastercard" type="button">
+        Mastercard
+      </button>
+<button class="filter-pill shrink-0 min-h-[34px] px-3.5 rounded-full font-body-md text-body-md transition-all active:scale-95 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low" data-filter="pending" type="button">
+        Pending
+      </button>
+<button class="filter-pill shrink-0 min-h-[34px] px-3.5 rounded-full font-body-md text-body-md transition-all active:scale-95 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low" data-filter="voided" type="button">
+        Voided
+      </button>
+</div>
+</div>
+<!-- Day Partition Group Header (Collapsible toggle) -->
+<section aria-label="Day ledger entries" class="mt-2 mb-2">
+<div class="w-full flex items-center justify-between p-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer select-none" id="day-toggle-header" role="button" tabindex="0">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[20px] text-primary transition-transform duration-200" id="day-chevron">expand_more</span>
+<div class="flex items-baseline gap-1.5 truncate">
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold tracking-tight">Today, 30 Oct 2026</span>
+<span class="text-on-surface-variant font-body-sm text-body-sm opacity-80">· 4 entries</span>
+</div>
+</div>
+<div class="shrink-0 flex items-center gap-1 pl-2">
+<span class="font-label-caps text-label-caps uppercase text-on-surface-variant">Net</span>
+<span class="font-mono-tabular-md text-mono-tabular-md font-semibold text-primary">৳9,182.10</span>
+</div>
+</div>
+<!-- Day Subtotal Linear Indicator -->
+<div class="w-full px-2 pt-1.5 pb-2 flex items-center justify-between font-label-caps text-label-caps text-on-surface-variant">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="tracking-wide">BATCH #261030-D1</span>
+</div>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline">RECONCILED: 75%</span>
+</div>
+<!-- Solid White Transaction Cards Stack (No glassmorphism on list rows per R4) -->
+<div class="flex flex-col gap-2.5 mt-1" id="entries-stack">
+<!-- Entry Card 1: Active Rahim Uddin (bKash) -->
+<article class="ledger-entry relative w-full bg-surface-container-lowest rounded-[18px] p-4 shadow-[0_1px_2px_rgba(28,31,30,0.03),0_8px_20px_-6px_rgba(28,31,30,0.04)] active:scale-[0.99] transition-transform" data-method="bkash" data-status="settled">
+<div class="flex items-start justify-between gap-3">
+<!-- Left Column -->
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-on-surface-variant px-1.5 py-0.5 rounded bg-surface-container-low font-medium">
+                E-202610-000042
+              </span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">14:48</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold truncate leading-tight">
+              Rahim Uddin
+            </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 truncate flex items-center gap-1.5">
+<span>1 session</span>
+<span>·</span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm">BJT84920KL</span>
+</p>
+</div>
+<!-- Right Column (Tabular Figures & Badge) -->
+<div class="flex flex-col items-end shrink-0 text-right">
+<!-- bKash channel chip -->
+<span class="inline-flex items-center px-2 py-0.5 rounded-full font-label-caps text-label-caps uppercase bg-secondary-fixed text-on-secondary-fixed font-semibold tracking-wider mb-1.5">
+              bKash
+            </span>
+<div class="flex flex-col">
+<span class="font-mono-tabular-lg text-mono-tabular-md font-semibold text-on-surface">
+                ৳3,064.05
+              </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline mt-0.5">
+                Gross ৳5,909.00
+              </span>
+</div>
+</div>
+</div>
+<!-- Subtle Action Drawer Indicator -->
+<div class="mt-3 pt-2.5 flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps">
+<span class="inline-flex items-center gap-1 text-primary-container font-semibold">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+            SETTLED TO TREASURY
+          </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline">FEE ৳106.36</span>
+</div>
+</article>
+<!-- Entry Card 2: Active Farhana Yasmin (Visa) -->
+<article class="ledger-entry relative w-full bg-surface-container-lowest rounded-[18px] p-4 shadow-[0_1px_2px_rgba(28,31,30,0.03),0_8px_20px_-6px_rgba(28,31,30,0.04)] active:scale-[0.99] transition-transform" data-method="visa" data-status="settled">
+<div class="flex items-start justify-between gap-3">
+<!-- Left Column -->
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-on-surface-variant px-1.5 py-0.5 rounded bg-surface-container-low font-medium">
+                E-202610-000041
+              </span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">11:15</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold truncate leading-tight">
+              Farhana Yasmin
+            </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 truncate flex items-center gap-1.5">
+<span>2 sessions</span>
+<span>·</span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm">VIS99214AX</span>
+</p>
+</div>
+<!-- Right Column -->
+<div class="flex flex-col items-end shrink-0 text-right">
+<!-- Visa Channel Chip -->
+<span class="inline-flex items-center px-2 py-0.5 rounded-full font-label-caps text-label-caps uppercase bg-tertiary-fixed text-on-tertiary-fixed-variant font-semibold tracking-wider mb-1.5">
+              Visa
+            </span>
+<div class="flex flex-col">
+<span class="font-mono-tabular-lg text-mono-tabular-md font-semibold text-on-surface">
+                ৳6,136.00
+              </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline mt-0.5">
+                Gross ৳11,800.00
+              </span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps">
+<span class="inline-flex items-center gap-1 text-primary-container font-semibold">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+            AUTO-RECONCILED
+          </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline">VAT ৳1,539.13</span>
+</div>
+</article>
+<!-- Entry Card 3: Pending Sync (Tanvir Hasan) -->
+<article class="ledger-entry relative w-full bg-surface-container-lowest rounded-[18px] p-4 shadow-[0_1px_2px_rgba(28,31,30,0.03),0_8px_20px_-6px_rgba(28,31,30,0.04)] active:scale-[0.99] transition-transform" data-method="bkash" data-status="pending">
+<div class="flex items-start justify-between gap-3">
+<!-- Left Column -->
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-1.5 mb-1">
+<!-- Local Amber Cache Tag -->
+<span class="font-mono-tabular-sm text-mono-tabular-sm px-1.5 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-semibold">
+                #LOCAL-a3f9c2
+              </span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface font-semibold truncate leading-tight">
+              Tanvir Hasan
+            </h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 truncate flex items-center gap-1.5">
+<span>1 session</span>
+<span>·</span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm">BK883901</span>
+</p>
+</div>
+<!-- Right Column -->
+<div class="flex flex-col items-end shrink-0 text-right">
+<div class="flex items-center gap-1 mb-1.5">
+<span class="inline-flex items-center px-1.5 py-0.5 rounded-full font-label-caps text-label-caps uppercase bg-secondary text-on-secondary font-semibold">
+                Pending
+              </span>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full font-label-caps text-label-caps uppercase bg-secondary-fixed text-on-secondary-fixed font-semibold">
+                bKash
+              </span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono-tabular-lg text-mono-tabular-md font-semibold text-on-surface">
+                ৳1,816.50
+              </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline mt-0.5">
+                Gross ৳3,500.00
+              </span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 flex items-center justify-between text-on-surface-variant font-label-caps text-label-caps">
+<span class="inline-flex items-center gap-1 text-secondary font-semibold">
+<span class="material-symbols-outlined text-[14px]">sync</span>
+            WAITING GATEWAY WEBHOOK
+          </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline">RETRY #2</span>
+</div>
+</article>
+<!-- Entry Card 4: Voided Entry (Kazi Enterprises) -->
+<article class="ledger-entry relative w-full bg-surface-container-lowest/80 rounded-[18px] p-4 shadow-[0_1px_2px_rgba(28,31,30,0.02)] opacity-70 active:scale-[0.99] transition-transform" data-method="voided" data-status="voided">
+<div class="flex items-start justify-between gap-3">
+<!-- Left Column -->
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline px-1.5 py-0.5 rounded bg-surface-container-high line-through">
+                E-202610-000039
+              </span>
+<span class="w-1 h-1 rounded-full bg-outline-variant"></span>
+<span class="font-body-sm text-body-sm text-outline">09:04</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-outline font-medium line-through truncate leading-tight">
+              Kazi Enterprises
+            </h2>
+<p class="font-body-sm text-body-sm text-outline mt-0.5 truncate flex items-center gap-1.5">
+<span>Voided via Merchant Console</span>
+</p>
+</div>
+<!-- Right Column -->
+<div class="flex flex-col items-end shrink-0 text-right">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full font-label-caps text-label-caps uppercase bg-surface-variant text-on-surface-variant font-medium tracking-wider mb-1.5">
+              Voided
+            </span>
+<div class="flex flex-col">
+<span class="font-mono-tabular-md text-mono-tabular-md font-medium text-outline line-through">
+                ৳8,200.00
+              </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm text-outline-variant mt-0.5">
+                Reversed
+              </span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 flex items-center justify-between text-outline font-label-caps text-label-caps">
+<span class="inline-flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">cancel</span>
+            REVERSAL RECEIPT #RV-9920
+          </span>
+<span class="font-mono-tabular-sm text-mono-tabular-sm">NET: ৳0.00</span>
+</div>
+</article>
+</div>
+</section>
+<!-- Day Subtotal Summary Ledger Card (Pearl Solid) -->
+<aside class="mt-3 mb-6 w-full bg-surface-container-low rounded-[18px] p-4 shadow-[0_1px_3px_rgba(28,31,30,0.03)]">
+<div class="flex items-center justify-between pb-2.5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-primary">analytics</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider text-on-surface-variant font-semibold">
+          Daily Subtotal Breakdown
+        </span>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-container font-mono-tabular-sm text-mono-tabular-sm text-on-surface-variant font-medium">
+        4 Entries Total
+      </span>
+</div>
+<!-- Metrics Row (Tabular Numbers with South Asian Currency Notation) -->
+<div class="grid grid-cols-2 gap-3 pt-1">
+<div class="bg-surface-container-lowest p-3 rounded-xl">
+<p class="font-label-caps text-label-caps uppercase text-outline">Total Gross Inflow</p>
+<p class="font-mono-tabular-lg text-mono-tabular-md font-semibold text-on-surface mt-1">
+          ৳29,409.00
+        </p>
+<span class="font-body-sm text-body-sm text-on-surface-variant opacity-75">Incl. ৳8.2k voided</span>
+</div>
+<div class="bg-surface-container-lowest p-3 rounded-xl">
+<p class="font-label-caps text-label-caps uppercase text-primary font-semibold">Net Liquidable</p>
+<p class="font-mono-tabular-lg text-mono-tabular-md font-semibold text-primary mt-1">
+          ৳17,136.55
+        </p>
+<span class="font-body-sm text-body-sm text-primary opacity-80">Settled &amp; Pending</span>
+</div>
+</div>
+<!-- Settlement Allocation Micro-Progress Strip -->
+<div class="mt-3 pt-2 flex flex-col gap-1.5">
+<div class="flex justify-between font-label-caps text-label-caps text-on-surface-variant">
+<span>Channel Split</span>
+<span>bKash (62%) · Visa (38%)</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden flex">
+<div class="h-full bg-secondary-container" style="width: 62%"></div>
+<div class="h-full bg-tertiary-container" style="width: 38%"></div>
+</div>
+</div>
+</aside>
+<!-- Empty Search Result State (Hidden by default, lively character) -->
+<div class="hidden flex-col items-center justify-center py-12 px-6 text-center" id="ledger-empty-state">
+<div class="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center text-outline mb-3">
+<span class="material-symbols-outlined text-[28px]">search_off</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface font-semibold">No matching entries</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1 max-w-[260px]">
+      We couldn't spot that entry number or customer on today's rail.
+    </p>
+<button class="mt-4 px-4 py-2 bg-surface-container-high text-on-surface font-body-md text-body-md rounded-full active:scale-95 transition-transform" id="reset-filter-btn" type="button">
+      Clear All Filters
+    </button>
+</div>
+</div>
+<script>
+  (function initLedgerInteractivity() {
+    const searchInput = document.getElementById('ledger-search-input');
+    const clearBtn = document.getElementById('clear-search-btn');
+    const filterPills = document.querySelectorAll('.filter-pill');
+    const entries = document.querySelectorAll('.ledger-entry');
+    const emptyState = document.getElementById('ledger-empty-state');
+    const entriesStack = document.getElementById('entries-stack');
+    const dayToggle = document.getElementById('day-toggle-header');
+    const dayChevron = document.getElementById('day-chevron');
+    const resetFilterBtn = document.getElementById('reset-filter-btn');
+
+    let currentFilter = 'all';
+
+    // Collapsible day partition
+    if (dayToggle && entriesStack && dayChevron) {
+      dayToggle.addEventListener('click', () => {
+        const isHidden = entriesStack.classList.contains('hidden');
+        if (isHidden) {
+          entriesStack.classList.remove('hidden');
+          dayChevron.style.transform = 'rotate(0deg)';
+        } else {
+          entriesStack.classList.add('hidden');
+          dayChevron.style.transform = 'rotate(-90deg)';
+        }
+      });
+    }
+
+    // Filter Logic
+    function applyFiltering() {
+      const query = (searchInput?.value || '').trim().toLowerCase();
+      let visibleCount = 0;
+
+      if (query.length > 0) {
+        clearBtn?.classList.remove('hidden');
+      } else {
+        clearBtn?.classList.add('hidden');
+      }
+
+      entries.forEach((card) => {
+        const method = card.getAttribute('data-method') || '';
+        const status = card.getAttribute('data-status') || '';
+        const text = card.textContent.toLowerCase();
+
+        const matchesQuery = query === '' || text.includes(query);
+        const matchesPill = 
+          currentFilter === 'all' || 
+          method === currentFilter || 
+          status === currentFilter;
+
+        if (matchesQuery && matchesPill) {
+          card.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+
+      if (visibleCount === 0) {
+        emptyState?.classList.remove('hidden');
+        emptyState?.classList.add('flex');
+      } else {
+        emptyState?.classList.add('hidden');
+        emptyState?.classList.remove('flex');
+      }
+    }
+
+    // Filter pill tap events
+    filterPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        filterPills.forEach((p) => {
+          p.classList.remove('bg-primary', 'text-on-primary', 'shadow-sm');
+          p.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+        });
+
+        pill.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+        pill.classList.add('bg-primary', 'text-on-primary', 'shadow-sm');
+
+        currentFilter = pill.getAttribute('data-filter') || 'all';
+        applyFiltering();
+      });
+    });
+
+    // Search events
+    searchInput?.addEventListener('input', applyFiltering);
+
+    clearBtn?.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      applyFiltering();
+    });
+
+    resetFilterBtn?.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      currentFilter = 'all';
+      filterPills.forEach((p) => {
+        if (p.getAttribute('data-filter') === 'all') {
+          p.classList.add('bg-primary', 'text-on-primary', 'shadow-sm');
+          p.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+        } else {
+          p.classList.remove('bg-primary', 'text-on-primary', 'shadow-sm');
+          p.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+        }
+      });
+      applyFiltering();
+    });
+  })();
+</script></main><div class="fixed bottom-6 right-6 z-40 flex items-center gap-space-xs bg-white/75 backdrop-blur-xl p-1 rounded-full shadow-[0_12px_32px_-6px_rgba(28,31,30,0.08)]"><button class="min-h-[44px] px-4 py-2 bg-primary-container text-on-primary font-body-md text-body-md rounded-full flex items-center gap-space-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] active:scale-95 transition-transform" type="button"><span class="material-symbols-outlined text-[20px]">add</span><span>New Entry</span></button><button aria-label="Menu" class="w-[44px] h-[44px] rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface active:scale-95 transition-transform" type="button"><span class="material-symbols-outlined text-[22px]">menu</span></button></div><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(0,0,0,0.03)]" data-active-classes="text-primary font-semibold"><div class="flex justify-around items-center h-16 px-space-sm"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] transition-colors text-primary font-semibold" data-path="ledger" href="#"><span class="material-symbols-outlined text-[22px]">receipt_long</span><span class="font-label-caps text-label-caps mt-0.5">Ledger</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] text-on-surface-variant transition-colors" data-path="treasury" href="#"><span class="material-symbols-outlined text-[22px]">account_balance</span><span class="font-label-caps text-label-caps mt-0.5">Treasury</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] text-on-surface-variant transition-colors" data-path="analytics" href="#"><span class="material-symbols-outlined text-[22px]">query_stats</span><span class="font-label-caps text-label-caps mt-0.5">Analytics</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[44px] text-on-surface-variant transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[22px]">tune</span><span class="font-label-caps text-label-caps mt-0.5">Settings</span></a></div></nav></body></html>

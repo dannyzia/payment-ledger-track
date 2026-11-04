@@ -1,0 +1,40 @@
+{
+  "name": "payment-ledger-track",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @clt/web dev",
+    "build": "pnpm -r build",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "typecheck": "tsc --build packages/calc packages/shared && pnpm --filter @clt/web check",
+    "format": "prettier --check .",
+    "db:bootstrap": "tsx scripts/bootstrap.ts",
+    "db:reset": "supabase db reset"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "@supabase/supabase-js": "^2.46.1",
+    "@types/node": "^22.8.0",
+    "@types/pg": "^8.11.10",
+    "eslint": "^9.14.0",
+    "eslint-plugin-svelte": "^2.46.0",
+    "fast-check": "^3.22.0",
+    "pg": "^8.13.0",
+    "prettier": "^3.3.3",
+    "prettier-plugin-svelte": "^3.2.8",
+    "supabase": "^1.207.0",
+    "svelte": "^5.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0",
+    "vitest": "^2.1.4",
+    "zod": "^3.23.8"
+  }
+}

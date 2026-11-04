@@ -1,0 +1,9 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# pnpm 11+ requires dependency lifecycle scripts (postinstall) to be explicitly approved.
+# esbuild: native binary setup used by Vite. supabase: downloads the local CLI binary.
+allowBuilds:
+  esbuild: true
+  supabase: true
