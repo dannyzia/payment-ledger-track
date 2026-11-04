@@ -20,6 +20,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.23.1
+      dotenv:
+        specifier: ^18.0.9
+        version: 18.0.9
       eslint:
         specifier: ^9.14.0
         version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
@@ -1308,6 +1311,11 @@ packages:
 
   dexie@4.4.7:
     resolution: {integrity: sha512-wemFiCl3DTCnfzyqepUTX1ugbYbkTrw3aEZOG7YjAOUoEQB5g5PrEywPzk5JpbX/SxqQ9IvjUpxCDIEjoOWEfA==}
+
+  dotenv@18.0.9:
+    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
+    engines: {node: '>=12'}
+    hasBin: true
 
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
@@ -3149,6 +3157,8 @@ snapshots:
   devalue@5.9.4: {}
 
   dexie@4.4.7: {}
+
+  dotenv@18.0.9: {}
 
   eastasianwidth@0.2.0: {}
 

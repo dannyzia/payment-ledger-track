@@ -199,6 +199,8 @@ before insert or update of active on payment_methods
 for each row execute function fn_payment_methods_active_rate_check();
 
 -- 8. Trigger: User Profile Provisioning on Auth User Creation (C1, A7)
+-- SECURITY DEFINER: provisioning the profile happens as postgres with a pinned
+-- search_path, per this file's standard function hardening (see CLT-D-009 note).
 create or replace function fn_auth_users_create_profile()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -220,7 +222,7 @@ begin
     split_part(NEW.email, '@', 1)
   );
 
-  insert into profiles (id, full_name, role, active)
+  insert into public.profiles (id, full_name, role, active)
   values (NEW.id, v_full_name, v_role, true)
   on conflict (id) do update
   set role = EXCLUDED.role,
@@ -231,23 +233,74 @@ begin
 end;
 $$;
 
+-- The GoTrue DB role must be able to run this provisioning trigger.
+-- (Revocation policy grants EXECUTE to service_role only; supabase_auth_admin
+-- additionally gets this single function — CLT-D-009.)
+grant execute on function fn_auth_users_create_profile() to supabase_auth_admin;
+
 create trigger trg_auth_users_create_profile
 after insert on auth.users
 for each row execute function fn_auth_users_create_profile();
 
+-- 7b. Trigger: Role Re-derivation on App Metadata Update (C1, CLT-D-009)
+-- GoTrue persists raw_app_meta_data in a later UPDATE, not at row insert, so a
+-- provisioned profile starts 'staff' even for the bootstrap owner payload. Role
+-- is derived strictly from raw_app_meta_data (admin-managed; users cannot modify
+-- it), so re-deriving on update is the faithful model. Absence/invalidity of a
+-- role key must NOT demote (GoTrue writes provider-only metadata on OAuth flows).
+create or replace function fn_auth_users_sync_profile_role()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_claimed text;
+begin
+  v_claimed := NEW.raw_app_meta_data->>'role';
+  if v_claimed in ('admin', 'staff', 'owner') then
+    update public.profiles p
+    set role = v_claimed::user_role, updated_at = now()
+    where p.id = NEW.id and p.role is distinct from v_claimed::user_role;
+  end if;
+  return NEW;
+end;
+$$;
+
+create trigger trg_auth_users_sync_profile_role
+after update of raw_app_meta_data, raw_user_meta_data on auth.users
+for each row execute function fn_auth_users_sync_profile_role();
+
+-- The GoTrue DB role must be able to run both provisioning triggers.
+grant execute on function fn_auth_users_sync_profile_role() to supabase_auth_admin;
+
 -- 9. Trigger: Deferrable Constraint Invariant: Minimum 1 Owner (F11, F15)
 -- Evaluated deferred at commit time, supporting atomic demote-before-promote in transfer_ownership
 create or replace function fn_prevent_zero_owners()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  v_owner_count int;
-begin
-  select count(*) into v_owner_count from profiles where role = 'owner' and active = true;
-  if v_owner_count < 1 then
-    raise exception '422 exactly_one_owner_required';
-  end if;
-  return null;
-end;
+  -- Invariant: no mutation may REMOVE the last active owner. Pure INSERTs
+  -- cannot remove anything (and GoTrue provisions an auth user's profile row
+  -- as 'staff' before app metadata is applied, so an insert-time count would
+  -- falsely trap day-zero provisioning); role changes on UPDATE and DELETE
+  -- are the only paths that can eliminate an owner (CLT-D-009).
+  declare
+    v_owner_count int;
+  begin
+    if TG_OP = 'UPDATE' then
+      if OLD.role = 'owner' and OLD.active is true
+         and not (NEW.role = 'owner' and NEW.active is true) then
+        select count(*) into v_owner_count
+        from public.profiles where role = 'owner' and active = true;
+        if v_owner_count < 1 then
+          raise exception '422 exactly_one_owner_required';
+        end if;
+      end if;
+    elsif TG_OP = 'DELETE' then
+      select count(*) into v_owner_count
+      from public.profiles where role = 'owner' and active = true;
+      if v_owner_count < 1 then
+        raise exception '422 exactly_one_owner_required';
+      end if;
+    end if;
+    return null;
+  end;
 $$;
 
 create constraint trigger trg_prevent_zero_owners

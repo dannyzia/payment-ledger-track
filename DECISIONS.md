@@ -68,3 +68,19 @@ While implementing Plan 004, three spec-block conflicts surfaced between plans 0
 3. Migration 000005's `rpc_push_sync_op` and `rpc_supersede_entry` (which mutate entries and can trigger the same recalc) also set the GUC. The orchestrator/owner-facing audit trail remains: cause events (`payment`, `void`, `supersede`) already carry the real actor; the invalidation row now carries the same actor instead of a forged zero UUID when the direct trigger path fires.
 
 **Effect:** no schema change; no grant change; `audit_log` stays append-only with a real FK-satisfying actor on every recalc-triggered invalidation. Regression suites cover FK-valid audit writes after overpay→approve→recalc cascades (Tests #35/#40/#48/#49).
+
+## CLT-D-009: Auth-trigger provisioning vs GoTrue's metadata timing; zero-owner guard narrowed; auth-trigger EXECUTE grant; Kong restart after db:reset (2026-11-04, Plan 006)
+
+**Found while running** `pnpm db:bootstrap` (Plan 006) against local Supabase. GoTrue creates an auth user in one transaction whose `raw_app_meta_data` is empty at row-insert time (metadata is applied in a separate later UPDATE). This breaks three assumptions the migrations made:
+
+1. **`fn_auth_users_create_profile`** (insert trigger) provisioned the profile with role `'staff'` even for the bootstrap owner payload, because the role key was not yet present at insert time.
+2. **`fn_prevent_zero_owners`** (deferred constraint trigger) counted owners on the INSERT path at commit; on day zero (empty DB, first signup) that trips `422 exactly_one_owner_required` and breaks createUser. The guard's actual invariant is "no mutation may REMOVE the last active owner", and only UPDATE-demote/DELETE can do that (a second owner is blocked by the `one_owner` partial index anyway).
+3. The GoTrue DB role (`supabase_auth_admin`) had no `search_path` visibility or EXECUTE grants for these trigger functions; its session reported `relation "profiles" does not exist` at commit.
+
+**Chosen (migration 000005 amended):**
+1. `fn_prevent_zero_owners` now enforces only removal operations: raises `422 exactly_one_owner_required` when an UPDATE demotes/deactivates the last active owner or a DELETE removes an owner leaving none. Pure INSERTs skip the check (inserts cannot remove owners; day-zero provisioning is legitimate). The demote-before-promote atomicity guarantee is preserved because deferred constraint triggers evaluate after the whole transaction's changes are applied.
+2. New `fn_auth_users_sync_profile_role()` + `trg_auth_users_sync_profile_role` (after update of `raw_app_meta_data`/`raw_user_meta_data` on auth.users): re-derives `profiles.role` strictly from `raw_app_meta_data->>'role'` (admin-managed JSON; never user-modifiable). Absence/invalidity of the role key must NOT demote (GoTrue writes provider-only metadata on OAuth flows).
+3. `fn_auth_users_create_profile` qualified `public.profiles` explicitly and both auth-trigger functions are `SECURITY DEFINER set search_path = public, pg_temp` with EXECUTE granted to `supabase_auth_admin` (the only direct grants to that role; keeps anon/authenticated/public revocations intact).
+4. `db:reset` restarts the Kong container after `supabase db reset`: Kong caches the GoTrue upstream IP, which is recreated by the reset and then returns "Connection refused"/502 until Kong re-resolves (local dev operational fixup).
+
+**Effect:** bootstrap creates the owner via Supabase Auth Admin API with `app_metadata: {role:'owner'}`; the profile is provisioned 'staff' by the insert trigger and set to 'owner' by the metadata-update trigger before the transaction commits. Bootstrap verified twice; SSL/registration privilege model unchanged.
