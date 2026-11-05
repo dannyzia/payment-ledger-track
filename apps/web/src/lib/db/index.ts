@@ -33,7 +33,7 @@ export interface LocalEntry {
   dup_txn_flag?: boolean | undefined;
   void_requested_by?: string | undefined;
   void_reason?: string | undefined;
-  stale_review_status?: 'none' | 'pending' | 'approved' | 'rejected' | undefined;
+  stale_review_status?: 'none' | 'flagged' | 'approved' | 'rejected' | undefined; // DDL check: ('none','flagged','approved','rejected')
 }
 
 export interface LocalOutboxOp {
@@ -143,6 +143,11 @@ export interface CachedStatement {
   variance_poisha?: string | undefined;
   reconciled_at?: string | undefined;
   reconciled_by?: string | undefined;
+  // Client-authoritative fields cached by Mode A screens before background sync (CLT-D-019)
+  statement_total_poisha?: string | undefined;
+  payable_ids?: string[] | undefined;
+  payable_id?: string | undefined;
+  note?: string | undefined;
 }
 
 export interface CachedStatementLine {
