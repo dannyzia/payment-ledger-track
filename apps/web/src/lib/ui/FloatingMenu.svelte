@@ -1,6 +1,7 @@
 <script lang="ts">
   import { draggable } from './actions/draggable';
   import { messages } from '../i18n/messages';
+  import { triggerHapticTick } from '$lib/native/haptics';
 
   interface Props {
     role?: 'staff' | 'admin' | 'owner';
@@ -16,8 +17,13 @@
     expanded = !expanded;
   }
 
-  function handleSnap(pos: { x: number; y: number; isLowerHalf: boolean }) {
+  async function handleSnap(pos: { x: number; y: number; isLowerHalf: boolean; source?: string }) {
     isLowerHalf = pos.isLowerHalf;
+    // PRD §14.5: buzz only on a physical drag-release snap, never on
+    // keyboard navigation (no source) or double-tap resets (Plan 019 §10.4)
+    if (pos.source === 'drag') {
+      await triggerHapticTick();
+    }
   }
 
   function handleKeydown(e: KeyboardEvent) {

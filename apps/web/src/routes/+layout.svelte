@@ -5,6 +5,7 @@
   import InstallBanner from '$lib/ui/InstallBanner.svelte';
   import UpgradePromptModal from '$lib/ui/UpgradePromptModal.svelte';
   import { initStoragePersistence } from '$lib/pwa/storage';
+  import { initPersistentDeviceId } from '$lib/auth/device';
   import '../app.css';
 
   let { children } = $props();
@@ -23,6 +24,10 @@
 
     // Request persistent storage on initialization (PRD §12)
     initStoragePersistence().catch(console.error);
+
+    // Restore persistent device UUID from @capacitor/preferences across app
+    // storage wipes (Plan 019, PRD §9.1); no-op on non-native platforms
+    initPersistentDeviceId().catch(console.error);
 
     // Service worker registration with prompt lifecycle (PRD §9.2, §13; vite-pwa
     // SvelteKit docs: the virtual module must be imported dynamically in onMount)

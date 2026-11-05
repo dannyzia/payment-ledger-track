@@ -11,6 +11,7 @@
   } from '$lib/db';
   import { session } from '$lib/auth/session.svelte';
   import { computeSettlementReminder, type SettlementStatus } from '$lib/settlements/reminders';
+  import { requestNotificationPermissions, scheduleSettlementReminders } from '$lib/native/reminders';
   import { formatPoishaToBdt } from '@clt/shared';
   import { liveQuery } from 'dexie';
   import { goto } from '$app/navigation';
@@ -146,6 +147,26 @@
     }
 
     return list;
+  });
+
+  // Native push reminders: reschedule whenever the visible month's settlement
+  // data changes (PRD §17 M5). scheduleSettlementReminders no-ops on non-native
+  // platforms, and reminders cancel themselves once expected === paid.
+  $effect(() => {
+    if (!isAuthorized) return;
+    void requestNotificationPermissions().then(() =>
+      scheduleSettlementReminders(
+        items.map((it) => ({
+          id: it.id,
+          payableName: it.payable.name,
+          dueDay: it.payable.due_day,
+          remindDaysBefore: it.payable.remind_days_before ?? 3,
+          expectedPoisha: it.expectedPoisha,
+          paidPoisha: it.paidPoisha,
+          month: selectedMonth,
+        }))
+      )
+    );
   });
 
   const statusBadges: Record<SettlementStatus, { label: string; cls: string }> = {

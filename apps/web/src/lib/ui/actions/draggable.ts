@@ -1,7 +1,7 @@
 export interface DragOptions {
   storageKey?: string;
   positionMode?: 'free' | 'bottom' | 'left' | 'right';
-  onSnap?: (position: { x: number; y: number; isLowerHalf: boolean }) => void;
+  onSnap?: (position: { x: number; y: number; isLowerHalf: boolean; source?: string }) => void;
 }
 
 export interface Rect {
@@ -137,9 +137,11 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
   }
 
-  function notifySnap() {
+  function notifySnap(source?: string) {
     const isLowerHalf = currentY > window.innerHeight / 2;
-    options.onSnap?.({ x: currentX, y: currentY, isLowerHalf });
+    // source: 'drag' marks an active pointer-drag release (Plan 019 §10.4:
+    // haptics fire only there); initialization and keyboard nudges pass none
+    options.onSnap?.({ x: currentX, y: currentY, isLowerHalf, source });
   }
 
   function resetToDocked() {
@@ -226,7 +228,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     if (options.storageKey && typeof localStorage !== 'undefined') {
       localStorage.setItem(options.storageKey, JSON.stringify({ x: currentX, y: currentY }));
     }
-    notifySnap();
+    notifySnap('drag');
   }
 
   function onKeyDown(e: KeyboardEvent) {
