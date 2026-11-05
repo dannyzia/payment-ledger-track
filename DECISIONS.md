@@ -147,3 +147,15 @@ While implementing Plan 004, three spec-block conflicts surfaced between plans 0
 
 **Effect:** ledger.test.ts 9/9 (search prefix normalization + numeric isolation, intra-day ordering, active-only daily subtotals, void request/execute outbox queueing with watermark, closed-month lockout rejecting both paths with no outbox rows, Test #32 inactive guards, Test #57 stale matching); web suites 50/50; root suite 99/99 after `db:reset` (exit 0); svelte-check 0/0; root lint and typecheck clean.
 6. ESLint `@typescript-eslint/no-explicit-any` fired on the verbatim spec code (`syncFromSupabaseSession(sbSession: any)`, `app_metadata` cast, three `catch (err: any)`), plus an unused `session` import in the root layout. Replaced with the supabase-js `Session` type, a `UserSessionProfile['role']` cast, and `err: unknown` narrowing (`err instanceof Error ? err.message : fallback`) — behavior-identical; guard/redirect tests unchanged and passing.
+
+## CLT-D-017 — Plan 013 implementation deviations (reports & exports)
+
+Date: 2026-11-05. Verified with reports.test.ts 8/8, web 58/58, root 99/99 after `db:reset` (exit 0), svelte-check 0/0, root lint and typecheck clean.
+
+Where the Plan 013 §6 verbatim specification diverged from the repository's verified types and Svelte 5 rules, the following deviations were made (Rule 13):
+
+1. **CSV snapshot fields realigned to the authoritative `RateSnapshot`** (mirrors CLT-D-016): the plan's `e.snapshot?.vatMode` and `e.snapshot?.rateProfileVersion` do not exist on `LocalEntry.snapshot` (typed from `packages/calc` `RateSnapshot`). SEA: `e.snapshot?.vat?.mode ?? 'manual'` for the VAT Mode column and `e.snapshot?.version !== undefined ? \`v${e.snapshot.version}\` : 'v1'` for Rate Version. Test expectation unchanged (defaults 'manual'/'v1' render identically when snapshot absent).
+2. **Typed Capacitor window contract:** plan's `(window as any).Capacitor?.isNativePlatform()` in all three export modules replaced with a minimal `interface CapacitorWindow { Capacitor?: { isNativePlatform?: () => boolean } | undefined }` plus `(window as unknown as CapacitorWindow)` — satisfies CLT-D-013 no-explicit-any pattern.
+3. **Payables status badge lookup as `Record` map instead of switch:** exhaustive switch on a 5-member union risks `noImplicitReturns` friction; a `Record<SettlementStatus, {label, cls}>` lookup is behavior-identical.
+4. **Chart scaling moved out of the template:** plan's `{@const maxDaily = ...}` inside a plain `<div>` violates Svelte 5's `{@const}` placement rule (compile error); computed as `maxDailyGross` `$derived` in the script block.
+5. **Keyed each blocks:** `{#each ... (day.date)}` and `{#each activeMonthEntries as entry (entry.id)}` for Svelte 5 each-key consistency.
