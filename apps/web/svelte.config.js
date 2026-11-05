@@ -26,6 +26,10 @@ const config = {
     serviceWorker: {
       register: false,
     },
+    // Server-private env (`SUPABASE_SERVICE_ROLE_KEY`, bootstrap owner creds)
+    // lives in the untracked root .env/.env.local that db:bootstrap also reads;
+    // dev servers are spawned from apps/web, so Vite's envDir points at the
+    // monorepo root (apps/web/vite.config.ts `envDir`), never a user's cwd.
   },
 };
 

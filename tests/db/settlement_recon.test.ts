@@ -49,6 +49,9 @@ describe('Settlement, Reconciliation, and Month Close Integration Tests', () => 
       DELETE FROM entries;
       DELETE FROM method_rates;
       DELETE FROM rate_profiles;
+      -- Defensive: payables may hold FK rows from a prior suite's seed (the
+      -- workspace-wide run can interleave); payables must go first.
+      DELETE FROM payables;
       DELETE FROM payment_methods;
       ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
       ALTER TABLE method_rates ENABLE TRIGGER trg_method_rates_draft_publish_lock;

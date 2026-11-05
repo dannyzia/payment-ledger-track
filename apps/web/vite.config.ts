@@ -4,6 +4,11 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // Server-private env (SUPABASE_SERVICE_ROLE_KEY, bootstrap owner creds)
+  // lives in the untracked root .env/.env.local that db:bootstrap also reads;
+  // dev servers are spawned from apps/web, so the monorepo root is the env
+  // base rather than leaving Vite to look for cwd-relative .env files.
+  envDir: '../../',
   plugins: [
     tailwindcss(),
     sveltekit(),
@@ -54,9 +59,11 @@ export default defineConfig({
     }),
   ],
   test: {
-    // Vitest collects web-app unit tests from src only; Playwright specs in tests/e2e
-    // are executed separately via `pnpm test:e2e`.
-    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    // Vitest collects web-app unit tests from src plus the Plan 020 test suites
+    // (tests/calc, tests/reports, tests/regression); Playwright specs in
+    // tests/e2e are executed separately via `pnpm test:e2e`.
+    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)', 'tests/**/*.test.ts'],
+    exclude: ['tests/e2e/**', 'node_modules/**'],
     environment: 'node',
   },
 });
