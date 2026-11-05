@@ -1,0 +1,38 @@
+import type { RequestHandler } from '@sveltejs/kit';
+import { error, json } from '@sveltejs/kit';
+import { z } from 'zod';
+import { getCallerContext } from '$lib/server/auth';
+import { getServiceSupabase } from '$lib/server/supabase';
+import type { Database } from '$lib/database.types';
+
+const unmatchSchema = z.object({
+  lineId: z.string().uuid(),
+  reason: z.string().min(1, 'Reason is required to unmatch statement line'),
+});
+
+export const POST: RequestHandler = async (event) => {
+  const caller = await getCallerContext(event);
+  if (caller.role !== 'admin' && caller.role !== 'owner') {
+    throw error(403, 'unauthorized: Admin or Owner role required');
+  }
+
+  const body = await event.request.json().catch(() => null);
+  const parsed = unmatchSchema.safeParse(body);
+  if (!parsed.success) {
+    throw error(400, `invalid_payload: ${JSON.stringify(parsed.error.issues)}`);
+  }
+
+  const supabase = getServiceSupabase();
+
+  const { error: rpcErr } = await supabase.rpc('unmatch_statement_line', {
+    p_line_id: parsed.data.lineId,
+    p_reason: parsed.data.reason,
+    p_actor_id: caller.userId,
+  } as unknown as Database['public']['Functions']['unmatch_statement_line']['Args']);
+
+  if (rpcErr) {
+    return json({ error: rpcErr.message }, { status: 422 });
+  }
+
+  return json({ success: true });
+};

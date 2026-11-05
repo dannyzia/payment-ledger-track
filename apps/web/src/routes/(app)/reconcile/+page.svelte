@@ -437,6 +437,14 @@
         >
           + New Mode A Statement
         </Button>
+        <Button
+          variant="default"
+          class="min-h-[44px]"
+          id="btn-mode-b-upload"
+          onclick={() => goto('/reconcile/upload')}
+        >
+          + Upload Statement File (Mode B)
+        </Button>
       </div>
     </div>
 
