@@ -352,3 +352,78 @@ Not run: the full PRD §16.2 65-test regression suite and `pnpm test:e2e`.
 - `apps/web/android/` remains untracked (regenerable).
 - The device is left signed in with the menu docked at 24/24.
 
+---
+
+# Fourth pass — the signed-out shell (CLT-R-015)
+
+Run date: 2026-11-06. Same Pixel 6a. APK SHA-256
+`8c983f9f081c6a44ed75ffa95a2a04b0970e92b5ebb44bbe52803b5591c41ab7`
+(4,177,850 bytes).
+
+## 15. Reproduction on the old build
+
+With the app signed in at `/dashboard`, only the Supabase token was removed
+from storage — `localStorage.removeItem('sb-127-auth-token')` — leaving
+`clt_cached_profile` in place, then reloading:
+
+```
+url: https://localhost/dashboard   signOutButton: true
+indicator: "Sync error (tap to retry)"
+```
+
+and navigating to `/login` came straight back:
+
+```
+url: https://localhost/login -> https://localhost/dashboard
+```
+
+The shell rendered the whole dashboard (cached month totals, the floating
+menu, Sign Out) on the strength of the profile cache alone, with no session to
+sync or authenticate with — `evidence/gate5/r015-before-fix-dashboard.png`.
+
+## 16. What changed
+
+1. **`routes/(app)/+layout.ts` (new)** — every screen in the app group verifies
+   `supabase.auth.getSession()` in its load, before the first render. No session
+   means `markSignedOut()` + `redirect(307, '/login')`, so there is no flash of a
+   hollow dashboard. `ssr` is off, and the load returns early outside the
+   browser so the prerender pass never touches Supabase. A session whose user
+   does not match the cached profile hydrates the profile from the session
+   instead of trusting the cache's role.
+2. **`lib/auth/session.svelte.ts`** — new `authMissing` rune, `markSignedOut()`
+   and `ensureSession()`. `ensureSession()` treats the absence of a session as
+   signed out, but a *failed* lookup leaves the cache alone so an offline device
+   is never locked out (PRD §9.3).
+3. **`lib/auth/guard.ts`** — `isSignedIn` now requires `!session.authMissing`, so
+   `/login` is no longer bounced back to the dashboard and role gating stops
+   operating on a phantom user. The auth-route list moved to `lib/auth/routes.ts`
+   so the gate and the guard share it.
+4. **`lib/sync/push.ts` / `runner.svelte.ts` / `SyncIndicator.svelte`** — a push
+   with no session now returns `reason: 'no_session'`; the runner answers that
+   with `ensureSession()` and a new `signed_out` state (indicator: "Signed out —
+   sign in", linking to `/login`) instead of "Sync error (tap to retry)".
+
+## 17. Verification on the device
+
+| Check | Result |
+|---|---|
+| Same mismatch state on the new build: `clt_cached_profile` = a stale owner profile, **no** token, navigate `/dashboard` | **PASS** — `{"url":"https://localhost/login","profile":null,"signOut":false,"loginForm":true,"indicator":null}`: the redirect happened before the dashboard rendered, the stale cache was dropped, and there was no Sign Out |
+| Normal sign-in still works | **PASS** — sign in from `/login` → `https://localhost/dashboard`, Sign Out present, profile cached with the real user id, indicator `Synced` (`r015-signed-in-again.png`) |
+| Offline does not lock a signed-in user out | **PASS** — both `adb reverse` tunnels removed, `am force-stop`, relaunch, `/dashboard`: stays on `/dashboard`, Sign Out present, profile intact, indicator `Offline` (no redirect) |
+
+Evidence: `evidence/gate5/r015-before-fix-dashboard.png`,
+`r015-after-fix-login.png`, `r015-signed-in-again.png`. No credentials appear in
+any of them; sign-in read the password from `.env.local` and never printed it.
+
+## 18. Checks run with this change
+
+| Check | Result |
+|---|---|
+| `svelte-check --threshold error` | `COMPLETED 655 FILES 0 ERRORS 0 WARNINGS` |
+| `src/lib/auth/auth.test.ts` | 9 passed, including two new CLT-R-015 cases (cached profile + no session is signed out; `/login` is not bounced) |
+| `src/lib/sync/runner.test.ts` (new) | 3 passed — `no_session` → `ensureSession()` + `signed_out`, pull not attempted; an ordinary push failure stays `error`; success still `synced` |
+| `apps/web` vitest | 17 files passed, 1 failed (`tests/reports/view_parity.test.ts`, 2 tests). Pre-existing and unrelated: reproduced with this change stashed at HEAD |
+
+Not run: the DB integration suites (blocked by the local `one_owner` state, see
+§13) and the full PRD §16.2 regression suite.
+
