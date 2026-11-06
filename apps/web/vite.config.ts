@@ -9,6 +9,12 @@ export default defineConfig({
   // dev servers are spawned from apps/web, so the monorepo root is the env
   // base rather than leaving Vite to look for cwd-relative .env files.
   envDir: '../../',
+  // Vite exposes only VITE_* by default. The app reads import.meta.env.PUBLIC_*
+  // for the API base and the Supabase URL (src/hooks.client.ts, src/lib/api.ts,
+  // src/lib/supabase/client.ts), so without this the packaged native build got
+  // no API base at all and every /api/v1 call fell through to the asset server
+  // (CLT-R-012). VITE_ is kept for the legacy fallbacks in those modules.
+  envPrefix: ['PUBLIC_', 'VITE_'],
   plugins: [
     tailwindcss(),
     sveltekit(),
