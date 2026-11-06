@@ -49,15 +49,15 @@ was measured from `getBoundingClientRect()` instead of eyeballed.
 |---|---|---|---|
 | H1 | Installs and launches | **PASS** — `adb install -r` → `Success`; `am start -W` → `TotalTime: 996`; sign-in shell rendered, no white screen | `evidence/gate5/h01-first-launch.png` |
 | H2 | Cloud backup disabled | **PASS** — `dumpsys package … \| grep -i allowBackup` → no `ALLOW_BACKUP`; `flags=0x0` | command output, §3 note |
-| H3 | Native origin reaches the API | **FAIL** — see `CLT-R-012`: `/api/v1/*` resolves to the app's own asset server and returns `index.html` with HTTP 200 | `fetch('/api/v1/sync/pull…')` body began `<!doctype html>` |
+| H3 | Native origin reaches the API | **FAIL in this pass** — see `CLT-R-012`: `/api/v1/*` resolved to the app's own asset server and returned `index.html` with HTTP 200. Fixed and re-run in §8: now PASS | `fetch('/api/v1/sync/pull…')` body began `<!doctype html>` |
 | H3b | Request headers | **PARTIAL** — `Authorization` present on `/api/v1/auth/session` and `/api/v1/sync/pull`; **no `X-Device-Id` header** — the device id travels as a query parameter (`…&deviceId=943cb758-…`) | CDP `Network.requestWillBeSent` capture (header names only; token value never recorded) |
 | H9 | Default dock | **PASS** — measured `gapRight 24.1 px`, `gapBottom 24.5 px` on a 411×816 viewport | `evidence/gate5/h09-dock-dashboard.png` |
 | H10 | Drag snaps to nearest edge | **FAIL on touch** — see `CLT-R-013`; the same drag with a **mouse** moved the menu (`top 728 → 702.8`) and wrote `clt-floating-menu-pos`, proving the drag code itself works | `evidence/gate5/h10-touch-drag-no-move.png` |
 | H11 | Collision avoidance against Save | **PARTIAL** — on `/entries/new` the menu sits at `top 728…791.5` while `#btn-save` occupies `410…457.6`: **zero vertical overlap**, and `elementFromPoint` at Save's centre returns `BUTTON#btn-save` | `evidence/gate5/h11-before-drag.png`, `h11-after-dodge.png` |
 | H16 | Touch activation of the menu's own controls | **PASS** — a single real touch on the menu's "New Entry" link moved `/dashboard` → `/entries/new`; the first press registers (the CLT-T-050 defect is gone on hardware) | `evidence/gate5/h16-new-entry-first-tap.png` |
 | — | Fonts render as specified | **FAIL** — see `CLT-R-014` | console: `Failed to decode downloaded font … OTS parsing error`; `document.fonts` → `Geist:error`, `Noto Sans Bengali:error` |
-| H4 | Device id survives `pm clear` | **Not run** — blocked behind `CLT-R-012` (cannot reach the devices API meaningfully) |
-| H5–H8 | Offline entry, kill, sync, duplicate | **Blocked** — see `CLT-R-012`: no payment method can be selected, so the live breakdown stays `৳0.00` and `#btn-save` stays disabled (`disabled={… \|\| !selectedMethodId \|\| …}`) | `evidence/gate5/h05-offline-save.png` |
+| H4 | Device id survives `pm clear` | **FAIL in §8** — a fresh UUID is issued after `pm clear`; the restore path only survives a web-storage wipe (`CLT-R-017`) |
+| H5–H8 | Offline entry, kill, sync, duplicate | **Blocked in this pass** (`CLT-R-012`): no payment method could be selected, so the breakdown stayed `৳0.00` and `#btn-save` stayed disabled. All four re-run in §8 and PASS | `evidence/gate5/h05-offline-save.png` |
 | H12 | Haptics only on drag release | **Not reachable** — requires a touch drag (H10) |
 | H13 | Double-tap resets to dock | **Not reachable** — the reset path runs only after a drag |
 | H14 | Position persists across restarts | **Not reachable** — no touch position can be created; mouse drag did persist a position, but that is not the hardware path |
@@ -178,3 +178,87 @@ has never been met on any platform. This is silent — no test covers it.
 
 No screenshot in this directory contains credentials: two captures of the
 sign-in form with typed text were deleted during the run, before this commit.
+
+---
+
+# Second pass — after the CLT-R-012 fix
+
+Run date: 2026-11-06 (same session, same device, same Zia authorisation).
+
+**The fix under test** (`fix(web): expose PUBLIC_ env to the client bundle`):
+`apps/web/vite.config.ts` now sets `envPrefix: ['PUBLIC_', 'VITE_']`. Before the
+fix the built bundle contained no `PUBLIC_API_BASE` at all and only the
+hardcoded `http://localhost:54321` fallback; after it, `127.0.0.1:5174` and the
+real `PUBLIC_SUPABASE_URL` are both present in `build/_app/immutable`.
+
+| Item | Value |
+|---|---|
+| APK | rebuilt debug APK, 4,188,833 bytes, SHA-256 `3e23b8d1d5ae5a5dd5459505903bb7d647fea6595fbb6fec3e761965003f50de` |
+| Build | `CAPACITOR_BUILD=true PUBLIC_API_BASE=http://127.0.0.1:5174 pnpm build` → `cap sync android` → `./gradlew assembleDebug` (JDK 17, `ANDROID_HOME=$HOME/android-sdk`) → `BUILD SUCCESSFUL` |
+| Secret check | the only JWT in the client bundle is the **public anon key** (SHA-256 prefix matches `PUBLIC_SUPABASE_ANON_KEY`); `SERVICE_ROLE` appears nowhere and the service-role key's digest does not match anything in the bundle (Rule 8 holds) |
+
+## 8. Results
+
+| # | Item | Result | Evidence |
+|---|---|---|---|
+| H3 | Native origin reaches the API | **PASS** — every sync cycle now hits the real server: `GET /api/v1/sync/pull?since=82&includeMeta=true&deviceId=6c6300a0-…` → `http://127.0.0.1:5174/api/v1/sync/pull…`, **200 `application/json`** (rewritten by `hooks.client.ts`). All five payment methods hydrate from the pull | instrumented `window.fetch`, §8 run log |
+| H5 | Offline entry, timed | **PASS** — reverse tunnels removed (true offline from the app's point of view), fixture entered, real touch on Save → `Saved offline as #LOCAL-b1c6c9` in **92 ms** with `Offline (1 pending)`. The PRD §6.6 row-1 fixture was then entered exactly with `VAT manual 509.00` and saved in **42 ms** | in-page breakdown text and the H7a server query (§8); no screenshot of this form was captured |
+| H5a | Breakdown arithmetic on device | **PASS** — `৳5,909.00` gross → VAT `৳509.00`, commission `৳2,268.00` (42.00%), bKash `৳67.95` (1.15%), net `৳3,064.05`; poisha `590900 − 50900 − 226800 − 6795 = 306405` | screenshot + §6 query |
+| H6 | No loss on kill | **PASS** — `am force-stop`, relaunch while still offline: entry still listed as `#LOCAL-b1c6c9`, `৳5,909.00`, `Net: ৳3,359.27` | `evidence/gate5/h06-persisted-offline.png` |
+| H7 | Sync resumes on reconnect | **PASS** — tunnels restored, indicator settled to `Synced`; entry became `E-202611-000051`; server row: gross `590900`, commission `248178`, charge `6795`, net `335927` — identical to the local breakdown | `evidence/gate5/h07-synced-after-reconnect.png` |
+| H7a | Fixture row on the server | **PASS** — `E-202611-000053` stores gross `590900`, VAT `50900`, commission `226800`, charge `6795`, net `306405`, matching PRD §6.6 row 1 to the poisha | `evidence/gate5/h07-fixture-synced-ledger.png`; `select … where customer_name like 'TEST-G5-%'` |
+| H8 | No duplicate after a flaky reconnect | **PASS** — second offline entry `#LOCAL-9431bd` (`৳1,234.00`, Cash), tunnel cut immediately after pressing retry (push in flight), restored: exactly one server row per fixture (`3` `TEST-G5-*` rows for `3` saves), no `#LOCAL` left in the ledger, no rejected op; `E-202611-000052` = `123400 / 51828 / 0 / 71572` | §6 query, `h07-synced-after-reconnect.png` |
+| H4 | Device id survives `pm clear` | **FAIL** — see `CLT-R-017` | `643cb758…` before, `6c6300a0-bd57-4633-a1dd-332e614680cf` after |
+| H10, H12–H14 | Drag, haptics, reset, persistence | **Still FAIL / not reachable** — `CLT-R-013` is untouched by this change | first-pass evidence |
+
+Backend cross-check (all three fixtures, poisha):
+
+```
+ entry_number | customer_name | gross  | vat   | commission | charge | net
+            51 | TEST-G5-Ayash | 590900 |     0 |     248178 |   6795 | 335927
+            52 | TEST-G5-FLAKY | 123400 |     0 |      51828 |      0 |  71572
+            53 | TEST-G5-VAT   | 590900 | 50900 |     226800 |   6795 | 306405
+```
+
+## 9. Findings from the second pass
+
+- **`CLT-R-012` — RESOLVED** by the `envPrefix` fix, re-proved by H3, H5–H8 above.
+- **`CLT-R-015` (Major, new): the app shell can be "signed in" with no Supabase
+  session, and sync then fails silently as a generic error.** Observed when the
+  Supabase URL host changed (session storage key `sb-localhost-auth-token` vs
+  `sb-127-auth-token`): `/dashboard` rendered fully with a working Sign Out
+  button, `/login` redirected back to `/dashboard`, yet
+  `supabase.auth.getSession()` returned null, so `flushOutboxPush()` returned
+  `{success:false}` **before issuing any request** and the indicator sat on
+  "Sync error (tap to retry)" with a badge showing zero data. The same dead end
+  is reachable on any lost or unrefreshable session. Expected instead: redirect
+  to `/login` (or a distinct "signed out" state), never a silent error.
+- **`CLT-R-016` (Minor, new): offline relaunch is labelled "Sync error".** With
+  the server unreachable but `navigator.onLine === true` (the normal case for a
+  dropped link, and for this harness), the first cycle fails inside the fetch
+  and lands in `error`, so the shell shows "Sync error (tap to retry)" instead of
+  "Offline (N pending)". Data is safe (H6 passed); only the wording is wrong,
+  and it contradicts the offline state the same app shows while saving.
+- **`CLT-R-017` (Major, new): H4's expectation is unachievable as specified.**
+  `initPersistentDeviceId()` restores the UUID from `@capacitor/preferences`,
+  which on Android is SharedPreferences — wiped by `pm clear` along with the
+  WebView store. Measured: `943cb758-…` before, `6c6300a0-bd57-4633-a1dd-332e614680cf`
+  after `pm clear`. The mechanism does work for the narrower reset it can
+  handle: deleting only `clt_device_id` from `localStorage` and reloading
+  restored `6c6300a0-…` from Preferences. Either the check is reworded to "web
+  storage wipe", or the id must be derived from a hardware identifier such as
+  `ANDROID_ID` — a privacy decision for Zia, not an implementation detail.
+- Note (not a defect claim): the first H5 attempt recorded VAT `0.00` because
+  the fixture's manual VAT had not been typed. The `#input-vat` field only
+  renders when the active profile's `vat_mode` is `manual`, which it is; the
+  exact-fixture entry (§8, H5a/H7a) is the authoritative money-path result.
+
+## 10. State after the second pass
+
+- Temporary `server.cleartext: true` edit reverted again; `git diff` shows only
+  the `vite.config.ts` fix.
+- Test data left in the local Supabase: entries 51–53 (`TEST-G5-*`). They are
+  local-development rows only, never deployed.
+- `apps/web/android/` remains untracked and un-gitignored (31 MB, regenerable).
+- H10/H12–H14 remain failed by `CLT-R-013`; Gate 5 is still not signable.
+
