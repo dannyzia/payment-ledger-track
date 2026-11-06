@@ -11,6 +11,14 @@ export interface Rect {
   bottom: number;
 }
 
+const INTERACTIVE_SELECTOR =
+  'a, button, input, select, textarea, [role="button"], [contenteditable="true"]';
+
+/** True when a pointer press landed on a control that owns its own activation. */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(INTERACTIVE_SELECTOR) !== null;
+}
+
 export function isOverlapping(r1: Rect, r2: Rect): boolean {
   return !(r1.right < r2.left || r1.left > r2.right || r1.bottom < r2.top || r1.top > r2.bottom);
 }
@@ -92,6 +100,11 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   let currentX = 0;
   let currentY = 0;
   let lastTapTime = 0;
+  // CLT-T-050: a valid drag origin only exists after a pointerdown on the
+  // node's own surface; without this flag a stale origin from an earlier drag
+  // turns a press-and-move on a child into a captured drag.
+  let hasOrigin = false;
+  let hasUserPosition = false;
   const DRAG_THRESHOLD = 6;
 
   function getDockedCoords(): { x: number; y: number } {
@@ -133,6 +146,54 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   updatePosition(currentX, currentY);
   notifySnap();
 
+  // CLT-T-050: the first pass can run before the pill has its final size — the
+  // label text and font decide it — so the dock was computed from the 140x48
+  // fallbacks and settled partly off-screen, which put the region, not its
+  // controls, under the user's finger. Re-measure once layout is real, and
+  // again whenever the pill's size changes, unless the user placed it.
+  const hasStoredPosition = (() => {
+    try {
+      return Boolean(
+        options.storageKey &&
+          typeof localStorage !== 'undefined' &&
+          localStorage.getItem(options.storageKey),
+      );
+    } catch {
+      return false;
+    }
+  })();
+
+  function settleDock() {
+    if (isDragging) return;
+    if (options.positionMode && options.positionMode !== 'free') return;
+
+    const menuDim = { width: node.offsetWidth || 140, height: node.offsetHeight || 48 };
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+
+    if (hasUserPosition || hasStoredPosition) {
+      // Keep the user's placement, but never leave it off-screen.
+      const clampedX = Math.max(12, Math.min(viewport.width - menuDim.width - 12, currentX));
+      const clampedY = Math.max(12, Math.min(viewport.height - menuDim.height - 12, currentY));
+      if (clampedX === currentX && clampedY === currentY) return;
+      currentX = clampedX;
+      currentY = clampedY;
+    } else {
+      const docked = getDockedCoords();
+      if (Math.abs(docked.x - currentX) < 1 && Math.abs(docked.y - currentY) < 1) return;
+      currentX = docked.x;
+      currentY = docked.y;
+    }
+
+    updatePosition(currentX, currentY);
+    notifySnap();
+  }
+
+  const settleFrame =
+    typeof requestAnimationFrame === 'function' ? requestAnimationFrame(settleDock) : null;
+  const dockObserver =
+    typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => settleDock()) : null;
+  dockObserver?.observe(node);
+
   function updatePosition(x: number, y: number) {
     node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
   }
@@ -148,6 +209,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     const docked = getDockedCoords();
     currentX = docked.x;
     currentY = docked.y;
+    hasUserPosition = false;
     node.style.transition = 'transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1)';
     updatePosition(currentX, currentY);
 
@@ -160,10 +222,20 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
 
+    // CLT-T-050: a press that starts on one of the menu's controls belongs to
+    // that control. Starting a drag here would capture the pointer on the
+    // region and retarget the whole sequence, so the anchor's navigation and
+    // the toggle's onclick never fire.
+    if (isInteractiveTarget(e.target)) {
+      hasOrigin = false;
+      return;
+    }
+
     const now = Date.now();
     if (now - lastTapTime < 300) {
       resetToDocked();
       lastTapTime = 0;
+      hasOrigin = false;
       return;
     }
     lastTapTime = now;
@@ -171,17 +243,28 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     if (options.positionMode && options.positionMode !== 'free') return;
 
     hasMovedPastThreshold = false;
+    hasOrigin = true;
     originClientX = e.clientX;
     originClientY = e.clientY;
     startX = e.clientX - currentX;
     startY = e.clientY - currentY;
+
+    // Capture from the press itself. Waiting for the first move loses a fast
+    // drag: the pointer leaves the pill before any move event lands on it, so
+    // the drag never starts (touch input hides this behind implicit capture).
+    // Only presses on the neutral surface reach here, never a control's.
+    try {
+      node.setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is best-effort; the drag still works while the pointer stays on the node.
+    }
   }
 
   function onPointerMove(e: PointerEvent) {
+    if (!hasOrigin) return;
     if (!hasMovedPastThreshold && (Math.hypot(e.clientX - originClientX, e.clientY - originClientY) > DRAG_THRESHOLD)) {
       hasMovedPastThreshold = true;
       isDragging = true;
-      node.setPointerCapture(e.pointerId);
       node.style.transition = 'none';
     }
 
@@ -192,12 +275,14 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   }
 
   function onPointerUp(e: PointerEvent) {
+    hasOrigin = false;
     if (!isDragging) {
       hasMovedPastThreshold = false;
       return;
     }
     isDragging = false;
     hasMovedPastThreshold = false;
+    hasUserPosition = true;
 
     if (node.hasPointerCapture(e.pointerId)) {
       node.releasePointerCapture(e.pointerId);
@@ -252,6 +337,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
 
     if (moved) {
       e.preventDefault();
+      hasUserPosition = true;
       node.style.transition = 'transform 100ms ease';
       updatePosition(currentX, currentY);
       if (options.storageKey && typeof localStorage !== 'undefined') {
@@ -298,6 +384,8 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
       }
     },
     destroy() {
+      if (settleFrame !== null) cancelAnimationFrame(settleFrame);
+      dockObserver?.disconnect();
       node.removeEventListener('pointerdown', onPointerDown);
       node.removeEventListener('pointermove', onPointerMove);
       node.removeEventListener('pointerup', onPointerUp);

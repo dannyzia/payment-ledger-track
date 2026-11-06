@@ -69,6 +69,7 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
     page,
     context,
   }) => {
+    const mobileMenu = page.locator('#floating-action-menu');
     // 1. Wait for the background sync pull to populate the Dexie method cache
     //    BEFORE navigating: a fresh browser profile starts with an empty cache,
     //    and the entry page reads db.methods once on mount without a live
@@ -115,16 +116,14 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
       .toMatch(/^count=[1-9]/);
     console.log('Method cache state:', methodCacheInfo);
 
-    // 2. Reach the entry form via SPA navigation. A full page load of a deep
-    //    route is bounced by the boot client guard (/entries/new -> /login ->
-    //    /dashboard) because session hydration finishes after the mount, and
-    //    the floating menu's drag layer intercepts real pointer events. A
-    //    dispatched click on the anchor still routes through the SvelteKit
-    //    client router (known a11y defect: the menu region's Enter handler
-    //    preventDefaults even when the child link is focused — logged as a
-    //    finding, not fixed here, since Plan 020 changes no production code).
-    const entryLink = page.getByRole('link', { name: 'New Entry' }).first();
-    await entryLink.dispatchEvent('click');
+    // 2. Reach the entry form via SPA navigation with a real pointer click on
+    //    the floating menu's New Entry link (CLT-T-050 fixed the region's
+    //    keyboard handler and the drag layer's pointer capture that used to
+    //    swallow it). A full page load of a deep route is still bounced by the
+    //    boot client guard, so navigation stays inside the client router.
+    //    Scoped to the mobile menu: the desktop sidebar's links are in the DOM
+    //    but hidden at this viewport.
+    await mobileMenu.getByRole('link', { name: 'New Entry' }).click();
     await page.waitForSelector('#input-customer', { timeout: 20000 });
 
     // 3. The method chip cache is populated — the picker must render bKash.
@@ -175,12 +174,13 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
     //    entry shows in the ledger (SPA navigation via a router-dispatched click).
     await context.setOffline(false);
     await expect(page.locator('.sync-indicator')).toContainText('Synced', { timeout: 20000 });
-    // The main navigation drawer is collapsed by default: toggle it open via a
-    // dispatched click (same no-pointer path), then SPA-navigate to the ledger.
-    const navToggle = page.getByRole('button', { name: 'Toggle navigation menu' }).first();
-    await navToggle.dispatchEvent('click');
-    const ledgerLink = page.getByRole('link', { name: 'Ledger' }).first();
-    await ledgerLink.dispatchEvent('click');
+    // The menu's nav panel is collapsed by default: expand it with a real click
+    // on the ☰ toggle, then activate the Ledger link it reveals.
+    await mobileMenu.getByRole('button', { name: 'Toggle navigation menu' }).click();
+    await page
+      .locator('#mobile-nav-panel')
+      .getByRole('link', { name: 'Ledger' })
+      .click();
     await page.waitForSelector('.ledger-row', { timeout: 20000 });
     await expect(page.locator('.ledger-row').first()).toContainText('Playwright Test Customer');
   });

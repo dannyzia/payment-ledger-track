@@ -31,6 +31,11 @@
       expanded = false;
       return;
     }
+    // CLT-T-050: only the region itself owns Enter/Space. Keys that bubble from
+    // the New Entry link or the ☰ button must keep their native activation —
+    // preventDefault() here cancelled the anchor's navigation and the button's
+    // onclick. Both children are already keyboard-operable on their own.
+    if (e.target !== e.currentTarget) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       toggleMenu();
