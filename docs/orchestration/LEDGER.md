@@ -56,7 +56,7 @@ verification.
 |---|---|---|
 | G0 Intake | **Open** — records now exist, roster still `<fill>`, no Zia line | `G0_READINESS_CHECKLIST.md`; `DECISIONS.md` `CLT-D-026` pending |
 | Gates 1–4 at M2 | **Pass** | `corepack pnpm test:gates --milestone M2` → "All Implementation Readiness Gates passed for Milestone M2."; `docs/orchestration/reports/GATE_EVIDENCE.json` (commit `8b4f7ee`) |
-| Gate 5 | **Not verified** — deferred to M5, no physical device run | `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`; blocker `CLT-R-002` |
+| Gate 5 | **Not verified** — first hardware run 2026-11-06 on the Pixel 6a: H1, H2, H9, H16 pass; H3–H8 blocked by `CLT-R-012`; H10/H12–H14 fail per `CLT-R-013`; fonts broken (`CLT-R-014`) | `reports/GATE5-DEVICE-RUN.md`; `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`; blocker `CLT-R-002` |
 | Release (Rule 19) | Not requested | no `ZIA-APPROVED:` line exists |
 
 ## 4. Maintenance rules
@@ -76,3 +76,4 @@ verification.
 | Rev | Date | Change |
 |---|---|---|
 | 1 | 2026-11-06 | File created from `G0_READINESS_CHECKLIST.md` §3. Tasks CLT-T-050 and CLT-T-051 recorded from commits `74bfcb1`, `8b4f7ee`, `de66202`, `1a85769`. Plan statuses copied from the TOC; gate position recorded from the current tree. |
+| 2 | 2026-11-06 | Gate 5 row updated after the first physical-device run on the Pixel 6a (`reports/GATE5-DEVICE-RUN.md`): four items pass, the rest fail or are blocked by `CLT-R-012`–`CLT-R-014`. No task ID assigned to the run itself — it was authorised in chat, not by brief. |
