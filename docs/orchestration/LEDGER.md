@@ -13,6 +13,8 @@ Status words are the AGENTS.md §6 set: `QUEUED`, `IN_PROGRESS`, `IN_REVIEW`,
 |---|---|---|---|---|---|---|---|---|
 | CLT-T-050 | UNSET (Plan 007 owns the files) | Fix FloatingMenu keyboard and pointer activation of children | A-IMPL-1 (Implementer) | none | `apps/web/src/lib/ui/FloatingMenu.svelte`, `apps/web/src/lib/ui/actions/draggable.ts`, `apps/web/tests/e2e/floating_menu.spec.ts`, `apps/web/tests/e2e/offline_sync.spec.ts` | DONE | commit `74bfcb1`; `docs/orchestration/reports/CLT-T-050.md`; unit 209/209, e2e 9/9, check 0/0 | 2026-11-06 |
 | CLT-T-051 | UNSET (readiness records) | Readiness records: M2 gate evidence refresh, G0 checklist, Q1–Q4 owner packet, Gate 5 device checklist, and these orchestration files | UNSET (roster empty) | none | `docs/orchestration/**`, `scripts/verify-gates.ts` output only | IN_REVIEW | commits `8b4f7ee`, `de66202`, `1a85769`; G0 not signed, roster unfilled | 2026-11-06 |
+| CLT-T-052 | UNSET (chat-authorised) | `apps/web/vite.config.ts`: expose `PUBLIC_*` to the client bundle (`CLT-R-012`) | UNSET (roster empty) | none | `apps/web/vite.config.ts` | IN_REVIEW | `5df749d`; device re-run in `reports/GATE5-DEVICE-RUN.md` §8 | 2026-11-06 |
+| CLT-T-053 | UNSET (chat-authorised) | Floating menu: touch drag (`CLT-R-013`) and the rotation clamp (`CLT-R-018`) | UNSET (roster empty) | none | `apps/web/src/lib/ui/FloatingMenu.svelte`, `apps/web/src/lib/ui/actions/draggable.ts` | IN_REVIEW | `reports/GATE5-DEVICE-RUN.md` §11–13 | 2026-11-06 |
 
 Neither task had a brief written by the orchestrator before work started;
 CLT-T-050's brief exists (`docs/orchestration/briefs/CLT-T-050.md`) but is
@@ -56,7 +58,7 @@ verification.
 |---|---|---|
 | G0 Intake | **Open** — records now exist, roster still `<fill>`, no Zia line | `G0_READINESS_CHECKLIST.md`; `DECISIONS.md` `CLT-D-026` pending |
 | Gates 1–4 at M2 | **Pass** | `corepack pnpm test:gates --milestone M2` → "All Implementation Readiness Gates passed for Milestone M2."; `docs/orchestration/reports/GATE_EVIDENCE.json` (commit `8b4f7ee`) |
-| Gate 5 | **Not verified** — two hardware runs 2026-11-06 on the Pixel 6a. Pass: H1, H2, H3, H5–H8 (H8 without duplicates; §6.6 fixture to the poisha), H9, H16. Fail: H4 (`CLT-R-017`), H10/H12–H14 (`CLT-R-013`), fonts (`CLT-R-014`), signed-out shell (`CLT-R-015`), offline label (`CLT-R-016`). `CLT-R-012` fixed | `reports/GATE5-DEVICE-RUN.md`; `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`; blocker `CLT-R-002` |
+| Gate 5 | **Not verified** — three hardware runs 2026-11-06 on the Pixel 6a. Pass: H1, H2, H3, H5–H8 (H8 without duplicates; §6.6 fixture to the poisha), H9, H10, H12–H14 (drag, haptics on drag release only, double-tap reset, position across restart and rotation), H16. Fail: H4 (`CLT-R-017`), fonts (`CLT-R-014`), signed-out shell (`CLT-R-015`), offline label (`CLT-R-016`). H11 not re-run; H15 is `CLT-T-050`. `CLT-R-012`, `CLT-R-013` and `CLT-R-018` fixed | `reports/GATE5-DEVICE-RUN.md`; `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`; blocker `CLT-R-002` |
 | Release (Rule 19) | Not requested | no `ZIA-APPROVED:` line exists |
 
 ## 4. Maintenance rules
@@ -78,3 +80,4 @@ verification.
 | 1 | 2026-11-06 | File created from `G0_READINESS_CHECKLIST.md` §3. Tasks CLT-T-050 and CLT-T-051 recorded from commits `74bfcb1`, `8b4f7ee`, `de66202`, `1a85769`. Plan statuses copied from the TOC; gate position recorded from the current tree. |
 | 2 | 2026-11-06 | Gate 5 row updated after the first physical-device run on the Pixel 6a (`reports/GATE5-DEVICE-RUN.md`): four items pass, the rest fail or are blocked by `CLT-R-012`–`CLT-R-014`. No task ID assigned to the run itself — it was authorised in chat, not by brief. |
 | 3 | 2026-11-06 | `CLT-R-012` fixed (`envPrefix` in `apps/web/vite.config.ts`) and the blocked device checks re-run: H3 and H5–H8 now pass, including the PRD §6.6 fixture (50900/226800/6795/306405). Three new risks recorded: `CLT-R-015` (signed-out shell), `CLT-R-016` (offline labelled as error), `CLT-R-017` (device id cannot survive `pm clear`). |
+| 4 | 2026-11-06 | `CLT-R-013` fixed: a press that starts on a menu control now becomes a drag once it moves, the release's click is swallowed, and the pill gained the PRD §14.5 44×44 handle. H10, H12, H13 and H14 pass on the device with measured numbers (24 px edge snap, 12 px clamp, one TOUCH vibration per drag release, `396 → 396` across rotation). H14 exposed `CLT-R-018` — a landscape trip overwrote the live position — fixed with an `isMeasurable()` guard. |

@@ -260,5 +260,95 @@ Backend cross-check (all three fixtures, poisha):
 - Test data left in the local Supabase: entries 51–53 (`TEST-G5-*`). They are
   local-development rows only, never deployed.
 - `apps/web/android/` remains untracked and un-gitignored (31 MB, regenerable).
-- H10/H12–H14 remain failed by `CLT-R-013`; Gate 5 is still not signable.
+- H10/H12–H14 were still failed by `CLT-R-013` at the end of this pass.
+
+---
+
+# Third pass — the floating menu drag (CLT-R-013)
+
+Run date: 2026-11-06. Same Pixel 6a (`24261JEGR10296`), same authorisation.
+
+- APK: debug, 4,203,110 bytes, SHA-256
+  `22c11df69028e5a26a73b1cf1a7a923553c4293f187ff6e4b2b53cd497f0ed00`.
+- Build: `CAPACITOR_BUILD=true PUBLIC_API_BASE=http://127.0.0.1:5174 pnpm build` →
+  `npx cap sync android` → `./gradlew assembleDebug` → `BUILD SUCCESSFUL` →
+  `adb install -r` → `Success`.
+- Server reachable through `adb reverse tcp:5174 tcp:5174` (H3 path still works).
+
+## 11. What changed
+
+1. **`apps/web/src/lib/ui/actions/draggable.ts` — the press origin no longer
+   decides.** Android's touch-target adjustment retargets a press on the pill's
+   narrow neutral strip to the nearest `<a>` or `<button>`, so the old rule
+   ("only a non-interactive origin may drag") made the pill undraggable by
+   finger. Now a press on a control is tracked too: movement past the 6 px
+   threshold is a drag, and the one click belonging to that release is swallowed
+   in the capture phase (`preventDefault` + `stopPropagation`). A press that
+   does not move is left completely alone, so taps, navigation and onclick all
+   behave exactly as before (the CLT-T-050 regression guard). Pointer capture is
+   still never taken on press over a control — only at the moment the gesture
+   becomes a drag — and double-tap-to-reset still only listens on the pill's own
+   surface.
+2. **`apps/web/src/lib/ui/FloatingMenu.svelte` — the missing handle.** PRD §14.5
+   says the collapsed pill shows "the primary action plus a handle". It was
+   absent, so the only neutral surface was an 8 px padding band. The pill now has
+   a 44×44 non-interactive grip (`data-drag-handle`, `touch-action: none`) on
+   its leading edge.
+3. **`draggable.ts` — a measurement guard (defect found by H14, `CLT-R-018`).**
+   Above the `md` breakpoint the pill is `display:none` and measures 0×0; the
+   resize/dock path clamped the live position with fallback dimensions, so one
+   trip through landscape wrote a bogus position that survived the trip back.
+   `isMeasurable()` now short-circuits both paths until the pill has a real box.
+
+## 12. Results
+
+| # | Item | Result | Measured evidence |
+|---|---|---|---|
+| H10 | Drag snaps, clamped, never under 12 px | **PASS** | drag from the top strip `(159,622)`: the pointerdown was retargeted to the grip (`tag: SPAN`, `interactive: false`) and the pill moved, releasing to `x=129` = **24.1 px** from the right edge · drag beyond the top-left corner `(-100,-40)`: settled at `(24, 12)` = **24 px** left, **12 px** top clamp · drag that *started on the New Entry label* (`interactive: true`): still a drag, `y 375 → 115`, and the URL stayed `/dashboard` (no accidental navigation) |
+| H12 | Haptics only on drag release | **PASS** | `dumpsys vibrator_manager`, history filtered to `com.cosmo.ledgertrack`: **one** entry after the drag release — `usage: TOUCH`, `played: [Step=0ms(amplitude=0.00), Step=50ms(amplitude=0.43)]` at `22:29:30.671` — and **no new entry** after the ArrowUp nudge (y `198 → 178`), after the ☰ tap (`aria-expanded` became `true`), or after the double-tap reset (count stayed `3`) |
+| H13 | Double-tap resets to the dock | **PASS** | `(129,178)` → double-tap → `(129,728)`, `transform: translate3d(129px, 728px, 0)`; storage rewritten to `{"x":129,"y":728}`; no vibration |
+| H14 | Position persists across restarts and rotation | **PASS after `CLT-R-018`** | drag to `(129,618)` → `am force-stop` → relaunch → restored at exactly `(129,618)` from `clt-floating-menu-pos` · landscape (`816×383`): pill `display: none` by design (`md:hidden`), live transform untouched at `translate3d(129px, 396px, 0)` · back to portrait (`411×816`): **still 396** (before the guard this read 323 for a 618 start, a silent 295 px jump) |
+| H16 | Touch activation of the menu's own controls (regression) | **PASS, still** | plain tap on New Entry → `/entries/new`; tap ☰ → `aria-expanded="true"` and `#mobile-nav-panel` present — first press, no dead tap |
+
+Evidence: `evidence/gate5/h10-drag-from-strip.png`,
+`h10-drag-starting-on-link.png`, `h10-left-top-clamp.png`,
+`h13-double-tap-reset.png`, `h14-before-restart.png`,
+`h14-after-restart.png`, `h14-landscape-clamped.png`,
+`h14-portrait-restored.png`.
+
+### Device settings this pass touched
+
+The phone had `animator_duration_scale = 0` and `transition_animation_scale = 0`,
+which makes the WebView report `prefers-reduced-motion: reduce` — and
+`triggerHapticTick()` correctly returns early under reduced motion, so the first
+H12 attempt measured nothing (and would have been reported as a false failure).
+Both were set to `1` (plus `window_animation_scale = 1`) for the check and the
+WebView needed a **fresh process** to re-read them: after `force-stop` +
+relaunch, `matchMedia('(prefers-reduced-motion: reduce)').matches` went
+`true → false`. The two measured values were restored to `0` afterwards, with
+`window_animation_scale` left at `1` (its value was not recorded before the
+change). Rotation was driven with `settings put system user_rotation` and
+`accelerometer_rotation` was returned to `1`.
+
+H11 (Save-button avoidance) was not re-run in this pass: it is a separate item
+and its geometry was untouched by these edits. H15 stays failed (it is
+`CLT-T-050`, keyboard only).
+
+## 13. Verification run with this change
+
+| Check | Result |
+|---|---|
+| `svelte-check --threshold error` | `COMPLETED 652 FILES 0 ERRORS 0 WARNINGS` |
+| `apps/web` vitest | `207 passed`, 2 failed in `tests/reports/view_parity.test.ts` (`expected undefined to be defined`). **Pre-existing:** re-ran that file with this change stashed at HEAD — same two failures, same message |
+| root `pnpm test` | `43 passed | 63 skipped`; 3 DB suites (`schema`, `entries_sync`, `settlement_recon`) fail during seeding with `duplicate key value violates unique constraint "one_owner"` because the local database already holds the bootstrapped Owner. **Pre-existing:** `tests/db/schema.test.ts` fails identically with the change stashed at HEAD |
+| Device | H10, H12, H13, H14 above, plus H16 and the H3 tunnel path re-checked |
+
+Not run: the full PRD §16.2 65-test regression suite and `pnpm test:e2e`.
+
+## 14. State after the third pass
+
+- Gate 5 items still open: H4 (`CLT-R-017`), H11 (not re-run), H15 (`CLT-T-050`),
+  and everything after H16 in this report's scope.
+- `apps/web/android/` remains untracked (regenerable).
+- The device is left signed in with the menu docked at 24/24.
 

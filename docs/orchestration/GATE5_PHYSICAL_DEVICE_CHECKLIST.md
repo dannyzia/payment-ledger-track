@@ -155,7 +155,7 @@ named evidence. "Pass" without evidence is not a pass (AGENTS.md §10, Zero-Trus
   a screenshot at known density, not by eye).
   Evidence: annotated screenshot with pixel measurements.
 
-- [ ] **H10 — Drag snaps to the nearest edge, clamped.**
+- [x] **H10 — Drag snaps to the nearest edge, clamped.** *(2026-11-06: pass — see `reports/GATE5-DEVICE-RUN.md` §12)*
   Drag the pill to the middle of the screen, release. Repeat toward each edge.
   Expected: springs to the nearer side edge at 24 px; never closer than **12 px** to any
   viewport edge; no clipping under the status bar or nav bar.
@@ -170,7 +170,7 @@ named evidence. "Pass" without evidence is not a pass (AGENTS.md §10, Zero-Trus
   Evidence: before/after screenshots; explicit statement that Save was tapped
   successfully while the menu was at the dodged position.
 
-- [ ] **H12 — Haptics only on drag release.**
+- [x] **H12 — Haptics only on drag release.** *(2026-11-06: pass — see `reports/GATE5-DEVICE-RUN.md` §12)*
   With device vibration on: drag-release the menu (expect one light tick); then
   Arrow-key nudge it, then double-tap it, then tap the handle to expand.
   Expected: buzz **only** on the drag release (`onSnap.source === 'drag'`); silence on
@@ -178,11 +178,11 @@ named evidence. "Pass" without evidence is not a pass (AGENTS.md §10, Zero-Trus
   Evidence: written observation per action, plus `triggerHapticTick` invocation visible
   in the log if `adb logcat` shows it.
 
-- [ ] **H13 — Double-tap resets to the dock.**
+- [x] **H13 — Double-tap resets to the dock.** *(2026-11-06: pass — see `reports/GATE5-DEVICE-RUN.md` §12)*
   Move the menu, double-tap it. Expected: returns to 24/24 with the spring transition.
   Evidence: screenshot after reset.
 
-- [ ] **H14 — Position persists across restarts.**
+- [x] **H14 — Position persists across restarts.** *(2026-11-06: pass after `CLT-R-018` — see `reports/GATE5-DEVICE-RUN.md` §12)*
   Move the menu, force-stop, relaunch. Expected: restored at the last position
   (`clt-floating-menu-pos`), still inside the viewport on a rotation.
   Evidence: screenshots before/after, plus one after rotating to landscape and back.
@@ -351,11 +351,11 @@ them; do not assert them.
 | H7 | | | | |
 | H8 | | | | |
 | H9 | | | | |
-| H10 | | | | |
-| H11 | | | | |
-| H12 | | | | |
-| H13 | | | | |
-| H14 | | | | |
+| H10 | pass | | `evidence/gate5/h10-drag-from-strip.png`, `h10-drag-starting-on-link.png`, `h10-left-top-clamp.png` | 24 px edge snap, 12 px corner clamp, drag works from the link too |
+| H11 | | | | not re-run after `CLT-R-013` |
+| H12 | pass | | `dumpsys vibrator_manager` filtered to `com.cosmo.ledgertrack` | one TOUCH vibration per drag release; none on keyboard nudge, toggle tap, double-tap |
+| H13 | pass | | `evidence/gate5/h13-double-tap-reset.png` | `(129,178)` → `(129,728)`, storage rewritten |
+| H14 | pass | | `evidence/gate5/h14-before-restart.png`, `h14-after-restart.png`, `h14-landscape-clamped.png`, `h14-portrait-restored.png` | restored at `(129,618)` after force-stop; `CLT-R-018` fixed |
 | H15 | | | | CLT-T-050 |
 | H16 | | | | CLT-T-050 |
 | H17 | | | | |
