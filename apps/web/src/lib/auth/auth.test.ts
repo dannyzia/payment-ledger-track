@@ -16,6 +16,7 @@ describe('Auth & Client Guard Suite (PRD §9.3, §16.2 Tests #10, #22, #30, #59,
     session.user = null;
     session.isOnline = true;
     session.loading = false;
+    session.authMissing = false;
     vi.restoreAllMocks();
   });
 
@@ -102,6 +103,42 @@ describe('Auth & Client Guard Suite (PRD §9.3, §16.2 Tests #10, #22, #30, #59,
 
     let cancelled = false;
     handleClientGuard(new URL('http://localhost/admin/rates'), () => {
+      cancelled = true;
+    });
+
+    expect(cancelled).toBe(false);
+  });
+
+  it('treats a cached profile with no Supabase session as signed out (CLT-R-015)', () => {
+    // The exact state reported from the device: profile cache present, so the
+    // shell looked signed in, but supabase.auth.getSession() returned null.
+    session.user = {
+      id: 'usr-stale',
+      email: 'owner@example.com',
+      role: 'owner',
+      active: true,
+    };
+    session.authMissing = true;
+
+    let cancelled = false;
+    handleClientGuard(new URL('http://localhost/dashboard'), () => {
+      cancelled = true;
+    });
+
+    expect(cancelled).toBe(true);
+  });
+
+  it('does not bounce /login back to the dashboard when the session is missing (CLT-R-015)', () => {
+    session.user = {
+      id: 'usr-stale',
+      email: 'owner@example.com',
+      role: 'owner',
+      active: true,
+    };
+    session.authMissing = true;
+
+    let cancelled = false;
+    handleClientGuard(new URL('http://localhost/login'), () => {
       cancelled = true;
     });
 

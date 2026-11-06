@@ -1,5 +1,6 @@
 import { supabase } from '$lib/supabase/client';
 import { goto } from '$app/navigation';
+import { isAuthRoute } from '$lib/auth/routes';
 import type { Session } from '@supabase/supabase-js';
 
 export interface UserSessionProfile {
@@ -16,6 +17,12 @@ export class SessionStore {
   user = $state<UserSessionProfile | null>(null);
   isOnline = $state<boolean>(true);
   loading = $state<boolean>(true);
+  /**
+   * CLT-R-015: a cached profile is not proof of a session. When Supabase holds
+   * no session but a profile cache exists, the shell used to render as signed in
+   * (Sign Out, empty data) and /login bounced straight back to /dashboard.
+   */
+  authMissing = $state<boolean>(false);
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -62,6 +69,7 @@ export class SessionStore {
 
   private setLocalSession(profile: UserSessionProfile): void {
     this.user = profile;
+    this.authMissing = false;
     try {
       localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
     } catch {
@@ -76,6 +84,38 @@ export class SessionStore {
     } catch {
       // Ignore
     }
+  }
+
+  /** Drop the cached profile and mark the shell as signed out (CLT-R-015). */
+  markSignedOut(): void {
+    this.authMissing = true;
+    this.clearLocalSession();
+  }
+
+  /**
+   * CLT-R-015: ask Supabase whether a session actually exists, and treat the
+   * absence of one as signed-out instead of leaving a hollow signed-in shell.
+   * Offline with a stored session still returns that session, so staff are not
+   * locked out (PRD §9.3); a failed lookup leaves the cache in place rather
+   * than guessing.
+   */
+  async ensureSession(): Promise<boolean> {
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        this.authMissing = false;
+        return true;
+      }
+    } catch {
+      // Cannot tell: trust the cached profile rather than risk a lockout.
+      return this.user !== null;
+    }
+
+    this.markSignedOut();
+    if (typeof window !== 'undefined' && !isAuthRoute(window.location.pathname)) {
+      goto('/login');
+    }
+    return false;
   }
 
   async syncFromSupabaseSession(sbSession: Session): Promise<void> {

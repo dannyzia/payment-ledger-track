@@ -1,5 +1,6 @@
 // apps/web/src/lib/auth/guard.ts
 import { session } from '$lib/auth/session.svelte';
+import { isAuthRoute } from '$lib/auth/routes';
 import { goto } from '$app/navigation';
 
 export interface GuardNavigationEvent {
@@ -18,36 +19,40 @@ export function handleClientGuard(toUrl: URL, cancel: () => void): void {
   }
 
   const pathname = toUrl.pathname;
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/callback') || pathname.startsWith('/set-password');
+  const onAuthRoute = isAuthRoute(pathname);
   const isStaffRestricted = pathname.startsWith('/reports') ||
                             pathname.startsWith('/settlements') ||
                             pathname.startsWith('/reconcile') ||
                             pathname.startsWith('/months/close') ||
                             pathname.startsWith('/admin');
 
+  // CLT-R-015: a cached profile with no Supabase session is signed out, not
+  // signed in — otherwise /login bounces back to the hollow dashboard.
+  const isSignedIn = session.user !== null && session.user.active && !session.authMissing;
+
   // 1. Authenticated active user visiting auth route -> redirect to dashboard
-  if (session.user && session.user.active && isAuthRoute) {
+  if (isSignedIn && onAuthRoute) {
     cancel();
     goto('/dashboard');
     return;
   }
 
   // 2. Unauthenticated (or deactivated) user accessing protected route
-  if ((!session.user || !session.user.active) && !isAuthRoute) {
+  if (!isSignedIn && !onAuthRoute) {
     cancel();
     goto('/login');
     return;
   }
 
   // 3. Role-based client navigation gating: Staff blocked from restricted routes (PRD §3, Rule R10)
-  if (session.user?.role === 'staff' && isStaffRestricted) {
+  if (isSignedIn && session.user?.role === 'staff' && isStaffRestricted) {
     cancel();
     goto('/dashboard');
     return;
   }
 
   // 4. Role-based client navigation gating: Admin blocked from Owner-only month close
-  if (session.user?.role === 'admin' && pathname.startsWith('/months/close')) {
+  if (isSignedIn && session.user?.role === 'admin' && pathname.startsWith('/months/close')) {
     cancel();
     goto('/reconcile');
     return;

@@ -1,7 +1,8 @@
 import { flushOutboxPush } from './push';
 import { executeIncrementalPull } from './pull';
+import { session } from '$lib/auth/session.svelte';
 
-export type SyncState = 'synced' | 'syncing' | 'offline' | 'error';
+export type SyncState = 'synced' | 'syncing' | 'offline' | 'error' | 'signed_out';
 
 /**
  * Multi-tab leader-elected client sync runner.
@@ -119,6 +120,13 @@ export class SyncRunner {
       // PRD §9.1: Client sync runner MUST flush /sync/push to completion BEFORE calling /sync/pull
       const pushResult = await flushOutboxPush();
       if (!pushResult.success) {
+        if (pushResult.reason === 'no_session') {
+          // CLT-R-015: the session disappeared mid-run. Verify and go to
+          // /login rather than reporting a sync error over a signed-out shell.
+          await session.ensureSession();
+          this.updateStatus('signed_out');
+          return;
+        }
         this.updateStatus('error');
         return;
       }

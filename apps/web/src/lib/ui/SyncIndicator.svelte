@@ -27,6 +27,12 @@
       <span class="w-2 h-2 rounded-full bg-red-500"></span>
       <span>Sync error (tap to retry)</span>
     </button>
+  {:else if syncRunner.status === 'signed_out'}
+    <!-- CLT-R-015: a missing session is not a sync failure; say so and offer the way back in. -->
+    <a href="/login" class="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 hover:underline">
+      <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+      <span>Signed out — sign in</span>
+    </a>
   {:else if syncRunner.status === 'offline'}
     <span class="w-2 h-2 rounded-full bg-amber-500"></span>
     <span class="text-amber-700 dark:text-amber-300">Offline{pendingCount > 0 ? ` (${pendingCount} pending)` : ''}</span>

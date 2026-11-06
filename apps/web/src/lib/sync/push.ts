@@ -21,7 +21,11 @@ export interface PushBatchResponse {
  * Scoped to the currently authenticated user's session to prevent cross-user attribution
  * on shared counter devices (PRD Test #62). Protected against infinite loops via iteration cap.
  */
-export async function flushOutboxPush(): Promise<{ success: boolean; pushedCount: number }> {
+export async function flushOutboxPush(): Promise<{
+  success: boolean;
+  pushedCount: number;
+  reason?: 'no_session';
+}> {
   let totalPushed = 0;
   let iterations = 0;
   const MAX_ITERATIONS = 20; // 20 * 50 = 1,000 ops maximum per sync cycle
@@ -29,7 +33,9 @@ export async function flushOutboxPush(): Promise<{ success: boolean; pushedCount
   // Retrieve active session token and user ID
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user?.id) {
-    return { success: false, pushedCount: 0 };
+    // CLT-R-015: no Supabase session means signed out, not a sync failure. The
+    // caller sends the user to /login instead of showing a generic error.
+    return { success: false, pushedCount: 0, reason: 'no_session' };
   }
   const currentUserId = session.user.id;
   let token = session.access_token;
