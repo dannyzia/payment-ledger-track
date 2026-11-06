@@ -105,6 +105,17 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   // turns a press-and-move on a child into a captured drag.
   let hasOrigin = false;
   let hasUserPosition = false;
+  // CLT-R-013: Android's touch-target adjustment retargets a press on the
+  // pill's narrow neutral strips to the nearest link or button, so requiring a
+  // non-interactive origin made the menu undraggable by finger (the drag guard
+  // correctly refused the retargeted press). The origin no longer decides:
+  // movement past the threshold is a drag even when the press began on a
+  // control, and the one click belonging to that release is swallowed so the
+  // control does not also activate. A press without movement stays a tap and is
+  // left completely untouched — that is what keeps New Entry and the toggle
+  // working (CLT-T-050).
+  let pressStartedOnControl = false;
+  let suppressClick = false;
   const DRAG_THRESHOLD = 6;
 
   function getDockedCoords(): { x: number; y: number } {
@@ -163,8 +174,18 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     }
   })();
 
+  // CLT-R-018: above the md breakpoint the pill is display:none, so it measures
+  // 0x0. Clamping with the 0x0 (or fallback) size then wrote a bogus position
+  // that survived the rotation back to portrait — a landscape trip moved the
+  // menu from y=618 to y=323 while storage still said 618. Do nothing until the
+  // pill has a real box again; the ResizeObserver settles it when it reappears.
+  function isMeasurable(): boolean {
+    return node.offsetWidth > 0 && node.offsetHeight > 0;
+  }
+
   function settleDock() {
     if (isDragging) return;
+    if (!isMeasurable()) return;
     if (options.positionMode && options.positionMode !== 'free') return;
 
     const menuDim = { width: node.offsetWidth || 140, height: node.offsetHeight || 48 };
@@ -222,23 +243,26 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
 
-    // CLT-T-050: a press that starts on one of the menu's controls belongs to
-    // that control. Starting a drag here would capture the pointer on the
-    // region and retarget the whole sequence, so the anchor's navigation and
-    // the toggle's onclick never fire.
-    if (isInteractiveTarget(e.target)) {
-      hasOrigin = false;
-      return;
-    }
+    // A new press starts a new interaction: any suppression owed to a previous
+    // drag release is spent.
+    suppressClick = false;
 
-    const now = Date.now();
-    if (now - lastTapTime < 300) {
-      resetToDocked();
-      lastTapTime = 0;
-      hasOrigin = false;
-      return;
+    const onControl = isInteractiveTarget(e.target);
+    pressStartedOnControl = onControl;
+
+    // Double-tap reset is a gesture on the pill's own surface. On a control it
+    // would fight the control's activation (double-tapping New Entry must not
+    // also re-dock the menu).
+    if (!onControl) {
+      const now = Date.now();
+      if (now - lastTapTime < 300) {
+        resetToDocked();
+        lastTapTime = 0;
+        hasOrigin = false;
+        return;
+      }
+      lastTapTime = now;
     }
-    lastTapTime = now;
 
     if (options.positionMode && options.positionMode !== 'free') return;
 
@@ -248,6 +272,12 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     originClientY = e.clientY;
     startX = e.clientX - currentX;
     startY = e.clientY - currentY;
+
+    // CLT-T-050: never capture a press that may still turn out to be a tap on a
+    // control — capture retargets the click to the region and the control's
+    // navigation/onclick never fires. The capture is taken below, on the first
+    // move instead.
+    if (onControl) return;
 
     // Capture from the press itself. Waiting for the first move loses a fast
     // drag: the pointer leaves the pill before any move event lands on it, so
@@ -260,12 +290,32 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     }
   }
 
+  // Swallow exactly the click that follows a drag which started on a control.
+  // Capture phase, so it runs before the anchor's navigation and before any
+  // child onclick handler.
+  function onClickCapture(e: MouseEvent) {
+    if (!suppressClick) return;
+    suppressClick = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   function onPointerMove(e: PointerEvent) {
     if (!hasOrigin) return;
     if (!hasMovedPastThreshold && (Math.hypot(e.clientX - originClientX, e.clientY - originClientY) > DRAG_THRESHOLD)) {
       hasMovedPastThreshold = true;
       isDragging = true;
       node.style.transition = 'none';
+
+      if (pressStartedOnControl) {
+        // The gesture turned out to be a drag, not an activation.
+        suppressClick = true;
+        try {
+          node.setPointerCapture(e.pointerId);
+        } catch {
+          // best-effort, as above
+        }
+      }
     }
 
     if (!isDragging) return;
@@ -348,6 +398,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   }
 
   function onResize() {
+    if (!isMeasurable()) return;
     const menuDim = { width: node.offsetWidth || 140, height: node.offsetHeight || 48 };
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     if (options.positionMode && options.positionMode !== 'free') {
@@ -366,6 +417,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   node.addEventListener('pointermove', onPointerMove);
   node.addEventListener('pointerup', onPointerUp);
   node.addEventListener('pointercancel', onPointerUp);
+  node.addEventListener('click', onClickCapture, true);
   node.addEventListener('keydown', onKeyDown);
   window.addEventListener('resize', onResize);
 
@@ -390,6 +442,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
       node.removeEventListener('pointermove', onPointerMove);
       node.removeEventListener('pointerup', onPointerUp);
       node.removeEventListener('pointercancel', onPointerUp);
+      node.removeEventListener('click', onClickCapture, true);
       node.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
     },

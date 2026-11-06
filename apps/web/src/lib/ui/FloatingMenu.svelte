@@ -56,6 +56,19 @@
   onkeydown={handleKeydown}
 >
   <div class="glass rounded-full p-2 flex items-center gap-2 shadow-xl border border-[var(--pearl-border)]">
+    <!-- PRD §14.5: the collapsed pill shows "the primary action plus a handle".
+         The grip is a 44x44 touch target that is deliberately *not* a control,
+         so a press on it is never retargeted to the link beside it (CLT-R-013).
+         Purely an affordance: dragging works from any part of the pill. -->
+    <span
+      class="flex items-center justify-center gap-[3px] min-w-[44px] min-h-[44px] touch-none cursor-grab active:cursor-grabbing"
+      data-drag-handle
+      aria-hidden="true"
+    >
+      <span class="w-[2px] h-[14px] rounded-full bg-[var(--ink)] opacity-40"></span>
+      <span class="w-[2px] h-[14px] rounded-full bg-[var(--ink)] opacity-40"></span>
+    </span>
+
     <a
       href="/entries/new"
       class="btn-glass btn--commission rounded-full px-4 py-2 flex items-center gap-1.5 text-sm font-semibold"
