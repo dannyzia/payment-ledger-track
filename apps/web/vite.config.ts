@@ -62,7 +62,15 @@ export default defineConfig({
     // Vitest collects web-app unit tests from src plus the Plan 020 test suites
     // (tests/calc, tests/reports, tests/regression); Playwright specs in
     // tests/e2e are executed separately via `pnpm test:e2e`.
-    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)', 'tests/**/*.test.ts'],
+    // Scope test globs to this app's own suites: a bare 'tests/**/*.test.ts'
+    // resolves from the workspace root and double-collects root-level
+    // tests/ops (Plan 021) in this project as well.
+    include: [
+      'src/**/*.{test,spec}.?(c|m)[jt]s?(x)',
+      'tests/calc/**/*.test.ts',
+      'tests/reports/**/*.test.ts',
+      'tests/regression/**/*.test.ts',
+    ],
     exclude: ['tests/e2e/**', 'node_modules/**'],
     environment: 'node',
   },

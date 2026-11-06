@@ -20,6 +20,11 @@ const config = {
         })
       : adapterVercel({
           runtime: 'nodejs22.x',
+          // Plan 021 §6.2: 15s serverless budget and Singapore region so the
+          // function runs beside the Supabase database (Pitfall 1: cold-start
+          // 504s on multi-payable reconciliation otherwise).
+          maxDuration: 15,
+          regions: ['sin1'],
         }),
     // Service worker registration is owned by @vite-pwa/sveltekit's virtual module
     // (vite-pwa docs: disable Kit's own registration when using pwa virtual modules).

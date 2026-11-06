@@ -1,0 +1,39 @@
+name: Daily Off-Supabase Encrypted Backup
+
+on:
+  schedule:
+    # 20:00 UTC = 02:00 Asia/Dhaka
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install PostgreSQL Client & GPG
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client gnupg awscli
+
+      - name: Execute Backup Export
+        env:
+          DIRECT_DATABASE_URL: ${{ secrets.PROD_DIRECT_DATABASE_URL }}
+          BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+          BACKUP_STORAGE_BUCKET: ${{ secrets.BACKUP_STORAGE_BUCKET }}
+          BACKUP_STORAGE_REGION: ${{ secrets.BACKUP_STORAGE_REGION || 'ap-southeast-1' }}
+          BACKUP_ACCESS_KEY_ID: ${{ secrets.BACKUP_ACCESS_KEY_ID }}
+          BACKUP_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_SECRET_ACCESS_KEY }}
+        run: npx tsx scripts/ops/backup-export.ts
