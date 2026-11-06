@@ -23,7 +23,7 @@ ORCHESTRATOR.md §13 requires these records under `docs/orchestration/`:
 | 3 | Constraints confirmed | **CONTENT READY — not signed** | AGENTS.md §5 Hard Rules 1–20; §4 architecture decisions; PRD §12 NFRs | Same G0 line |
 | 4 | Roster confirmed | **OPEN — table empty** | ORCHESTRATOR.md §5 roster rows are `<fill>` placeholders | Zia fills App/IDE, Model, strengths, limits for at least `A-PLN-1`, `A-IMP-1`, `A-AUD-1`, `A-TST-1`, `A-OPS-1` |
 | 5 | Project context file confirmed | **CONTENT READY — not signed** | `AGENTS.md` exists, rev 8, last updated 2026-10-29 (its own header) | Same G0 line, naming AGENTS.md rev 8 |
-| 6 | Ledger created | **OPEN — file absent** | `ls docs/orchestration/` shows only `briefs/` and `reports/` (the Gate 20 evidence plus the CLT-T-050 brief); no `LEDGER.md`, no orchestrator `DECISIONS.md`, no `RISKS.md` | Create the three files with the headers in §3 |
+| 6 | Ledger created | **MET — files created 2026-11-06** | `LEDGER.md`, `DECISIONS.md` and `RISKS.md` now exist alongside `briefs/` and `reports/`; only the G0 signature in §4 is outstanding | Nothing further; `CLT-D-026` signs §4 |
 
 ## 2. Honest record: the gate is retrospective
 
@@ -64,10 +64,12 @@ already documented elsewhere, so nothing is invented here:
 
 ## 4. The G0 line for `docs/orchestration/DECISIONS.md`
 
-Paste once, filling the two `<…>` fields:
+Numbered `CLT-D-026`: the `CLT-D-001`…`CLT-D-025` range is already used by the
+root implementer `DECISIONS.md`, and decision IDs are never reused (AGENTS.md
+§6). Paste once, filling the two `<…>` fields:
 
 ```
-## CLT-D-001 — G0 Intake accepted
+## CLT-D-026 — G0 Intake accepted
 Date: <YYYY-MM-DD>
 Decided by: Zia
 Options: accept G0 as recorded in docs/orchestration/G0_READINESS_CHECKLIST.md; or hold G0 open

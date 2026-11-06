@@ -1,0 +1,81 @@
+# Orchestration & Owner Decisions — Cosmo Ledger Track
+
+Created: 2026-11-06, per `ORCHESTRATOR.md` §13 and Gate G0 of
+`G0_READINESS_CHECKLIST.md` §3.
+
+**This file records orchestrator and Owner (Zia) decisions only.** Implementer
+choices where the PRD was silent stay in the root `DECISIONS.md`; the two logs
+are separate on purpose (AGENTS.md §3). Do not merge them.
+
+## 0. ID space — read before adding an entry
+
+Decision IDs are `CLT-D-nnn` and **never reused** (AGENTS.md §6). The two logs
+share that space:
+
+- Root `DECISIONS.md` already owns `CLT-D-001` … `CLT-D-025`, plus the
+  `CLT-POLICY-Q1` … `CLT-POLICY-Q4` policy headings.
+- **The next free orchestration ID is `CLT-D-026`.**
+
+`G0_READINESS_CHECKLIST.md` §4 originally proposed `CLT-D-001` for the G0 line;
+that number was already taken, so it now points here. Numbers are assigned when
+an entry is written, never reserved in advance.
+
+## 1. Status words
+
+`CONFIRMED` — decided by Zia, quoted or dated.
+`PENDING` — awaiting Zia; the question and options are ready.
+`SUPERSEDED` — replaced by a later entry, which is named.
+
+## 2. Open — awaiting Zia
+
+### CLT-D-026 — G0 Intake accepted
+
+```
+Status: PENDING
+Date: <YYYY-MM-DD>
+Decided by: Zia
+Options: accept G0 as recorded in docs/orchestration/G0_READINESS_CHECKLIST.md;
+         or hold G0 open
+Outcome: ACCEPTED | HELD
+Scope: goal, non-goals, constraints (AGENTS.md rev 8), roster (ORCHESTRATOR.md §5),
+       records in docs/orchestration/
+Reason: <one sentence in Zia's words>
+```
+
+Still open before this can be answered: the roster table in `ORCHESTRATOR.md`
+§5 is `<fill>` for every role. `LEDGER.md`, `RISKS.md` and this file now exist,
+so the "ledger created" criterion is met.
+
+## 3. Recorded elsewhere — index only
+
+These decisions are binding but were not written here; the authoritative
+location is named so nothing is duplicated or restated in the wrong voice.
+
+| Subject | Where recorded | Date | Status |
+|---|---|---|---|
+| Project key **CLT**; IDs like `CLT-T-014` | AGENTS.md §1 | 2026-10-29 | CONFIRMED |
+| Both orchestration systems in force: `ORCHESTRATOR.md` for tracking, Rhizome for agent transport | AGENTS.md §10 | 2026-10-29 | CONFIRMED |
+| Admin changes rates alone (no Owner approval); single Owner; fixed monthly due date per payable; reconciliation in v1; transaction reference mandatory only where `methods.requires_txn_ref = true`; all percentages from the admin panel | AGENTS.md §4, "Decided by the owner" | undated | CONFIRMED |
+| Q1 VAT rule, Q2 net/"Final" definition, Q3 commission structure, Q4 charge bearer | root `DECISIONS.md`, blocks `CLT-POLICY-Q1`…`Q4`; packet `OWNER_DECISION_PACKET_Q1_Q4.md` | — | **PENDING** (Rule 20) |
+| Implementer deviations: `CLT-D-001`…`CLT-D-025` (plan-level choices where the PRD was silent) | root `DECISIONS.md` | to 2026-11-06 | CONFIRMED as recorded |
+
+The Q1–Q4 marker lines must be written in **root** `DECISIONS.md`, not here:
+`scripts/build-android.sh` greps `Qn.*Status: CONFIRMED` in the root file before
+an `.aab` store build (CLT-D-022).
+
+## 4. Decision requests to raise (unassigned IDs)
+
+Not yet answered by Zia; listed so they are not lost. Each gets a `CLT-D-nnn`
+when answered.
+
+| # | Question | Source | Default if Zia says nothing |
+|---|---|---|---|
+| DR-1 | PRD §14.5 requires screens < 640 px to "dock cleanly into a bottom sheet bar"; the implementation only clamps and dodges (`snapToEdge`, `calculateAvoidance`) and no bottom-sheet bar exists anywhere in `apps/web/src` | `GATE5_PHYSICAL_DEVICE_CHECKLIST.md` GS-5 | keep dodge-only, record as accepted divergence before Gate 5 sign-off |
+| DR-2 | Gate 5 needs the physical-device proof this checklist supplies; outside M2 the automated gate scores only `pnpm test:e2e` | `GATE5_PHYSICAL_DEVICE_CHECKLIST.md` GS-4, `CLT-R-008` | manual checklist remains the evidence; extend the script in a later task |
+| DR-3 | Seeded `bank_transfer` has `requires_txn_ref = true`, while PRD §4 Q15 lists mandatory references only for bKash, Visa, Mastercard | `OWNER_DECISION_PACKET_Q1_Q4.md` "Adjacent observations" 1 | leave seeded value; it is an admin edit, not code |
+
+## 5. Changelog
+
+| Rev | Date | Change |
+|---|---|---|
+| 1 | 2026-11-06 | File created. `CLT-D-026` (G0) opened as PENDING; decisions recorded in AGENTS.md and root `DECISIONS.md` indexed in §3; three decision requests listed in §4. No approval is fabricated: nothing here is marked accepted. |
