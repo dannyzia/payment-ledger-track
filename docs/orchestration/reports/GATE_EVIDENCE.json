@@ -1,33 +1,33 @@
 {
   "milestone": "M2",
-  "generatedAt": "2026-11-05T16:29:00.906Z",
+  "generatedAt": "2026-11-06T05:43:53.854Z",
   "allSatisfied": true,
   "gates": {
     "Gate 1 (Database Proof)": {
       "satisfied": true,
-      "timestamp": "2026-11-05T16:29:00.906Z",
-      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests | 60 skipped) 99ms\n\n Test Files  1 passed (1)\n      Tests  5 passed | 60 skipped (65)\n   Start at  22:28:14\n   Duration  1.39s (transform 238ms, setup 0ms, collect 208ms, tests 99ms, environment 1ms, prepare 281ms)\n\n"
+      "timestamp": "2026-11-06T05:43:53.854Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests | 60 skipped) 104ms\n\n Test Files  1 passed (1)\n      Tests  5 passed | 60 skipped (65)\n   Start at  11:43:01\n   Duration  1.23s (transform 210ms, setup 0ms, collect 193ms, tests 104ms, environment 0ms, prepare 234ms)\n\n"
     },
     "Gate 2 (Financial Proof)": {
       "satisfied": true,
-      "timestamp": "2026-11-05T16:29:00.906Z",
-      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/packages/calc\n\n ✓ test/fixtures.test.ts (8 tests) 23ms\n ✓ test/properties.test.ts (6 tests) 13388ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 1: Gross Conservation (40,000 runs) — vat + commission + businessCharge + net === gross 8759ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 2: Charge Partitioning (30,000 runs) — businessCharge + customerCharge === charge 2142ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 3: Deduction Guard (15,000 runs) — rejects when deductions exceed gross (PRD §6.4 guard #1) 1461ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 4: Idempotence of Calculation (10,000 runs) — identical inputs yield identical results 581ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 5: Rule F20 Mutual Exclusivity of VAT Inputs (5,000 runs) 441ms\n\n Test Files  2 passed (2)\n      Tests  14 passed (14)\n   Start at  22:28:17\n   Duration  14.97s (transform 433ms, setup 0ms, collect 795ms, tests 13.41s, environment 1ms, prepare 522ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/calc/parity.test.ts (7 tests) 165ms\n\n Test Files  1 passed (1)\n      Tests  7 passed (7)\n   Start at  22:28:35\n   Duration  1.66s (transform 271ms, setup 0ms, collect 345ms, tests 165ms, environment 1ms, prepare 270ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/reports/view_parity.test.ts (2 tests) 196ms\n\n Test Files  1 passed (1)\n      Tests  2 passed (2)\n   Start at  22:28:42\n   Duration  1.52s (transform 155ms, setup 0ms, collect 224ms, tests 196ms, environment 1ms, prepare 188ms)\n\n"
+      "timestamp": "2026-11-06T05:43:53.854Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/packages/calc\n\n ✓ test/fixtures.test.ts (8 tests) 21ms\n ✓ test/properties.test.ts (6 tests) 12234ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 1: Gross Conservation (40,000 runs) — vat + commission + businessCharge + net === gross 8280ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 2: Charge Partitioning (30,000 runs) — businessCharge + customerCharge === charge 1957ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 3: Deduction Guard (15,000 runs) — rejects when deductions exceed gross (PRD §6.4 guard #1) 1156ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 4: Idempotence of Calculation (10,000 runs) — identical inputs yield identical results 488ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 5: Rule F20 Mutual Exclusivity of VAT Inputs (5,000 runs) 350ms\n\n Test Files  2 passed (2)\n      Tests  14 passed (14)\n   Start at  11:43:03\n   Duration  13.55s (transform 281ms, setup 0ms, collect 587ms, tests 12.26s, environment 1ms, prepare 365ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/calc/parity.test.ts (7 tests) 153ms\n\n Test Files  1 passed (1)\n      Tests  7 passed (7)\n   Start at  11:43:22\n   Duration  1.69s (transform 279ms, setup 0ms, collect 310ms, tests 153ms, environment 1ms, prepare 265ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/reports/view_parity.test.ts (2 tests) 275ms\n\n Test Files  1 passed (1)\n      Tests  2 passed (2)\n   Start at  11:43:29\n   Duration  1.76s (transform 261ms, setup 0ms, collect 428ms, tests 275ms, environment 1ms, prepare 246ms)\n\n"
     },
     "Gate 3 (Sync Proof)": {
       "satisfied": true,
-      "timestamp": "2026-11-05T16:29:00.906Z",
-      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests) 245ms\n\n Test Files  1 passed (1)\n      Tests  65 passed (65)\n   Start at  22:28:48\n   Duration  1.58s (transform 194ms, setup 0ms, collect 208ms, tests 245ms, environment 1ms, prepare 253ms)\n\n"
+      "timestamp": "2026-11-06T05:43:53.854Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests) 549ms\n\n Test Files  1 passed (1)\n      Tests  65 passed (65)\n   Start at  11:43:36\n   Duration  2.14s (transform 269ms, setup 0ms, collect 261ms, tests 549ms, environment 0ms, prepare 448ms)\n\n"
     },
     "Gate 4 (Lifecycle Proof)": {
       "satisfied": true,
-      "timestamp": "2026-11-05T16:29:00.906Z",
-      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests | 56 skipped) 105ms\n\n Test Files  1 passed (1)\n      Tests  9 passed | 56 skipped (65)\n   Start at  22:28:54\n   Duration  1.52s (transform 336ms, setup 0ms, collect 271ms, tests 105ms, environment 1ms, prepare 343ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests | 34 skipped) 132ms\n\n Test Files  1 passed (1)\n      Tests  31 passed | 34 skipped (65)\n   Start at  22:28:59\n   Duration  1.48s (transform 211ms, setup 0ms, collect 199ms, tests 132ms, environment 0ms, prepare 318ms)\n\n"
+      "timestamp": "2026-11-06T05:43:53.854Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests | 56 skipped) 168ms\n\n Test Files  1 passed (1)\n      Tests  9 passed | 56 skipped (65)\n   Start at  11:43:43\n   Duration  1.67s (transform 252ms, setup 0ms, collect 316ms, tests 168ms, environment 2ms, prepare 309ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (65 tests | 34 skipped) 289ms\n\n Test Files  1 passed (1)\n      Tests  31 passed | 34 skipped (65)\n   Start at  11:43:51\n   Duration  2.17s (transform 297ms, setup 0ms, collect 316ms, tests 289ms, environment 1ms, prepare 536ms)\n\n"
     },
     "Gate 5 (Accessibility Proof)": {
       "satisfied": true,
       "status": "deferred_to_m5",
       "note": "Gate 5 visual and physical device validation deferred to Milestone M5 per PRD §18",
-      "timestamp": "2026-11-05T16:29:00.905Z",
+      "timestamp": "2026-11-06T05:43:53.853Z",
       "evidence": "Deferred to Milestone M5"
     }
   }
