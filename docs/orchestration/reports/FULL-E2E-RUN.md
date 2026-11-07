@@ -432,3 +432,16 @@ Resulting state: `statements.status = reconciled`, `expected_poisha = 2014`, `va
 
 1. `statement.create` audit `after` is `{kind, month, source, total}` where PRD §15.1 says `{kind, month, source, statement_total_poisha, covered_payables}`; `statement.reconcile` writes only `{status, note}` where the PRD also names `variance` and `covered_payables`; `statement_line.accept` omits `reviewed_by`. All three rows identify the record and actor correctly, so the trail is usable; the payloads are just narrower than the matrix.
 2. The entry form selects the first method by `display_order` (Cash) when it opens. Clicking another chip before the cached profile/methods finish loading is overwritten by that default, which is how the first fixture pass saved two bKash-intended entries as Cash (both voided with reasons through the drawer; method selection was then waited for and re-verified via `aria-pressed`). That is a harness hazard as much as a UI one, but a fast tap on a slow device would hit the same overwrite.
+### 8.17 Rebuilt 2026-09 fixture with September-dated lines
+
+The 2026-09 statement this report previously described (`717bd561…`, lines dated 2026-11, no September entries in the data set) no longer exists — the `pnpm test` wipe (`CLT-R-025`) removed it together with the rest of the statements, so the caveat in §5's fixture row and the notes above about an "empty candidate list" no longer describe anything in the database. This entry supersedes them.
+
+The month was rebuilt through the app so that a statement and its lines agree:
+
+- `E-202609-000183` — `SEPTRX001`, 2026-09-10, ৳1,000.00, bKash (charge 1,150 poisha)
+- `E-202609-000184` — `SEPTRX002`, 2026-09-12, ৳750.00, bKash (charge 863 poisha)
+- Statement `247f12b1-20dd-4f39-b418-b0e8dad409e7`, month 2026-09, source `file`, covered `bkash_charge_payable`, uploaded as a bKash Merchant CSV with both lines dated 2026-09-10 and 2026-09-12.
+
+Stored state: `status = open`, `statement_total_poisha = 2013`, `expected_poisha = 2013`, `variance_poisha = 0`; both lines `matched`, each to its own September entry; `statement_payables.status = open`; one `statement.create` audit row (`{kind: single_payable, month: 2026-09-01, total: 2013, source: file}`). Auto-match resolved both lines by reference, so the candidate list is no longer empty and the statement is finalizable once its variance note is entered (variance is zero here, so the note is optional).
+
+`/months/close?month=2026-09` now lists it under "Open statements waiting on matching for 2026-09: bKash Merchant Charge · Mode B" with `#btn-blocking-resume-247f12b1…`, Gate 1 reads "Pending Reconciliation", and closing is refused. Left open on purpose as the resume/finalize fixture; no page errors.
