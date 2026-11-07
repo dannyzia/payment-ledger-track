@@ -912,7 +912,7 @@ file_storage_path?: string;
             <Button
               variant="commission"
               class="min-h-[44px]"
-              id="btn-save"
+              id="btn-confirm-upload-statement"
               onclick={handleConfirmStatementCreation}
               disabled={actionLoading}
               loading={actionLoading}
@@ -1181,7 +1181,7 @@ file_storage_path?: string;
           <Button
             variant="commission"
             class="min-h-[44px]"
-            id="btn-save"
+            id="btn-finalize-reconcile"
             onclick={handleFinalizeReconcile}
             disabled={!canFinalizeReconciliation || actionLoading || activeStatement.status !== 'open'}
             loading={actionLoading}
@@ -1274,7 +1274,7 @@ file_storage_path?: string;
       <Button
         variant="mastercard"
         class="min-h-[44px]"
-        id="btn-save"
+        id="btn-confirm-unmatch"
         onclick={handleConfirmUnmatch}
         disabled={actionLoading || unmatchReason.trim().length === 0}
         loading={actionLoading}
@@ -1310,7 +1310,7 @@ file_storage_path?: string;
       <Button
         variant="commission"
         class="min-h-[44px]"
-        id="btn-save"
+        id="btn-confirm-accept"
         onclick={handleConfirmAccept}
         disabled={actionLoading || acceptReviewNote.trim().length === 0}
         loading={actionLoading}
@@ -1348,7 +1348,7 @@ file_storage_path?: string;
         <Button
           variant="commission"
           class="min-h-[44px]"
-          id="btn-save"
+          id="btn-confirm-exception"
           onclick={handleConfirmException}
           disabled={actionLoading || exceptionReason.trim().length === 0}
           loading={actionLoading}
@@ -1385,7 +1385,7 @@ file_storage_path?: string;
       <Button
         variant="mastercard"
         class="min-h-[44px]"
-        id="btn-save"
+        id="btn-confirm-supersede"
         onclick={handleConfirmSupersede}
         disabled={actionLoading || supersedeReason.trim().length === 0 || !uploadPreview}
         loading={actionLoading}

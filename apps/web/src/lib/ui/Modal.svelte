@@ -11,6 +11,10 @@
 
   let { open = $bindable(false), title, onclose, children }: Props = $props();
 
+  // Per-instance id: every <Modal> on a page used to share id="modal-title",
+  // so aria-labelledby resolved to the first mounted dialog's heading.
+  const titleId = $props.id();
+
   let dialogEl: HTMLDialogElement | null = $state(null);
 
   $effect(() => {
@@ -38,11 +42,11 @@
   bind:this={dialogEl}
   oncancel={handleCancel}
   onclick={handleBackdropClick}
-  aria-labelledby="modal-title"
+  aria-labelledby={titleId}
   class="glass rounded-[20px] max-w-lg w-full p-6 shadow-2xl backdrop:bg-black/40 backdrop:backdrop-blur-sm m-auto border border-[var(--pearl-border)]"
 >
   <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
-    <h2 id="modal-title" class="text-lg font-bold text-[var(--ink)]">{title}</h2>
+    <h2 id={titleId} class="text-lg font-bold text-[var(--ink)]">{title}</h2>
     <button
       type="button"
       aria-label={messages.ui.closeModal}
