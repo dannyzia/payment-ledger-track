@@ -427,3 +427,54 @@ any of them; sign-in read the password from `.env.local` and never printed it.
 Not run: the DB integration suites (blocked by the local `one_owner` state, see
 §13) and the full PRD §16.2 regression suite.
 
+## 19. `CLT-R-016` — a dropped connection was labelled "Sync error"
+
+`pull.ts` turned a failed `fetch` into `network_offline`, but `push.ts` let the
+`TypeError` escape, and `runner.svelte.ts` mapped anything that was not
+`network_offline` to `error`. Whenever the outbox had at least one op, the push
+fetch was the first network call in the cycle and its failure produced "Sync
+error (tap to retry)" for a device that was merely out of range, contradicting
+the "Offline (N pending)" state the same screen shows after a save. With an
+empty outbox the push makes no request, the pull fails first, and the label was
+already correct — which is why the defect only appeared after offline entries
+existed.
+
+## 20. What changed
+
+`apps/web/src/lib/sync/push.ts` gained a `postPush()` helper that wraps both
+fetch sites (the initial send and the post-refresh retry) and re-raises a
+transport failure as `Error('network_offline')`, the exact signal `pull.ts`
+already raises. `runner.svelte.ts` needed no change: its existing catch already
+turns that into the `offline` state, and `SyncIndicator.svelte` renders it as
+"Offline (N pending)". HTTP failures that reach the server are untouched — a
+500, a 401 with no refreshable session, or a revoked device still reports
+`error`, because the server answered and the ops need attention.
+
+## 21. Verification with this change
+
+The Pixel 6a was not attached for this run (`adb devices` printed an empty
+list), so the check is browser-level, in Chromium, against the dev server — not
+device evidence. A Playwright script signs in, inserts one real pending outbox
+op, aborts `/api/v1/sync/**` at the network layer (`route.abort('failed')`, so
+`navigator.onLine` stays `true` and the fetch rejects with `net::ERR_FAILED`),
+and reads the indicator for 24 s. The same script was run against the pre-fix
+`push.ts` (stashed, then restored) and against the fix:
+
+| Build | Indicator | Push request |
+|---|---|---|
+| Pre-fix (`push.ts` at `0578630`) | `Sync error (tap to retry)`, body contains "Sync error" | `POST /api/v1/sync/push` → `net::ERR_FAILED` |
+| Fixed | `Offline (1 pending)` from 15 s onward, stable through 23 s, pending op still in the outbox | `POST /api/v1/sync/push` → `net::ERR_FAILED` |
+
+Evidence: `evidence/gate5/r016-before-fix-sync-error.png` and
+`r016-after-fix-offline.png` (411×816 viewport). No data was lost in either run.
+
+Checks: `runner.test.ts` 5 passed (two new cases — a push and a pull that throw
+`network_offline` both end in `offline`); `push.test.ts` (new) 3 passed (a
+dropped fetch raises `network_offline`; a 500 and an unrefreshable 401 both
+stay ordinary errors); `svelte-check --threshold error` 655 files, 0 errors;
+`apps/web` vitest 18 files passed / 217 tests, with only
+`tests/reports/view_parity.test.ts` failing (pre-existing, DB seeding).
+
+Still owed: the same check on the packaged APK with the phone attached, plus
+H6's offline relaunch re-read, before this item can be struck from the Gate 5
+sign-off list.
