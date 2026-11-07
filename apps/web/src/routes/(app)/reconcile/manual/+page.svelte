@@ -24,7 +24,9 @@
   let tolerancePoisha = $state(100n);
   let isSubmitting = $state(false);
   let errorMessage = $state('');
-  let amountValidationError = $state('');
+  // Derived, never written: Svelte 5 forbids state mutation inside a `$derived`,
+  // and doing so threw state_unsafe_mutation and blanked the entire page (found
+  // by the E2E route sweep, 2026-11-07).
 
   // Target payable IDs: resolved via pure helper conforming to DDL columns (code, kind)
   let targetPayableIds = $derived.by(() => {
@@ -32,19 +34,19 @@
   });
 
   // Strict BDT input parsing without floating-point math (Rule 2)
-  let statementTotalPoisha = $derived.by(() => {
-    if (!statementTotalBdt.trim()) {
-      amountValidationError = '';
-      return 0n;
-    }
+  let parsedStatementTotal = $derived.by(() => {
+    if (!statementTotalBdt.trim()) return { poisha: 0n as bigint | null, error: '' };
     const parsed = parseStrictBdtToPoisha(statementTotalBdt);
     if (parsed === null) {
-      amountValidationError = 'Please enter a valid amount in BDT (maximum 2 decimal places).';
-      return null;
+      return {
+        poisha: null as bigint | null,
+        error: 'Please enter a valid amount in BDT (maximum 2 decimal places).',
+      };
     }
-    amountValidationError = '';
-    return parsed;
+    return { poisha: parsed as bigint | null, error: '' };
   });
+  let statementTotalPoisha = $derived(parsedStatementTotal.poisha);
+  let amountValidationError = $derived(parsedStatementTotal.error);
 
   let variancePoisha = $derived(statementTotalPoisha !== null ? statementTotalPoisha - expectedPoisha : 0n);
 

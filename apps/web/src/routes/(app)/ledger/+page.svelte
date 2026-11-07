@@ -70,9 +70,13 @@
 
   // Debounce search input by 150ms
   $effect(() => {
+    // Read the input synchronously: Svelte 5 tracks dependencies read during the
+    // effect body, so reading rawSearch inside the timeout left the effect with
+    // no dependency and the search never filtered anything (E2E, 2026-11-07).
+    const value = rawSearch;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      debouncedSearch = rawSearch;
+      debouncedSearch = value;
     }, 150);
     return () => clearTimeout(searchTimer);
   });
