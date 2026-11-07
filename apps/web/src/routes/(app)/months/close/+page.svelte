@@ -17,6 +17,10 @@
   let overpaymentsApproved = $state(false);
   let zeroPendingStaleReviews = $state(false);
 
+  // Open statements that are holding Gate 1 back, so they can be resumed from here
+  // instead of hunting for their month on the reconciliation overview (CLT-R-022).
+  let blockingStatements = $state<Array<{ id: string; label: string; source: 'manual_total' | 'file' }>>([]);
+
   let gatesResult = $derived<MonthCloseGatesResult>(
     evaluateMonthCloseGates({
       callerRole: session.user?.role ?? 'staff',
@@ -57,6 +61,8 @@
       .filter(p => (p.kind as string) === 'card' || (p.code ?? '').toLowerCase().includes('visa') || (p.code ?? '').toLowerCase().includes('mastercard'))
       .map(p => p.id);
 
+    const payableName = (id?: string) => payables.find(p => p.id === id)?.name ?? 'Unknown payable';
+
     const reconciledStatementPayableIds = new Set<string>();
     for (const st of statements) {
       if (st.status === 'reconciled') {
@@ -83,6 +89,29 @@
       const liableSettlements = settlements.filter(s => s.status !== 'not_applicable');
       allPayablesReconciled = liableSettlements.every(s => reconciledStatementPayableIds.has(s.payable_id));
     }
+
+    // Open statements still blocking Gate 1, each reachable from this checklist.
+    const unreconciledPayableIds = new Set(
+      settlements
+        .filter(s => s.status !== 'not_applicable' && !reconciledStatementPayableIds.has(s.payable_id))
+        .map(s => s.payable_id)
+    );
+    blockingStatements = allPayablesReconciled
+      ? []
+      : statements
+          .filter(st => st.status === 'open')
+          .filter(st => {
+            if (st.kind === 'combined_card') return cardPayableIds.some(cid => unreconciledPayableIds.has(cid));
+            const ids = st.payable_ids?.length ? st.payable_ids : st.payable_id ? [st.payable_id] : [];
+            return ids.some(id => unreconciledPayableIds.has(id));
+          })
+          .map(st => ({
+            id: st.id,
+            source: st.source,
+            label: st.kind === 'combined_card'
+              ? 'Combined card statement'
+              : (st.payable_ids?.length ? st.payable_ids.map(payableName).join(', ') : payableName(st.payable_id)),
+          }));
 
     // 4. Gate 2: Check active Owner approvals for overpaid settlements matching exact surplus
     const overpaidSettlements = settlements.filter(s => s.status === 'overpaid');
@@ -245,6 +274,49 @@
             {allPayablesReconciled ? 'Passed' : 'Pending Reconciliation'}
           </span>
         </div>
+
+        {#if !allPayablesReconciled && monthStatus === 'open'}
+          <div class="p-3 rounded-xl bg-white/40 border border-black/5 -mt-1" data-testid="blocking-statements">
+            {#if blockingStatements.length === 0}
+              <p class="text-xs text-[var(--c-muted,#6b7280)]">
+                No open statement covers the outstanding payables for {selectedMonth}.
+                <a href="/reconcile" class="font-semibold text-[var(--brand,#3b82f6)] underline">Create one in Reconciliation</a>.
+              </p>
+            {:else}
+              <p class="text-xs font-semibold text-[var(--c-ink,#111827)] mb-2">
+                Open statements waiting on matching for {selectedMonth}:
+              </p>
+              <ul class="flex flex-col gap-2">
+                {#each blockingStatements as st (st.id)}
+                  <li class="flex items-center justify-between gap-3">
+                    <span class="text-xs text-[var(--c-muted,#6b7280)]">
+                      {st.label} &middot; {st.source === 'file' ? 'Mode B' : 'Mode A'}
+                    </span>
+                    {#if st.source === 'file'}
+                      <Button
+                        variant="commission"
+                        class="text-xs py-1 min-h-[36px]"
+                        id="btn-blocking-resume-{st.id}"
+                        onclick={() => goto(`/reconcile/upload?statement=${st.id}`)}
+                      >
+                        Resume Matching
+                      </Button>
+                    {:else}
+                      <Button
+                        variant="default"
+                        class="text-xs py-1 min-h-[36px]"
+                        id="btn-blocking-reconcile-{st.id}"
+                        onclick={() => goto(`/reconcile?month=${selectedMonth}`)}
+                      >
+                        Finalize
+                      </Button>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
 
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>2. Active Owner approvals for any overpaid settlements (exact surplus)</span>

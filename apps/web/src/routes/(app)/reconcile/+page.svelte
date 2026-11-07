@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Modal from '$lib/ui/Modal.svelte';
@@ -38,7 +39,12 @@
     payload?: Record<string, unknown> | undefined;
   }
 
-  let selectedMonth = $state(currentDhakaMonth());
+  // ?month=YYYY-MM lets other screens (the month-close checklist) deep-link to the
+  // month that actually needs attention instead of the current one.
+  const monthParam = page.url.searchParams.get('month');
+  let selectedMonth = $state(
+    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth()
+  );
   let statements = $state<StatementRow[]>([]);
   let closedMonthRejectedOps = $state<RecoveryItem[]>([]);
   let activeRecoveryItem = $state<RecoveryItem | null>(null);
