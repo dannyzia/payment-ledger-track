@@ -199,6 +199,12 @@ type RawRateProfile = {
       if (setErr) throw setErr;
       const { data: statements, error: stErr } = await supabase.from('statements').select('*');
       if (stErr) throw stErr;
+      // Which payables a statement covers lives in this join table; the client
+      // needs it to decide whether a month is fully reconciled (E2E, 2026-11-07).
+      const { data: statementPayables, error: spErr } = await supabase
+        .from('statement_payables')
+        .select('statement_id, payable_id');
+      if (spErr) throw spErr;
       const { data: rejectedOps, error: roErr } = await supabase
         .from('sync_ops')
         .select('*')
@@ -208,6 +214,7 @@ type RawRateProfile = {
       responsePayload.profiles = profiles;
       responsePayload.settlements = settlements;
       responsePayload.statements = statements;
+      responsePayload.statementPayables = statementPayables ?? [];
       responsePayload.rejectedOps = rejectedOps ?? [];
     } else {
       const { data: rejectedOps, error: roErr } = await supabase

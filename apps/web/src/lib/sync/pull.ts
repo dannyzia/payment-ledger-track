@@ -67,6 +67,7 @@ export interface PullResponseDto {
   payables?: Array<{
     id: string;
     kind: 'vat' | 'method_charge';
+    code?: string | null;
     method_id?: string | null;
     name: string;
     due_day: number;
@@ -107,9 +108,14 @@ export interface PullResponseDto {
     statement_total_poisha?: string | number | null;
     expected_poisha?: string | number | null;
     variance_poisha?: string | number | null;
+    // Payable linkage decides whether a month is fully reconciled, so it has to
+    // survive the pull (E2E, 2026-11-07); it lives in statement_payables.
+    payable_id?: string | null;
+    note?: string | null;
     reconciled_at?: string | null;
     reconciled_by?: string | null;
   }>;
+  statementPayables?: Array<{ statement_id: string; payable_id: string }>;
   rejectedOps?: Array<{
     op_id: string;
     actor_id: string;
@@ -240,6 +246,11 @@ export async function executeIncrementalPull(): Promise<void> {
           id: p.id,
           name: p.name, // Required DDL column name
           kind: p.kind,
+          // Required by the combined-card reconcile scope: without it every
+          // cached payable reported an empty code and "Combined Card Fees"
+          // resolved to no payables, leaving the save permanently disabled
+          // (found by the E2E reconciliation pass, 2026-11-07).
+          code: p.code ?? undefined,
           method_id: p.method_id ?? undefined,
           recipient_name: p.name,
           recipient_account: '',
@@ -296,6 +307,12 @@ export async function executeIncrementalPull(): Promise<void> {
       }
 
       if (data.statements && Array.isArray(data.statements)) {
+        const payableIdsByStatement = new Map<string, string[]>();
+        for (const link of data.statementPayables ?? []) {
+          const list = payableIdsByStatement.get(link.statement_id) ?? [];
+          list.push(link.payable_id);
+          payableIdsByStatement.set(link.statement_id, list);
+        }
         const mappedStatements: CachedStatement[] = data.statements.map((st) => ({
           id: st.id,
           month: st.month,
@@ -305,6 +322,9 @@ export async function executeIncrementalPull(): Promise<void> {
           total_gross_poisha: st.statement_total_poisha?.toString() ?? undefined,
           expected_poisha: st.expected_poisha?.toString() ?? undefined,
           variance_poisha: st.variance_poisha?.toString() ?? undefined,
+          payable_id: st.payable_id ?? undefined,
+          payable_ids: payableIdsByStatement.get(st.id) ?? undefined,
+          note: st.note ?? undefined,
           reconciled_at: st.reconciled_at ?? undefined,
           reconciled_by: st.reconciled_by ?? undefined,
         }));
