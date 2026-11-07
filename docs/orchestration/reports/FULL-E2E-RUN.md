@@ -193,6 +193,26 @@ The checklist reads the local cache; a fresh device used to show Gate 1 as passe
 | Same run, after the pull | Gate 1 `Pending Reconciliation`, blocking statement `bKash Merchant Charge · Mode B` listed |
 | Any sample before the pull | no `Passed` verdict |
 | Warm synced device, 2026-08 | Gate 1 `Passed`, Close enabled, no `#gates-unsynced` caveat |
-| Offline / error fallback | renders the cached verdict with a `#gates-unsynced` caveat instead of spinning — **not driven live**; a reload in dev is offline-unavailable (no service worker), so this branch is covered by inspection only |
+| Offline / error | no longer shows a verdict at all (see §8.4) |
 
 `svelte-check` 0 errors / 0 warnings, `vitest` 219/219.
+
+
+### 8.4 Dev offline worker, and the offline gate state it exposed (`a528b06`, `16589ac`)
+
+Adding a dev-only service worker (`/dev-offline-sw.js`, served by a `serve`-only Vite plugin, network-first with a cached shell, cache stamped per dev-server start, `/api/*` never intercepted) made an offline reload possible for the first time. It immediately showed a defect §8.3 had only described in theory: with no completed pull the offline fallback printed Gate 1 as **Passed** from an empty cache and left Close enabled.
+
+A device that has never pulled now reads **Not synced** on all three gates, shows a caveat ("the gates cannot be checked here and month close stays disabled"), hides the blocking-statement list and the cannot-close reasons (both would be guesses), and keeps Close disabled until a pull lands.
+
+| Check | Observed |
+|---|---|
+| Dev worker registration | active at scope `/`, cache `clt-dev-offline-<stamp>` |
+| Warm shell | 126 cache entries, shell `/` present, 29 Svelte modules |
+| Offline reload at `/months/close?month=2026-09` | viewport rendered the app ("Offline" indicator, Month Close), no hang |
+| Gates offline, never synced | `Not synced`, caveat `#gates-unsynced` present, Close disabled |
+| Reconnect + reload | caveat gone, Gate 1 back to `Pending Reconciliation` |
+| Synced device, 2026-08 | `Passed`, Close enabled, no caveat |
+| Cold device online, pull delayed 2.5 s | 10 samples over 2.37 s of `Checking…`, never `Passed`, settles to Pending |
+| Production build | `vite build` clean; no `dev-offline-sw` string in the output, so the dev worker never ships |
+
+`svelte-check` 0 errors / 0 warnings, `tsc --noEmit` 0, `vitest` 219/219.
