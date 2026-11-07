@@ -115,10 +115,12 @@
         <a href="/admin" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
           {messages.menu.admin}
         </a>
+        <!-- /admin/settings is the only settings screen the app ships (PRD §13);
+             the old /settings href led to a 404 (found by the E2E link sweep). -->
+        <a href="/admin/settings" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1">
+          {messages.menu.settings}
+        </a>
       {/if}
-      <a href="/settings" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1">
-        {messages.menu.settings}
-      </a>
     </nav>
   {/if}
 </div>

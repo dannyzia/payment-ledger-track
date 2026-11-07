@@ -591,8 +591,10 @@
 
           <div class="flex justify-end gap-3">
             <Button variant="default" onclick={() => { showReconcileModal = false; }}>Cancel</Button>
+            <!-- Unique ids: two modals shared #btn-save, which is invalid HTML and
+                 broke element lookups (E2E, 2026-11-07). -->
             <Button
-              id="btn-save"
+              id="btn-reconcile-statement"
               variant="commission"
               type="submit"
               loading={isActionSubmitting}
@@ -641,7 +643,7 @@
           <div class="flex justify-end gap-3">
             <Button variant="default" onclick={() => { showSupersedeModal = false; }}>Cancel</Button>
             <Button
-              id="btn-save"
+              id="btn-confirm-supersede"
               variant="mastercard"
               type="submit"
               loading={isActionSubmitting}

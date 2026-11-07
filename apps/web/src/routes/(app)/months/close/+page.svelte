@@ -323,7 +323,9 @@
 
         <div class="flex justify-end gap-3">
           <Button variant="default" onclick={() => { showReopenModal = false; }}>Cancel</Button>
-          <Button id="btn-save" variant="mastercard" type="submit" loading={isSubmitting} disabled={!reopenReason.trim()}>
+          <!-- Distinct id: this page already has a #btn-save for the close action,
+               and duplicate ids broke element lookups (E2E, 2026-11-07). -->
+          <Button id="btn-confirm-reopen" variant="mastercard" type="submit" loading={isSubmitting} disabled={!reopenReason.trim()}>
             Confirm Reopen Month
           </Button>
         </div>
