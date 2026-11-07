@@ -160,7 +160,11 @@ test.describe('CLT-T-050 FloatingMenu real input activation', () => {
     expect(after.y).toBeGreaterThanOrEqual(11);
   });
 
-  test('g: pressing on New Entry does not start a drag', async ({ page }) => {
+  // CLT-R-013 moved this guard: a press that starts on a control and then moves
+  // becomes a drag (the release's click is swallowed, so nothing navigates),
+  // because Android's touch-target adjustment delivered the pill's neutral
+  // strip to the New Entry anchor. A press that does NOT move is still a tap.
+  test('g: dragging from New Entry moves the menu and does not navigate', async ({ page }) => {
     const region = menuRegion(page);
     const before = await region.boundingBox();
     if (!before) throw new Error('menu region has no bounding box');
@@ -171,14 +175,16 @@ test.describe('CLT-T-050 FloatingMenu real input activation', () => {
 
     await page.mouse.move(point.x, point.y);
     await page.mouse.down();
-    await page.mouse.move(point.x - 40, point.y - 60, { steps: 6 });
+    await page.mouse.move(point.x - 120, point.y - 250, { steps: 12 });
     await page.mouse.up();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(400); // settle the 200ms snap transition
 
     const after = await region.boundingBox();
-    if (!after) throw new Error('menu region has no bounding box after press');
-    expect(Math.abs(after.x - before.x)).toBeLessThan(2);
-    expect(Math.abs(after.y - before.y)).toBeLessThan(2);
+    if (!after) throw new Error('menu region has no bounding box after drag');
+    const moved = Math.abs(after.x - before.x) + Math.abs(after.y - before.y);
+    expect(moved, 'a moving press on New Entry must drag the pill').toBeGreaterThan(20);
+    // The swallowed click must not have opened the entry form.
+    await expect(page).not.toHaveURL(/\/entries\/new/);
   });
 
   test('h: double-tapping the neutral area resets the docked position', async ({ page }) => {
