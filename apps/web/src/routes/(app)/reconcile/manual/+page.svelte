@@ -138,7 +138,15 @@
 
       if (!createRes.ok) {
         const err = await createRes.json().catch(() => ({}));
-        throw new Error(err.message || err.error || 'Failed to create statement.');
+        const raw = String(err.message || err.error || '');
+        // The RPC rejects a second statement for a payable/month with a machine code;
+        // translate it so the user knows the fix rather than seeing the raw token.
+        if (raw.includes('payable_already_covered_by_active_statement')) {
+          throw new Error(
+            `${month} already has an active statement for ${selectedOption}. Supersede it from the Reconciliation overview, or pick another payable.`
+          );
+        }
+        throw new Error(raw || 'Failed to create statement.');
       }
 
       const { statementId } = await createRes.json();

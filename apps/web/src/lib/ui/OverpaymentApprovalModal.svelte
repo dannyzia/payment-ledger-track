@@ -117,7 +117,7 @@
         <Button variant="default" onclick={() => { open = false; onclose(); }} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button id="btn-submit" variant="commission" type="submit" disabled={isSubmitting}>
+        <Button id="btn-approve-overpayment" variant="commission" type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Approving...' : 'Authorize Surplus'}
         </Button>
       </div>

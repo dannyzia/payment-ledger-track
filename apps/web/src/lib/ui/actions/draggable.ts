@@ -118,6 +118,17 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   let suppressClick = false;
   const DRAG_THRESHOLD = 6;
 
+  // Page-level primary actions the pill must not cover. Any visible `button[id^="btn-"]`
+  // counts (Save, Supersede, Reconcile Statement, …), excluding the menu's own controls.
+  function getForbiddenRects(): Rect[] {
+    if (typeof document === 'undefined') return [];
+    return [...document.querySelectorAll<HTMLElement>('#btn-save, #btn-submit, button[id^="btn-"]')]
+      .filter((el) => !node.contains(el))
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.width > 0 && b.height > 0)
+      .map((b) => ({ left: b.left, top: b.top, right: b.right, bottom: b.bottom }));
+  }
+
   function getDockedCoords(): { x: number; y: number } {
     const dimWidth = node.offsetWidth || 140;
     const dimHeight = node.offsetHeight || 48;
@@ -190,20 +201,27 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
 
     const menuDim = { width: node.offsetWidth || 140, height: node.offsetHeight || 48 };
     const viewport = { width: window.innerWidth, height: window.innerHeight };
+    const previousX = currentX;
+    const previousY = currentY;
 
     if (hasUserPosition || hasStoredPosition) {
       // Keep the user's placement, but never leave it off-screen.
-      const clampedX = Math.max(12, Math.min(viewport.width - menuDim.width - 12, currentX));
-      const clampedY = Math.max(12, Math.min(viewport.height - menuDim.height - 12, currentY));
-      if (clampedX === currentX && clampedY === currentY) return;
-      currentX = clampedX;
-      currentY = clampedY;
+      currentX = Math.max(12, Math.min(viewport.width - menuDim.width - 12, currentX));
+      currentY = Math.max(12, Math.min(viewport.height - menuDim.height - 12, currentY));
     } else {
       const docked = getDockedCoords();
-      if (Math.abs(docked.x - currentX) < 1 && Math.abs(docked.y - currentY) < 1) return;
       currentX = docked.x;
       currentY = docked.y;
     }
+
+    // The docked position sits in the bottom-right corner, which is exactly where
+    // page-level primary actions live (#btn-save and friends). Dodge at rest too,
+    // not only after a drag, or the pill swallows taps on the button underneath it.
+    const safe = calculateAvoidance({ x: currentX, y: currentY }, menuDim, getForbiddenRects(), viewport);
+    currentX = Math.max(12, Math.min(viewport.width - menuDim.width - 12, safe.x));
+    currentY = Math.max(12, Math.min(viewport.height - menuDim.height - 12, safe.y));
+
+    if (Math.abs(previousX - currentX) < 1 && Math.abs(previousY - currentY) < 1) return;
 
     updatePosition(currentX, currentY);
     notifySnap();
@@ -214,6 +232,24 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
   const dockObserver =
     typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => settleDock()) : null;
   dockObserver?.observe(node);
+
+  // Pages render their action buttons asynchronously (data loads after mount), so the
+  // pill must re-check for a colliding action when the DOM changes, not only on resize.
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleSettle = () => {
+    if (settleTimer !== null) clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      settleTimer = null;
+      settleDock();
+    }, 150);
+  };
+  const bodyObserver =
+    typeof MutationObserver !== 'undefined'
+      ? new MutationObserver(() => scheduleSettle())
+      : null;
+  if (bodyObserver && typeof document !== 'undefined') {
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  }
 
   function updatePosition(x: number, y: number) {
     node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
@@ -338,15 +374,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
       node.releasePointerCapture(e.pointerId);
     }
 
-    const forbiddenElements = [
-      document.getElementById('btn-save'),
-      document.getElementById('btn-submit'),
-    ].filter((el): el is HTMLElement => el !== null);
-
-    const forbiddenRects = forbiddenElements.map((el) => {
-      const b = el.getBoundingClientRect();
-      return { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
-    });
+    const forbiddenRects = getForbiddenRects();
 
     const menuDim = { width: node.offsetWidth, height: node.offsetHeight };
     const viewport = { width: window.innerWidth, height: window.innerHeight };
@@ -437,7 +465,9 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     },
     destroy() {
       if (settleFrame !== null) cancelAnimationFrame(settleFrame);
+      if (settleTimer !== null) clearTimeout(settleTimer);
       dockObserver?.disconnect();
+      bodyObserver?.disconnect();
       node.removeEventListener('pointerdown', onPointerDown);
       node.removeEventListener('pointermove', onPointerMove);
       node.removeEventListener('pointerup', onPointerUp);

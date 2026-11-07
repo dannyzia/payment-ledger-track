@@ -20,7 +20,8 @@
     id: string;
     month: string;
     status: string;
-file_storage_path?: string;
+    source?: string;
+    file_storage_path?: string;
     file_sha256?: string;
     statement_total_poisha: string;
     payable_ids: string[];
@@ -164,11 +165,13 @@ file_storage_path?: string;
 
   async function checkExistingStatement() {
     existingStatement = null;
+    // Any active statement blocks a second one for the same payable/month, not just
+    // file-sourced ones: a Mode A (manual_total) statement must be offered the same
+    // supersede path, otherwise Confirm & Save fails with a 422 dead end.
     const { data: stmts, error: sErr } = await supabase
       .from('statements')
-      .select('id, month, status, file_storage_path, file_sha256, statement_total_poisha')
+      .select('id, month, status, source, file_storage_path, file_sha256, statement_total_poisha')
       .eq('month', selectedMonth)
-      .eq('source', 'file')
       .in('status', ['open', 'reconciled'])
       .order('created_at', { ascending: false })
       .limit(1);
@@ -188,6 +191,7 @@ file_storage_path?: string;
       // poisha strings (Hard Rule 2), never through float arithmetic.
       month: stmt.month,
       status: stmt.status,
+      source: stmt.source,
       file_storage_path: stmt.file_storage_path ?? undefined,
       file_sha256: stmt.file_sha256 ?? undefined,
       statement_total_poisha: String(stmt.statement_total_poisha),
@@ -779,9 +783,17 @@ file_storage_path?: string;
         <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-4">
           <div>
             <p class="font-semibold">An existing {existingStatement.status} statement already exists for {selectedMonth}.</p>
-            <p class="mt-0.5 opacity-80">
-              To replace it, upload the replacement file first, then confirm supersede with the new file's parsed data.
-            </p>
+            {#if existingStatement.source === 'manual_total'}
+              <p class="mt-0.5 opacity-80">
+                It was entered as a Mode A totals-only statement, and a Mode B file cannot replace it: the server keeps
+                manual statements totals-only (<code>manual_total_forbids_lines</code>). Supersede it with a corrected
+                Mode A total from the Reconciliation overview instead.
+              </p>
+            {:else}
+              <p class="mt-0.5 opacity-80">
+                To replace it, upload the replacement file first, then confirm supersede with the new file's parsed data.
+              </p>
+            {/if}
           </div>
         </div>
       {/if}
@@ -888,7 +900,13 @@ file_storage_path?: string;
           </div>
         </div>
 
-        {#if existingStatement}
+        {#if existingStatement && existingStatement.source === 'manual_total'}
+          <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs">
+            This upload cannot replace the {existingStatement.status} Mode A statement for {selectedMonth}: a manual
+            totals-only statement forbids statement lines. Supersede it with a corrected Mode A total from the
+            Reconciliation overview, or pick another month/payable.
+          </div>
+        {:else if existingStatement}
           <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
             Confirming this upload will <strong>supersede</strong> the existing {existingStatement.status} statement
             and create the replacement from these parsed lines (single audited transaction).
@@ -899,7 +917,16 @@ file_storage_path?: string;
           <Button variant="default" class="min-h-[44px]" onclick={() => { uploadPreview = null; }}>
             Discard &amp; Re-upload
           </Button>
-          {#if existingStatement}
+          {#if existingStatement && existingStatement.source === 'manual_total'}
+            <Button
+              variant="default"
+              class="min-h-[44px]"
+              id="btn-supersede-blocked"
+              disabled={true}
+            >
+              Mode A Statement Blocks This Upload
+            </Button>
+          {:else if existingStatement}
             <Button
               variant="mastercard"
               class="min-h-[44px]"

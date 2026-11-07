@@ -52,10 +52,18 @@
   let maxMethodCharge = $derived(
     methodRatesList.length > 0 ? Math.max(...methodRatesList.map((m) => m.fee_bp)) : 0
   );
+  // Basis points must be whole numbers in 0..10000; an empty number input binds undefined.
+  function isValidBp(value: unknown): value is number {
+    return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 10000;
+  }
+  let vatBpInvalid = $derived(vatMode !== 'manual' && !isValidBp(vatBp));
+  let commissionBpInvalid = $derived(!isValidBp(commissionBp));
+  let methodRatesInvalid = $derived(methodRatesList.some((m) => !isValidBp(m.fee_bp)));
+  let ratesInvalid = $derived(vatBpInvalid || commissionBpInvalid || methodRatesInvalid);
   let totalDeductionsBp = $derived(
     (vatMode === 'manual' ? 0 : vatBp) + commissionBp + maxMethodCharge
   );
-  let exceeds100Percent = $derived(totalDeductionsBp > 10000);
+  let exceeds100Percent = $derived(ratesInvalid || totalDeductionsBp > 10000);
 
   async function loadData() {
     loading = true;
@@ -185,11 +193,11 @@
       <p class="text-sm text-[var(--muted)]">Configure versioned financial deductions, VAT modes, and channel charges.</p>
     </div>
     <div class="flex gap-3">
-      <Button variant="default" onclick={saveDraft} disabled={saving || exceeds100Percent}>
+      <Button variant="default" onclick={saveDraft} disabled={saving || exceeds100Percent || ratesInvalid}>
         {saving ? 'Saving...' : 'Save Draft'}
       </Button>
       {#if draftProfile}
-        <Button variant="commission" onclick={() => (showPublishModal = true)} disabled={publishing || exceeds100Percent}>
+        <Button variant="commission" onclick={() => (showPublishModal = true)} disabled={publishing || exceeds100Percent || ratesInvalid}>
           Publish Profile
         </Button>
       {/if}
@@ -290,8 +298,15 @@
               bind:value={vatBp}
               class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
             />
-            <span class="text-sm font-mono text-[var(--muted)]">{(vatBp / 100).toFixed(2)}%</span>
+            <span class="text-sm font-mono text-[var(--muted)]">
+              {vatBpInvalid ? '—' : (vatBp / 100).toFixed(2) + '%'}
+            </span>
           </div>
+          {#if vatBpInvalid}
+            <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+              Enter a whole number of basis points between 0 and 10000.
+            </p>
+          {/if}
         </div>
       {/if}
 
@@ -306,8 +321,15 @@
             bind:value={commissionBp}
             class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
           />
-          <span class="text-sm font-mono text-[var(--muted)]">{(commissionBp / 100).toFixed(2)}%</span>
+          <span class="text-sm font-mono text-[var(--muted)]">
+            {commissionBpInvalid ? '—' : (commissionBp / 100).toFixed(2) + '%'}
+          </span>
         </div>
+        {#if commissionBpInvalid}
+          <p class="mt-1 text-xs text-red-600 dark:text-red-400">
+            Enter a whole number of basis points between 0 and 10000.
+          </p>
+        {/if}
       </div>
 
       <div>
@@ -399,7 +421,7 @@
     </div>
     <div class="flex justify-end gap-3 pt-4">
       <Button variant="default" onclick={() => (showPublishModal = false)}>Cancel</Button>
-      <Button variant="commission" onclick={publishDraft} disabled={publishing}>
+      <Button variant="commission" onclick={publishDraft} disabled={publishing || ratesInvalid}>
         {publishing ? 'Publishing...' : 'Confirm Publication'}
       </Button>
     </div>

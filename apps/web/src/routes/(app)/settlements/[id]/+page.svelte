@@ -369,7 +369,9 @@
       {isMonthClosed}
       onclose={() => { recordModalOpen = false; }}
       onsuccess={(newP, updatedSett) => {
-        payments = [newP, ...payments];
+        // The Dexie liveQuery also delivers this row, so replace by id instead of
+        // prepending blindly: a duplicate keyed entry throws each_key_duplicate.
+        payments = [newP, ...payments.filter((p) => p.id !== newP.id)];
         if (updatedSett) {
           settlement = updatedSett;
         }
@@ -386,7 +388,7 @@
         {isMonthClosed}
         onclose={() => { reversalModalOpen = false; selectedPaymentForReversal = null; }}
         onsuccess={(newP, updatedSett) => {
-          payments = [newP, ...payments];
+          payments = [newP, ...payments.filter((p) => p.id !== newP.id)];
           if (updatedSett) {
             settlement = updatedSett;
           }

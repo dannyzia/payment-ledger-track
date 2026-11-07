@@ -479,6 +479,7 @@
               {#each methods as m (m.id)}
                 <button
                   type="button"
+                  aria-pressed={selectedMethodId === m.id}
                   class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId === m.id ? 'bg-[var(--ink)] text-[var(--bg)] border-transparent' : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
                   onclick={() => {
                     selectedMethodId = m.id;

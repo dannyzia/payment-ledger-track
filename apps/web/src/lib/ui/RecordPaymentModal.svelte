@@ -31,6 +31,10 @@
     onsuccess,
   }: Props = $props();
 
+  // The settlement detail page can mount this modal twice (a payment and a reversal),
+  // so the reversal instance namespaces its field ids to keep the DOM ids unique.
+  const idPrefix = $derived(isReversal ? 'reversal-' : '');
+
   let amountBdt = $state('');
   let paidOn = $state(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date()));
   let reference = $state('');
@@ -228,11 +232,11 @@
 
     <form onsubmit={handleSubmit} class="space-y-4">
       <div>
-        <label for="pay-amount" class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label for={`${idPrefix}pay-amount`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
           Amount (BDT)
         </label>
         <input
-          id="pay-amount"
+          id={`${idPrefix}pay-amount`}
           type="text"
           inputmode="decimal"
           required
@@ -247,11 +251,11 @@
       </div>
 
       <div>
-        <label for="pay-date" class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label for={`${idPrefix}pay-date`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
           Payment Date
         </label>
         <input
-          id="pay-date"
+          id={`${idPrefix}pay-date`}
           type="date"
           required
           disabled={isMonthClosed && isReversal}
@@ -261,11 +265,11 @@
       </div>
 
       <div>
-        <label for="pay-ref" class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label for={`${idPrefix}pay-ref`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
           Transaction Reference / Bank Slip #
         </label>
         <input
-          id="pay-ref"
+          id={`${idPrefix}pay-ref`}
           type="text"
           disabled={isMonthClosed && isReversal}
           bind:value={reference}
@@ -276,11 +280,11 @@
 
       {#if !isReversal}
         <div>
-          <label for="pay-file" class="block text-xs font-semibold text-[var(--muted)] mb-1">
+          <label for={`${idPrefix}pay-file`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
             Receipt Image or PDF (Max 5 MB)
           </label>
           <input
-            id="pay-file"
+            id={`${idPrefix}pay-file`}
             type="file"
             accept="image/jpeg,image/png,image/webp,application/pdf"
             disabled={isMonthClosed && isReversal}
@@ -291,11 +295,11 @@
       {/if}
 
       <div>
-        <label for="pay-note" class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label for={`${idPrefix}pay-note`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
           {isReversal ? 'Mandatory Reversal Reason *' : 'Notes'}
         </label>
         <textarea
-          id="pay-note"
+          id={`${idPrefix}pay-note`}
           rows="2"
           required={isReversal}
           disabled={isMonthClosed && isReversal}
@@ -309,7 +313,7 @@
         <Button variant="default" onclick={() => { open = false; onclose(); }} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button id="btn-submit" variant="commission" type="submit" disabled={isSubmitting || (isMonthClosed && isReversal)}>
+        <Button id={`${idPrefix}btn-submit`} variant="commission" type="submit" disabled={isSubmitting || (isMonthClosed && isReversal)}>
           {isSubmitting ? 'Recording...' : isReversal ? 'Confirm Reversal' : 'Record Payment'}
         </Button>
       </div>
