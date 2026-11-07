@@ -33,6 +33,13 @@
     // SvelteKit docs: the virtual module must be imported dynamically in onMount)
     void (async () => {
       try {
+        if (import.meta.env.DEV) {
+          // Dev has no workbox precache (vite.config.ts devOfflineShell serves this
+          // worker): network-first with a cached shell, so an offline reload can be
+          // exercised locally. Production registration below is untouched.
+          await navigator.serviceWorker?.register('/dev-offline-sw.js', { scope: '/' });
+          return;
+        }
         const { registerSW } = await import('virtual:pwa-register');
         registerSW({
           immediate: true,

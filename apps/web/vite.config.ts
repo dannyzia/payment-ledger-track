@@ -2,6 +2,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vitest/config';
+import { devOfflineShell } from './dev-offline-sw';
 
 export default defineConfig({
   // Server-private env (SUPABASE_SERVICE_ROLE_KEY, bootstrap owner creds)
@@ -16,6 +17,9 @@ export default defineConfig({
   // (CLT-R-012). VITE_ is kept for the legacy fallbacks in those modules.
   envPrefix: ['PUBLIC_', 'VITE_'],
   plugins: [
+    // Dev-only worker (/dev-offline-sw.js) so an offline reload can be exercised
+    // locally; production precaching stays with SvelteKitPWA below.
+    devOfflineShell(),
     tailwindcss(),
     sveltekit(),
     SvelteKitPWA({
