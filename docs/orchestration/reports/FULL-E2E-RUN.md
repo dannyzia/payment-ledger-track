@@ -267,3 +267,18 @@ Verified in the browser: voided row `E-202611-000163` reads "… 1794058031238 *
 **Re-run at HEAD `44e2337` (2026-11-07):** entry `E-202611-000165` saved with the network cut in **77 ms**, confirmation read "Saved offline as #LOCAL-ea9c38 — pending background sync.", local record `sync_status: pending` with `create_entry` queued, and the offline components already conserving the gross (`0 + 98 518 + 0 + 136 049 = 234 567`). After reconnect the op flushed in **1.04 s** to `E-202611-000165` / `server_seq` 199 with the same gross and net, and the `entry.create` audit row carries the rate snapshot (version 1, commission 4200 bp, manual VAT). 12/12 checks passed.
 
 One test-harness caveat worth repeating in future runs: `executeEntryVoid` writes the entry row and then the outbox row, so a sampler that polls between the two sees `voided` with an empty outbox and can end the run before the push. That is what happened on the first cleanup attempt here — the entry stayed active server-side until a second pass that waited for `sync_status !== 'pending'` as well. The application behaviour is correct; the wait condition in a sweep must include the sync status, not only the item count.
+
+
+### 8.8 Offline reloads across the route set (dev service worker)
+
+The dev-only worker from §8.4 was exercised over every page route, not just one. The build has no production impact (`apply: 'serve'`; after `vite build` neither `dev-offline-sw` nor `clt-dev-offline` appears anywhere in `build/` or `.svelte-kit/output/`).
+
+| Check | Observed |
+|---|---|
+| Worker registration | active at scope `http://127.0.0.1:5199/`, `activated` |
+| Cache after visiting all 18 routes online | one `clt-dev-offline-*` cache, 197 entries, 172 of them scripts/modules |
+| Offline reload of each route | 18/18 rendered their own content (page heading present) with the **Offline** badge, no crash page and no page errors |
+| Offline in-app navigation | dashboard → ledger via a real in-app link, 34 cached entries rendered, no network |
+| Uncached route | a route never opened online still cannot load offline in dev, because the worker caches what the server has already served (production precaches every chunk) |
+
+**Fixed during this run:** `/admin/audit` was the one route that failed offline, throwing an unhandled `Failed to fetch` because `loadAuditLog` used `try/finally` with no `catch`; the page rendered its header and then nothing. It now catches, clears the table and shows a red banner ("The audit log is server-side only and needs a connection…"), matching the error banner pattern already used on `/admin/devices`. Verified: online loads 50 rows with no banner; offline reload shows the banner and logs no unhandled error; reconnecting clears the banner and reloads 50 rows. `svelte-check` 0 errors / 0 warnings; route sweep 18/18 after the fix.

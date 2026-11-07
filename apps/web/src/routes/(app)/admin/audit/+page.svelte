@@ -18,6 +18,7 @@
 
   let events = $state<AuditEvent[]>([]);
   let loading = $state(true);
+  let errorMessage = $state('');
   let filterTable = $state('');
   let filterAction = $state('');
   let filterActor = $state('');
@@ -26,6 +27,7 @@
 
   async function loadAuditLog() {
     loading = true;
+    errorMessage = '';
     try {
       const q = new URLSearchParams();
       if (filterTable) q.set('table', filterTable);
@@ -38,7 +40,14 @@
       if (res.ok) {
         const data = await res.json();
         events = data.events ?? [];
+      } else {
+        errorMessage = `Could not load the audit log (${res.status}).`;
       }
+    } catch (e) {
+      events = [];
+      errorMessage = navigator.onLine
+        ? e instanceof Error ? e.message : String(e)
+        : 'The audit log is server-side only and needs a connection. Nothing is lost: queued changes sync when you are back online.';
     } finally {
       loading = false;
     }
@@ -125,6 +134,12 @@
       </div>
     </div>
   </Card>
+
+  {#if errorMessage}
+    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm">
+      {errorMessage}
+    </div>
+  {/if}
 
   <Card class="p-4">
     <div class="overflow-x-auto">
