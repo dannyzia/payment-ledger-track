@@ -293,3 +293,20 @@ Now `months/close` hands off with `return=close` on both of its reconciliation l
 Verified in the browser: checklist → overview → Resume Matching opens `/reconcile/upload?statement=…&return=close&month=2026-09` labelled "Back to Month Close", and Back lands on `/months/close?month=2026-09`; the overview's Upload button likewise carries the origin and its Back returns to the checklist; a workspace reload keeps the origin; and an overview opened *without* `return=close` still routes Back to `/reconcile` with no origin injected. `svelte-check` 0 errors / 0 warnings.
 
 Not exercised: the "Create one in Reconciliation" empty-state link. No month in the current data set reaches that branch (every month either has an open statement or passes gate 1), so that edit is verified only by reading the rendered source, not by a click.
+
+
+### 8.10 Resuming an open Mode B statement (verification, re-confirms `df825fa`)
+
+Already implemented: `?statement=<id>` reopens an open file-sourced statement (from the overview's Resume Matching, the month-close blocking list, or a pasted URL), with `Load Active Statement` restoring its lines, covered entries, payable association and the finalize panel. Verified again at HEAD `b5abd7e` in a fresh browser context, i.e. a later session after the page was left.
+
+| Check | Observed |
+|---|---|
+| Resume by URL, 2026-07 statement | "Success: Resumed the open statement for 2026-07-01", `Lines: 1 Matched: 1 Accepted: 0 Unmatched: 0` |
+| Match after resume | Unmatch (reason mandatory) → `Lines: 1 Matched: 0 Unmatched: 1`; Match dialog lists the covered entry; Select → back to `1/1/0/0` |
+| Finalize after resume | button enabled, "All completion criteria satisfied", variance ৳0.00 within tolerance; with the line unmatched it is disabled and reads "1 statement lines still unmatched" |
+| Accept path | dialogue opens with its mandatory review-note field and the audit explanation; not submitted |
+| Mode A statement URL | redirected with "…entered as a Mode A total, so it has no lines to match. Supersede it from the Reconciliation overview instead." and `?statement=` dropped |
+
+Not executed: Accept and Reconcile Statement, which write audit rows and flip month-close gate 1 for 2026-07. Their guards, enabled states and criteria were checked; the writes were left for a run Zia authorises.
+
+Fixture caveat found: the 2026-09 statement (`717bd561…`) carries lines dated 2026-11 while September has no entries in the data set, so resuming it shows an empty candidate list. That is leftover test data, not a code path — matching there cannot succeed for any entry. The 2026-07 statement is the usable Mode B fixture.
