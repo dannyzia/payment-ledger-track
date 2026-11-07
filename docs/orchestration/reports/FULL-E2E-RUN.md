@@ -319,3 +319,30 @@ Same defect as §8.7, for the other styling-only state: a superseded row was mar
 No superseded entry exists in the data set (`counts: {active: 29, voided: 5}`), so the render was proven by marking one cached test entry `superseded` in Dexie, checking the row, then restoring it. The server row was never touched: `E-202611-000125` read "… Playwright Test Customer **Superseded** Units: 1 …" with `opacity: 0.5`, no strikethrough, chip `text-decoration-line: none`, and the label inside the row's accessible text; after restoring to `active` the row showed no chip and full opacity. `svelte-check` 0 errors / 0 warnings; `vitest src/lib/ledger` 9/9.
 
 Caveat: that is a rendering check against a synthetic cache state, not a supersede transaction. It proves the component's presentation, not the supersede flow.
+### 8.12 Offline supersede to the server, with its audit trail
+
+Requested check: a supersede made with the network cut must reach the server and leave the same audit trail as an online one. Driving it found the path was broken twice over.
+
+| Defect | Evidence | Fix |
+|---|---|---|
+| `Edit / Supersede` in the entry drawer threw `TypeError: Cannot read properties of null (reading 'id')` and never navigated (`EntryDetailDrawer.svelte` `handleSupersedeClick` called `onclose()` — which clears the parent's selection — before reading `entry.id`) | clicking the button left the URL at `/ledger` with that page error on the console | read the id before closing; `svelte-check` 0/0, navigation then lands on `/entries/new?supersede=<id>` |
+| Every supersede was rejected by the server: `new row for relation "entries" violates check constraint "chk_reassign"` | captured `POST /api/v1/sync/push` → `{status:"rejected", reason:"new row for relation \"entries\" violates check constraint \"chk_reassign\""}` | `rpc_supersede_entry` wrote the original date into `original_entry_date` unconditionally, while `chk_reassign` demands a non-empty `reassign_reason` and a different date whenever that column is set — so the normal same-date correction could never pass. PRD §7.3 only stores the date a closed-month reassignment sends. Migration `20261107000001_fix_supersede_reassign.sql` normalises the reason and leaves the original date null unless one is sent |
+
+Run after both fixes, Pixel 5 viewport, local Supabase, dev server `127.0.0.1:5199` (16/16):
+
+| Step | Observed |
+|---|---|
+| Original entry | `E-202611-000174`, active, synced, `server_seq` 215, gross 90000 |
+| Open from the ledger | `?supersede=561d2216…`, banner "Superseding Entry", gross prefilled `900.00` |
+| Form reloads offline | banner kept, `navigator.onLine` false, gross still `900.00` |
+| Save offline | 304 ms, "Saved offline as #LOCAL-b88e41 — pending background sync." |
+| Local state | original `superseded` immediately; replacement `#LOCAL-b88e41`, gross 95000; outbox holds one `supersede_entry`, pending |
+| Flush after reconnect | 1.03 s → replacement `E-202611-000175`, `server_seq` 217, outbox empty, nothing pending |
+| Audit | exactly one `entry.supersede` on the original: `before {status: active}` → `after {status: superseded, replacement_entry_id: b88e4185…}`, `actor` = the signed-in owner; the replacement adds no second creation row, which is what PRD §15.1 defines (the pair shares one event) |
+| Reassignment fields | replacement has `original_entry_date` null and `reassign_reason` null (no phantom reassignment) |
+| Clean device | fresh profile pulls the pair: original `superseded`, replacement `E-202611-000175` gross 95000 |
+| Cleanup | replacement voided through the UI (`E-202611-000175` → `voided`) |
+
+Also observed, not fixed: the audit `after` key is `replacement_entry_id` while PRD §15.1 names it `superseding_id`. Cosmetic contract drift, left for a decision since the audit UI prints the raw object.
+
+Harness incident: `pnpm test` executes `tests/db/*.test.ts`, whose `beforeAll` deletes `statement_lines`, `statements`, `settlements`, `payables`, `entries`, `rate_profiles`, `payment_methods` and `devices` before seeding, and then aborts on `duplicate key value violates unique constraint "one_owner"` against a database that already has the bootstrap owner. Three suites fail and the dev database is left empty (entries 0, rate profiles 0, methods 0). `pnpm db:bootstrap` restored the baseline (5 methods, 5 method rates, 1 published profile, 4 payables) and the run above was made on that restored database; `audit_log` was never touched (181 rows kept). This is recorded as `CLT-R-025`.

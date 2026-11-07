@@ -74,8 +74,11 @@
 
   function handleSupersedeClick() {
     if (!entry) return;
+    // Read the id before closing: onclose() clears the parent's selection, which
+    // makes `entry` null here and would throw before the navigation ran.
+    const entryId = entry.id;
     onclose();
-    goto(`/entries/new?supersede=${encodeURIComponent(entry.id)}`);
+    goto(`/entries/new?supersede=${encodeURIComponent(entryId)}`);
   }
 
   function handleKeydown(event: KeyboardEvent) {
