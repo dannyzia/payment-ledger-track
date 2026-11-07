@@ -2,6 +2,7 @@
   import { draggable } from './actions/draggable';
   import { messages } from '../i18n/messages';
   import { triggerHapticTick } from '$lib/native/haptics';
+  import { session } from '$lib/auth/session.svelte';
 
   interface Props {
     role?: 'staff' | 'admin' | 'owner';
@@ -24,6 +25,14 @@
     if (pos.source === 'drag') {
       await triggerHapticTick();
     }
+  }
+
+  // PRD §9.3: signing out must be reachable at every width. The sidebar action
+  // is `hidden md:flex`, so before this the only way out at phone width was to
+  // clear storage; CLT-R-019.
+  async function handleSignOut() {
+    expanded = false;
+    await session.signOut();
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -121,6 +130,14 @@
           {messages.menu.settings}
         </a>
       {/if}
+      <button
+        type="button"
+        id="btn-mobile-sign-out"
+        onclick={handleSignOut}
+        class="px-4 py-2.5 rounded-xl hover:bg-red-500/10 text-sm text-red-600 min-h-[44px] flex items-center text-left border-t border-black/10 dark:border-white/10 mt-1"
+      >
+        {messages.ui.signOut}
+      </button>
     </nav>
   {/if}
 </div>

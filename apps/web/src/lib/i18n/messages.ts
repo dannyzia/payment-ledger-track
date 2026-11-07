@@ -41,6 +41,7 @@ export const messages = {
     notifications: 'Notifications',
     dismissNotification: 'Dismiss notification',
     toggleMenu: 'Toggle navigation menu',
+    signOut: 'Sign Out',
     mobileNav: 'Mobile expanded navigation',
     mobileRegion: 'Mobile actions region',
     desktopSidebar: 'Desktop navigation sidebar',
