@@ -251,4 +251,11 @@ Entry `E-202611-000163` was created online, then voided with the network cut and
 | Audit row | `entry.void` on `entries` / entry id, `before {"status":"active"}` → `after {"status":"voided"}`, actor = the signed-in owner, exactly one event for the entry |
 | Admin viewer | `/admin/audit` filtered to `entries` + `void` lists the event as `entries:e37d5512...` with actor and `{"status":"voided"}` |
 
-**Minor finding (not fixed, out of scope for this run):** in the ledger list a voided row is marked only by `opacity-40` and `line-through`; there is no text such as "Voided". The detail drawer does say "Voided (Synced)", and the status filter can isolate voided rows, but a list row conveys its state by styling alone, which a screen reader cannot report and which fails the WCAG 1.4.1 expectation of not relying on visual presentation only. Candidate one-line fix: add a "Voided" text chip next to the customer name when `entry.status === 'voided'`.
+**Finding, fixed in §8.7:** in the ledger list a voided row was marked only by `opacity-40` and `line-through`, with no text, so the state was conveyed by styling alone (WCAG 1.4.1).
+
+
+### 8.7 Voided label in the ledger list
+
+`LedgerRow.svelte` now renders a `Voided` chip next to the customer name when `entry.status === 'voided'`, matching the existing `Pending Sync` / `Stale Rate` badge style. The row keeps its `opacity-40` and `line-through` treatment; the chip itself is undecorated (`text-decoration-line: none`), so it stays readable.
+
+Verified in the browser: voided row `E-202611-000163` reads "… 1794058031238 **Voided** Units: 1 …" and the word is part of the row's accessible name; an active row (`E-202611-000125`) carries no label, no strikethrough and full opacity. `svelte-check` 0 errors / 0 warnings; `vitest src/lib/ledger` 9/9.

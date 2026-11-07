@@ -42,6 +42,11 @@
     <div class="min-w-0">
       <div class="font-bold text-sm text-[var(--ink)] truncate flex items-center gap-2">
         <span>{entry.customer_name}</span>
+        {#if isVoided}
+          <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-500/15 text-slate-600 dark:text-slate-300 font-medium shrink-0">
+            Voided
+          </span>
+        {/if}
         {#if entry.sync_status === 'pending'}
           <span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium shrink-0">
             Pending Sync
