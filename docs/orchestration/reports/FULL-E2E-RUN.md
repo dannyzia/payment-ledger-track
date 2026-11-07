@@ -165,3 +165,19 @@ Observed at Pixel 5 width:
 | `/reconcile?month=banana` | — | falls back to the current Asia/Dhaka month |
 
 `svelte-check` 0 errors / 0 warnings, `vitest` 219/219, `vite build` clean.
+
+### 8.2 Back from the workspace to the checklist (`feat` follow-up)
+
+The checklist link now carries `return=close` and the month, so the workspace's `#btn-back` reads **Back to Month Close** and returns to `/months/close?month=<the statement's month>`. Openings from the overview and direct visits still read **Back to Overview**.
+
+| Check | Observed |
+|---|---|
+| `/months/close?month=2026-09` | month input `2026-09` (new `?month=` support, invalid values fall back) |
+| Resume from the checklist | `#btn-back` text `← Back to Month Close` |
+| Click Back | `/months/close?month=2026-09`, month input `2026-09`, statement still listed under "Open statements waiting on matching" |
+| Resume from the overview (2026-10) | `#btn-back` text `← Back to Overview`, returns to `/reconcile` |
+| Direct `/reconcile/upload` | `← Back to Overview` |
+
+The checklist reads the local cache, so a deep link into it on a fresh browser profile shows Gate 1 as passed until the first sync pull lands; the close button is server-verified either way.
+
+`svelte-check` 0 errors / 0 warnings, `vitest` 219/219.
