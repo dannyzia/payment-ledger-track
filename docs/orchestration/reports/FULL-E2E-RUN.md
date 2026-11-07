@@ -129,3 +129,23 @@ The server-side Zod schema already rejected the bad rate payload, and the RPC al
 ### 7.4 Test data left behind
 
 An overpaid 2026-11 mastercard settlement (৳186.50 against ৳180.00, surplus ৳6.50 approved), its ৳1.00 payments and ৳0.50 reversal; Mode B statements for 2026-02, 2026-03 (line accepted, not finalized) and 2026-08 (open, ৳100.00), plus a finalized 2026-02 statement. The open statements block those months' close until superseded or finalized.
+
+## 8. Resuming an open Mode B statement (`CLT-R-022`, 2026-11-07)
+
+The page now accepts `?statement=<id>` and the Reconciliation overview offers **Resume Matching** on every open file statement (`#btn-resume-<id>`), which is the route back that was missing. Driven at Pixel 5 width against the local dev server:
+
+| Step | Observed |
+|---|---|
+| Overview, month 2026-03 | `#btn-resume-fa48ce6e…` present, enabled |
+| Click it | `/reconcile/upload?statement=fa48ce6e…`, workspace rendered, `Lines: 1 Matched: 0 Accepted: 1 Unmatched: 0` |
+| Reload | same statement, same counts |
+| Statement 2026-06, Unmatch then Match | `/reconcile/unmatch-line` `200` (Matched 1 → Unmatched 1), Match dialog lists the candidate entry, `/reconcile/match-line` `200` (Unmatched 1 → Matched 1) |
+| Statement 2026-09, Accept a line | `/reconcile/accept-line` `200`, `Accepted: 0 → 1`, "Statement line accepted into audit log" |
+| Reconcile with variance over tolerance | button disabled with "Variance exceeds tolerance (৳1.00)" until `#reconcile-note` holds text |
+| `POST /reconcile/statements/reconcile` | `200`, status `reconciled` |
+| Back on the overview | Resume button gone, row reads Reconciled |
+| `Switch Statement` | returns to step 1 and drops `?statement=` |
+
+Bad identifiers are handled without a dead end: an unknown id, a Mode A id and a non-open id each produce a plain sentence and clear the parameter.
+
+Effect on the local data: the 2026-03 statement is now `reconciled` (note "SWEEP-RESUME…"), one line of the 2026-09 statement is `accepted`, and the 2026-06 line was unmatched and re-matched to the same entry. No month was closed.
