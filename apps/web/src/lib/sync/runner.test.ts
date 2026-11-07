@@ -13,7 +13,7 @@ const { flushOutboxPush } = await import('./push');
 const { executeIncrementalPull } = await import('./pull');
 const { SyncRunner } = await import('./runner.svelte');
 
-describe('Sync runner session handling (CLT-R-015)', () => {
+describe('Sync runner status handling (CLT-R-015, CLT-R-016)', () => {
   let runner: InstanceType<typeof SyncRunner>;
 
   beforeEach(() => {
@@ -44,6 +44,25 @@ describe('Sync runner session handling (CLT-R-015)', () => {
 
     expect(runner.status).toBe('error');
     expect(ensureSession).not.toHaveBeenCalled();
+  });
+
+  it('shows offline when the push fails at the transport level', async () => {
+    // A dropped link while navigator.onLine still reports true (CLT-R-016).
+    vi.mocked(flushOutboxPush).mockRejectedValue(new Error('network_offline'));
+
+    await runner.triggerCycle();
+
+    expect(runner.status).toBe('offline');
+    expect(executeIncrementalPull).not.toHaveBeenCalled();
+  });
+
+  it('shows offline when the pull fails at the transport level', async () => {
+    vi.mocked(flushOutboxPush).mockResolvedValue({ success: true, pushedCount: 0 });
+    vi.mocked(executeIncrementalPull).mockRejectedValue(new Error('network_offline'));
+
+    await runner.triggerCycle();
+
+    expect(runner.status).toBe('offline');
   });
 
   it('syncs normally when the push succeeds', async () => {

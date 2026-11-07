@@ -17,6 +17,29 @@ export interface PushBatchResponse {
 }
 
 /**
+ * Sends one push batch.
+ *
+ * A transport failure (no route to the server) is not a sync error: the ops are
+ * still queued locally and nothing was lost, so staff must see "Offline", not
+ * "Sync error" (CLT-R-016). It raises the same `network_offline` signal that
+ * `pull.ts` raises, which `runner.svelte.ts` maps to the offline state.
+ */
+async function postPush(body: string, token: string | null): Promise<Response> {
+  try {
+    return await fetch('/api/v1/sync/push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body,
+    });
+  } catch {
+    throw new Error('network_offline');
+  }
+}
+
+/**
  * Exhaustively flushes pending client outbox operations in batches of at most 50 ops per request.
  * Scoped to the currently authenticated user's session to prevent cross-user attribution
  * on shared counter devices (PRD Test #62). Protected against infinite loops via iteration cap.
@@ -79,28 +102,15 @@ export async function flushOutboxPush(): Promise<{
       })
     );
 
-    let res = await fetch('/api/v1/sync/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ deviceId, ops: preparedOps }),
-    });
+    const body = JSON.stringify({ deviceId, ops: preparedOps });
+    let res = await postPush(body, token);
 
     // Handle token expiration: attempt automatic refresh once
     if (res.status === 401) {
       const refreshed = await supabase.auth.refreshSession();
       if (refreshed.data.session) {
         token = refreshed.data.session.access_token;
-        res = await fetch('/api/v1/sync/push', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ deviceId, ops: preparedOps }),
-        });
+        res = await postPush(body, token);
       }
     }
 
