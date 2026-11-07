@@ -310,3 +310,12 @@ Already implemented: `?statement=<id>` reopens an open file-sourced statement (f
 Not executed: Accept and Reconcile Statement, which write audit rows and flip month-close gate 1 for 2026-07. Their guards, enabled states and criteria were checked; the writes were left for a run Zia authorises.
 
 Fixture caveat found: the 2026-09 statement (`717bd561…`) carries lines dated 2026-11 while September has no entries in the data set, so resuming it shows an empty candidate list. That is leftover test data, not a code path — matching there cannot succeed for any entry. The 2026-07 statement is the usable Mode B fixture.
+
+
+### 8.11 Superseded label in the ledger list
+
+Same defect as §8.7, for the other styling-only state: a superseded row was marked only by `opacity-50`. `LedgerRow.svelte` now renders a `Superseded` chip beside the customer name (`{:else if isSuperseded}` after the Voided branch, so the two never stack — a row is one or the other).
+
+No superseded entry exists in the data set (`counts: {active: 29, voided: 5}`), so the render was proven by marking one cached test entry `superseded` in Dexie, checking the row, then restoring it. The server row was never touched: `E-202611-000125` read "… Playwright Test Customer **Superseded** Units: 1 …" with `opacity: 0.5`, no strikethrough, chip `text-decoration-line: none`, and the label inside the row's accessible text; after restoring to `active` the row showed no chip and full opacity. `svelte-check` 0 errors / 0 warnings; `vitest src/lib/ledger` 9/9.
+
+Caveat: that is a rendering check against a synthetic cache state, not a supersede transaction. It proves the component's presentation, not the supersede flow.

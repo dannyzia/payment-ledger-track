@@ -46,6 +46,10 @@
           <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-500/15 text-slate-600 dark:text-slate-300 font-medium shrink-0">
             Voided
           </span>
+        {:else if isSuperseded}
+          <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-500/15 text-slate-600 dark:text-slate-300 font-medium shrink-0">
+            Superseded
+          </span>
         {/if}
         {#if entry.sync_status === 'pending'}
           <span class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium shrink-0">
