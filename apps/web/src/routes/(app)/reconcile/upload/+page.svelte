@@ -670,7 +670,9 @@ file_storage_path?: string;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           statementId: activeStatement.id,
-          note: reconcileNote.trim() || null,
+          // Omit the key when blank: the route's schema is `z.string().optional()`
+          // and rejects an explicit null with 400 invalid_payload.
+          ...(reconcileNote.trim() ? { note: reconcileNote.trim() } : {}),
         }),
       });
 
