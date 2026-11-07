@@ -52,22 +52,26 @@ Each one was invisible to the existing suites and only appeared when the screen 
 
 `reconcile/upload/+page.svelte` had six `#btn-save` buttons (confirm creation, finalize, unmatch, accept, exception, supersede) and `Modal.svelte` gave every mounted dialog `id="modal-title"`. Fixed in `c262020`: each button names its action (`#btn-confirm-upload-statement`, `#btn-finalize-reconcile`, `#btn-confirm-unmatch`, `#btn-confirm-accept`, `#btn-confirm-exception`, `#btn-confirm-supersede`) and the dialog heading uses `$props.id()`.
 
-Driven in Chromium at a Pixel 5 viewport against the local dev server with a two-line bKash CSV for months with no covering statement:
+Driven in Chromium at a Pixel 5 viewport against the local dev server, seeding one entry per month where a covered entry was needed so the statement had something to match:
 
 | Step | Observed |
 |---|---|
-| `POST /api/v1/reconcile/statements/upload` | `200`, two lines parsed, preview card shown |
+| `POST /api/v1/reconcile/statements/upload` | `200`, lines parsed, preview card shown |
 | `#btn-confirm-upload-statement` | enabled; `POST /api/v1/reconcile/statements` → `200` with a `statementId` |
-| Statement detail | `#btn-finalize-reconcile` present and correctly disabled while two lines are unmatched |
-| Accept dialog | opens, `#btn-confirm-accept` present and disabled until a note is typed |
-| Existing-statement path | `#btn-supersede` replaces the confirm button; `#btn-confirm-supersede` present and disabled until a reason is typed |
+| `#btn-supersede` / `#btn-confirm-supersede` | existing-statement path replaces the confirm button; dialog opens, confirm disabled until a reason is typed, no request sent until then |
+| auto-match | a seeded entry auto-matched its statement line (`Matched: 1`), which made the row's Unmatch action available |
+| `#btn-confirm-unmatch` | dialog opens, confirm disabled until a reason is typed |
+| `#btn-confirm-accept` | dialog opens on an unmatched line, confirm disabled until a note is typed |
+| `#btn-confirm-exception` | dialog opens from an unmatched covered entry, confirm disabled until a reason is typed |
+| `#btn-finalize-reconcile` | disabled while any line is unmatched; with every line matched it submits |
+| `POST /api/v1/reconcile/statements/reconcile` | `200 {"success":true}`, statement status `RECONCILED` |
 | Duplicate ids in the live DOM, each step | none |
 
-Not exercised: `#btn-confirm-unmatch` and `#btn-confirm-exception`. Both need a matched line and an eligible covered entry in the same statement; the months used for this check have no ledger entries, and November (which does) already has a covering statement for every payable, so creation answers `422 payable_already_covered_by_active_statement`. Their wiring is unchanged apart from the id.
+**Defect found and fixed on the finalize path (`5f4705f`).** With the note field blank the page sent `note: null`, and the route's schema is `z.string().optional()`, so finalize answered `400 invalid_payload` at path `["note"]` and never reached the RPC. The key is now omitted when blank. Reproduced first (400), then re-driven on a fresh month: upload `200`, create `200`, finalize `200`, status `RECONCILED`.
 
 Two observations from this pass: the floating New Entry pill sits over the bottom-right primary buttons at phone width and intercepted every real click until the click was dispatched directly (it is draggable, so this is an annoyance, not a dead end); and leaving the page strands an open Mode B statement, because nothing routes back to it (`CLT-R-022`).
 
-Test data left in the local dev database by this pass: one open two-line bKash statement for 2026-09 and one for 2026-10. They are not reconciled and will block those months' close until superseded.
+Test data left in the local dev database by this pass: an open bKash statement for 2026-05, 2026-06, 2026-07, 2026-09 and 2026-10, a reconciled one for 2026-04, and the probe entries in those months (`CLTEXC01`–`CLTEXC06`). The open statements block their months' close until superseded.
 
 ## 6. How it was run
 
