@@ -110,7 +110,7 @@ named evidence. "Pass" without evidence is not a pass (AGENTS.md §10, Zero-Trus
   Expected: no CORS error, no mixed-content block.
   Evidence: network panel screenshot, redacted of tokens.
 
-- [ ] **H4 — Device identity survives an app-storage wipe.**
+- [ ] **H4 — Device identity survives an app-storage wipe.** *(2026-11-07: still fails on the rebuilt APK `441119e4…` — see `reports/GATE5-DEVICE-RUN.md` §23; `CLT-R-017`)*
   Record the device UUID (Admin → devices, or the `X-Device-Id` header), then
   `adb shell pm clear com.cosmo.ledgertrack`, relaunch, sign in.
   Expected: same UUID restored via `@capacitor/preferences` (`initPersistentDeviceId`),
@@ -161,7 +161,7 @@ named evidence. "Pass" without evidence is not a pass (AGENTS.md §10, Zero-Trus
   viewport edge; no clipping under the status bar or nav bar.
   Evidence: three screenshots + note if any gap is < 12 px.
 
-- [ ] **H11 — Collision avoidance against Save.**
+- [x] **H11 — Collision avoidance against Save.** *(2026-11-07: pass — see `reports/GATE5-DEVICE-RUN.md` §23)*
   On the New entry screen (where `#btn-save` exists), drag the menu directly over the
   Save button and release. Repeat on a narrow window (< 640 dp) and with the keyboard
   open.
@@ -187,7 +187,7 @@ named evidence. "Pass" without evidence is not a pass (AGENTS.md §10, Zero-Trus
   (`clt-floating-menu-pos`), still inside the viewport on a rotation.
   Evidence: screenshots before/after, plus one after rotating to landscape and back.
 
-- [ ] **H15 — Keyboard operation.** *(expected to fail until CLT-T-050 lands)*
+- [x] **H15 — Keyboard operation.** *(2026-11-07: pass, 9/9 — see `reports/GATE5-DEVICE-RUN.md` §23; keys dispatched into the WebView renderer, no physical keyboard or TalkBack)*
   Focus the menu region (TalkBack or hardware keyboard), press ArrowUp/Down/Left/Right,
   then Enter, then Space, then Escape.
   Expected: arrows move it 20 px per press and stay clamped; Enter and Space both expand

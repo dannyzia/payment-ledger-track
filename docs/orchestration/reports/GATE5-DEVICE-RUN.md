@@ -544,3 +544,54 @@ Observed in the app's own WebView over CDP:
 - `adb logcat` contains **0** `OTS parsing` or `Failed to decode downloaded font` lines; the WebView console has no font errors and no failed `woff2` requests.
 
 Done with the tunnels removed and the app force-stopped. As before this is a font and rendering check, not a repeat of H1–H16.
+
+---
+
+# Fifth pass — the four remaining items on a rebuilt APK (2026-11-07, late)
+
+Rebuilt from the current working tree, not reused: the APK in §10 predated the
+supersede, admin-offline and seed commits.
+
+## 22. Build identity
+
+| Item | Value |
+|---|---|
+| Commit | `623547d` (clean tree at build time) |
+| Build | `CAPACITOR_BUILD=true PUBLIC_API_BASE=http://127.0.0.1:5199 pnpm --filter @clt/web build` → `npx cap sync android` → `ANDROID_HOME=$HOME/android-sdk ./gradlew assembleDebug` → `BUILD SUCCESSFUL in 6s`, 160 tasks (23 executed) |
+| APK | 4,365,471 bytes, SHA-256 `441119e4c0cc6868b0aee6dc8a24941784f6c28d4c10333035899b4ad6ff82b2` |
+| Install / launch | `adb install -r` → `Success`; `am start -W` → `TotalTime: 484` (cold) |
+| Device | Pixel 6a `24261JEGR10296`; WebView `156.0.8078.47`; 411×816 CSS px |
+| Tunnels | `adb reverse tcp:5199` and `tcp:54321` for the online parts, `adb forward tcp:9222` to the WebView socket; all removed afterwards |
+
+Input was dispatched through the WebView's own input pipeline over CDP
+(`Input.dispatchTouchEvent`, `Input.dispatchKeyEvent`), as in §12 — real touch
+points and real DOM key events, but **not** a physical keyboard or TalkBack.
+
+## 23. Results
+
+| # | Item | Result | Measured evidence |
+|---|---|---|---|
+| H11 | Collision avoidance against Save | **PASS** | `/entries/new` at 411×816, Save scrolled into view at `(49,410)` 314×48: dragging the pill from its grip onto Save's centre released it at `(121,334)`, i.e. **13 px above Save's top edge** with zero overlap; `elementFromPoint(206,434)` → `BUTTON#btn-save`; the pill re-dodged the same way with the IME open (`innerHeight 456`, pill `y 128…192` vs Save `204…252`); a real touch on Save while dodged saved the entry — `Saved offline as #LOCAL-…`, then `E-202611-000185` after sync — which was voided with a reason afterwards |
+| H15 | Keyboard operation | **PASS, 9/9** | Region focused (`document.activeElement` = `#floating-action-menu`), pill at (133,500): ArrowUp → `y 480` (−20), ArrowLeft → `x 113` (−20), ArrowDown → `y 500`, ArrowRight → `x 133`; 40× ArrowUp clamps at `y = 12`, 40× ArrowLeft clamps at `x = 12`; Enter → `aria-expanded="true"` and `#mobile-nav-panel` present; Escape → `false`, panel gone; Space → `true`; Escape → `false` |
+| — | Offline label (H6's relaunch re-read, `CLT-R-016`) | **PASS** | Both reverse tunnels removed, entry saved as `#LOCAL-2d3917` (`Offline` state), `am force-stop`, cold relaunch: `/dashboard` shows **"Offline (1 pending)"** at 9 s and again at 19 s — never "Sync error (tap to retry)"; the entry stayed local and pending; restoring the tunnels flipped the label to **"Synced"** within 4 s and created `E-202611-000186` (gross 43,210, `server_seq` 234) |
+| H4 | Device id survives `pm clear` | **FAIL, still** | `6c6300a0-bd57-4633-a1dd-332e614680cf` in both `localStorage.clt_device_id` and `shared_prefs/CapacitorStorage.xml` before; `adb shell pm clear` → relaunch → `103e4845-ce3a-4419-9be7-53c624847915`, written to the same preferences file. Signing in registered a **new** device row (`devices` 30 → 31), so the phantom-duplicate outcome `CLT-R-017` describes is reproduced on this build |
+
+## 24. One new finding — stale method rows survive a server-side method replacement
+
+Before the `pm clear`, the app's IndexedDB held more than twenty `methods` rows
+with duplicate codes (several `bkash`, `cash`, `visa`, `mastercard`,
+`bank_transfer`) while the server holds five. They are left over from earlier
+`pnpm db:bootstrap` runs, which recreate payment methods with new UUIDs;
+the pull upserts rows but never removes ones the server no longer has.
+
+Consequence seen on the device: the entry form's default chip (first by
+`display_order`) was a stale method id, so Save stayed disabled behind
+"⚠ Selected payment method is not configured in the active rate profile" even
+though the active profile is configured for the *current* ids. After `pm clear`
+the same form saved normally. Recorded as `CLT-R-026` (Minor, open); it needs
+either a prune on pull or a tie between the chip list and the active profile's
+`method_rates`.
+
+Not exercised in this pass: H1–H10, H12–H14, H16 (unchanged and previously
+measured), TalkBack operation, and any physical-keyboard path — H15's keys were
+delivered to the renderer, not by the OS keyboard driver.
