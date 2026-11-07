@@ -4,6 +4,7 @@
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface AppSettings {
     timezone: string;
@@ -50,7 +51,7 @@
         errorMessage = err.message || 'Failed to load settings';
       }
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -77,7 +78,7 @@
 
       successMessage = 'Application settings updated successfully.';
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       saving = false;
     }

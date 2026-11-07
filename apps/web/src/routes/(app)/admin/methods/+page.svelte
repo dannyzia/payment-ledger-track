@@ -5,6 +5,7 @@
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface PaymentMethod {
     id: string;
@@ -44,7 +45,7 @@
         errorMessage = err.message || 'Failed to load methods';
       }
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -99,7 +100,7 @@
       showModal = false;
       await loadMethods();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       saving = false;
     }
@@ -160,7 +161,7 @@
             </td>
           </tr>
         {/each}
-        {#if methods.length === 0 && !loading}
+        {#if methods.length === 0 && !loading && !errorMessage}
           <tr>
             <td colspan="6" class="py-8 text-center text-sm text-[var(--muted)]">
               No payment methods configured.

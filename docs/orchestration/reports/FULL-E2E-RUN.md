@@ -367,3 +367,14 @@ Two findings, neither changed:
 
 1. **The inline error is unreachable for a truly empty field (Minor).** Because the input carries `required` and the save button is a submit inside the form, native constraint validation blocks the submit event, so `handleLocalSave` never runs and the `saveErrorMessage` branch for this case is dead code. The user still gets feedback and nothing is written, but via the generic browser bubble rather than the channel-specific sentence, which only whitespace input reaches.
 2. **`entry.create` audit rows do not record the reference (Minor).** PRD §15.1 describes `after` as `{ gross, net, snapshot, inputs }`; the logged object carries gross, net, vat, commission, charge, `method_id`, `entry_date` and snapshot, with no `txn_ref`. The immutable entry row keeps it, so nothing is lost, but the audit event alone cannot show that a reference was supplied.
+### 8.14 Admin screens offline
+
+Follow-up to the `/admin/audit` fix in §8.9: the other server-only admin pages were checked with the network cut.
+
+None of them threw an unhandled rejection — every load is wrapped in `try/catch` — but eight of the nine printed the raw `TypeError` text as their red banner (`Failed to fetch`), and `/admin` printed nothing at all: the hub's catch only called `console.error`, so offline it rendered a business whose figures were all zero. Two pages also claimed there was no data: `/admin/users` showed "No team members found." and `/admin/audit` "No audit events match filters.", which reads as an empty roster or log rather than an unloaded one.
+
+`$lib/api/offline.ts` now supplies `adminFetchError(e)`, which returns one sentence when `navigator.onLine` is false and the real error otherwise, and all nine pages use it. `/admin` gained the same red banner, and the six empty-state messages are suppressed while a load has failed, so a page that could not load never states that there is nothing to show.
+
+Verified offline at Pixel 5 width across all nine routes: the shared message renders once each, no page error and no unhandled rejection, and none of the six "No …" sentences appears. Online, all nine still load (audit 50 rows, devices 13, methods 5, payables 4, rates 5, users 6) with no banner. `svelte-check` 0/0; `vitest run src` 145/145.
+
+Not exercised: the mutation paths on those pages offline (save settings, publish rates, revoke a device, invite a user). They share the same catch and message, but no write was attempted; a click offline should be refused by the fetch rather than silently queued, and that was not confirmed.

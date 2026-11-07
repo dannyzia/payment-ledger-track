@@ -5,6 +5,7 @@
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface MethodRateItem {
     payment_method_id: string;
@@ -111,7 +112,7 @@
         }
       }
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message || 'Failed to load rate profiles' : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -152,7 +153,7 @@
 
       await loadData();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       saving = false;
     }
@@ -177,7 +178,7 @@
       showPublishModal = false;
       await loadData();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       publishing = false;
     }

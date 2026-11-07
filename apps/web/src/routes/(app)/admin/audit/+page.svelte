@@ -4,6 +4,7 @@
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface AuditEvent {
     id: number;
@@ -45,9 +46,7 @@
       }
     } catch (e) {
       events = [];
-      errorMessage = navigator.onLine
-        ? e instanceof Error ? e.message : String(e)
-        : 'The audit log is server-side only and needs a connection. Nothing is lost: queued changes sync when you are back online.';
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -167,7 +166,7 @@
               </td>
             </tr>
           {/each}
-          {#if events.length === 0 && !loading}
+          {#if events.length === 0 && !loading && !errorMessage}
             <tr>
               <td colspan="5" class="py-8 text-center text-[var(--muted)] font-sans">No audit events match filters.</td>
             </tr>

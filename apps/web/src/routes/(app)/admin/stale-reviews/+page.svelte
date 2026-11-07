@@ -6,6 +6,7 @@
   import Chip from '$lib/ui/Chip.svelte';
   import { formatPoishaToBdt } from '@clt/shared';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface StaleEntry {
     id: string;
@@ -41,7 +42,7 @@
         errorMessage = err.message || 'Failed to load stale reviews';
       }
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -78,7 +79,7 @@
       selectedEntry = null;
       await loadStaleEntries();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       submitting = false;
     }
@@ -148,7 +149,7 @@
             </td>
           </tr>
         {/each}
-        {#if entries.length === 0 && !loading}
+        {#if entries.length === 0 && !loading && !errorMessage}
           <tr>
             <td colspan="6" class="py-8 text-center text-sm text-[var(--muted)]">
               No pending stale rate reviews in queue.

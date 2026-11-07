@@ -4,6 +4,7 @@
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface HubStats {
     activeMethods: number;
@@ -24,6 +25,7 @@
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- read in template via svelte compile (CLT-D-013)
   let loading = $state(true);
+  let errorMessage = $state('');
 
   async function loadStats() {
     loading = true;
@@ -63,6 +65,9 @@
         stats.anomalyBursts = (data.anomalies || []).filter((a: { stale_ops_last_hour?: number }) => (a.stale_ops_last_hour ?? 0) >= 5).length;
       }
     } catch (e) {
+      // Every figure below is server-only, so a failed load must say so rather than
+      // leave the cards reading zero, which looks like a real empty business.
+      errorMessage = adminFetchError(e);
       console.error('Failed to load admin hub statistics', e);
     } finally {
       loading = false;
@@ -77,6 +82,12 @@
     <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Admin Hub</h1>
     <p class="text-sm text-[var(--muted)]">Manage business configuration, rates, devices, and operational parameters.</p>
   </div>
+
+  {#if errorMessage}
+    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm">
+      {errorMessage}
+    </div>
+  {/if}
 
   {#if stats.anomalyBursts > 0}
     <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm flex items-center justify-between">

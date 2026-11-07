@@ -5,6 +5,7 @@
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface Payable {
     id: string;
@@ -58,7 +59,7 @@
         payables = pData.payables ?? [];
       }
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -128,7 +129,7 @@
       showModal = false;
       await loadData();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       saving = false;
     }
@@ -187,7 +188,7 @@
             </td>
           </tr>
         {/each}
-        {#if payables.length === 0 && !loading}
+        {#if payables.length === 0 && !loading && !errorMessage}
           <tr>
             <td colspan="6" class="py-8 text-center text-sm text-[var(--muted)]">
               No payables configured.

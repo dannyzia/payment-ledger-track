@@ -5,6 +5,7 @@
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
+  import { adminFetchError } from '$lib/api/offline';
 
   interface UserProfile {
     id: string;
@@ -48,7 +49,7 @@
         errorMessage = err.message || 'Failed to load user roster';
       }
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       loading = false;
     }
@@ -80,7 +81,7 @@
       successMessage = 'Invitation sent successfully.';
       await loadUsers();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       inviting = false;
     }
@@ -106,7 +107,7 @@
 
       await loadUsers();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     }
   }
 
@@ -130,7 +131,7 @@
 
       await loadUsers();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     }
   }
 
@@ -163,7 +164,7 @@
       successMessage = 'Ownership transferred successfully. Your account has been demoted to Admin.';
       await loadUsers();
     } catch (e) {
-      errorMessage = e instanceof Error ? e.message : String(e);
+      errorMessage = adminFetchError(e);
     } finally {
       transferring = false;
     }
@@ -261,7 +262,7 @@
             </td>
           </tr>
         {/each}
-        {#if users.length === 0 && !loading}
+        {#if users.length === 0 && !loading && !errorMessage}
           <tr>
             <td colspan="5" class="py-8 text-center text-sm text-[var(--muted)]">
               No team members found.
