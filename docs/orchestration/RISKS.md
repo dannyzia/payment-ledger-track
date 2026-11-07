@@ -31,7 +31,7 @@ acceptance, with the decision ID).
 | CLT-R-014 | **The self-hosted fonts are 31-byte stubs.** `static/fonts/*.woff2` contain a bare `wOF2` header and no glyphs, so on every platform `document.fonts` reports `Geist:error` / `Noto Sans Bengali:error`; PRD §14's Geist, tabular figures and Bengali fallback have never rendered | Major | Implementer | ship the real font files (or remove the `@font-face` blocks and record the deviation), then re-check on device | OPEN (found 2026-11-06) | `reports/GATE5-DEVICE-RUN.md` §4; console OTS errors |
 | CLT-R-011 | Seeded `bank_transfer` carries `requires_txn_ref = true`, while PRD §4 Q15 lists mandatory references only for bKash, Visa and Mastercard; the seed may be stricter than intended | Minor | Zia / Admin | confirm the business rule (DR-3); the change is an admin edit to `payment_methods`, not code | OPEN (UNVERIFIED whether it is wrong) | `OWNER_DECISION_PACKET_Q1_Q4.md` §5 observation 1 |
 | CLT-R-019 | **No sign-out control at phone width.** Sign-out exists only in the desktop sidebar; at 393 px the Owner cannot end a session on the device they actually use | Major | Zia / Implementer | Owner decision on placement (menu panel is the natural home), then implement; hiding UI is not enforcement, but here nothing enforces or offers it | OPEN (found 2026-11-07) | `reports/FULL-E2E-RUN.md` §4 item 1 |
-| CLT-R-020 | `reconcile/upload/+page.svelte` renders five separate `#btn-save` ids across its modals — the same duplicate-id defect fixed in month close and the reconciliation hub, on the page the sweep could not drive (Mode B needs a real statement file) | Minor | Implementer | rename per modal when Mode B is exercised; behaviour is unverified until then | OPEN (found 2026-11-07) | `reports/FULL-E2E-RUN.md` §4 item 2 |
+| CLT-R-022 | **An open Mode B statement cannot be reopened.** `/reconcile/upload` always starts at step 1, "Switch Statement" only clears the current statement, and no route accepts a statement id, so leaving the page strands a statement that can only be superseded — never matched, accepted or finalized | Major | Implementer / Zia | add a `?statement=<id>` entry point (or a list of open statements) and a decision on who may resume one | OPEN (found 2026-11-07 while verifying `CLT-R-020`) | `reports/FULL-E2E-RUN.md` §4 item 6 |
 | CLT-R-021 | A bare local database starts with no business seed (no methods, payables, rate profile or entries), so rate/profile-dependent screens cannot be tested until `db:bootstrap` is run; the runbook does not say so | Minor | Implementer | add the step to the local setup instructions, or have `db:reset` call it | OPEN (found 2026-11-07) | `reports/FULL-E2E-RUN.md` §4 item 3 |
 
 ## 2. Closed items, kept for traceability
@@ -39,6 +39,7 @@ acceptance, with the decision ID).
 | ID | What was risked | Resolved by |
 |---|---|---|
 | CLT-R-007 | Floating menu inoperable by real input | `74bfcb1`; `reports/CLT-T-050.md`; unit 209/209, e2e 9/9 |
+| CLT-R-020 | Six buttons on the Mode B upload page shared `#btn-save`, and every `Modal` instance shared `#modal-title`, so lookups and `aria-labelledby` were ambiguous | `c262020`; ids exercised in the browser (upload 200, creation 200, accept and supersede dialogs open), live DOM carries no duplicate ids; unit 219/219, e2e 9/9 |
 
 ## 3. Review rules
 
@@ -55,5 +56,6 @@ acceptance, with the decision ID).
 
 | Rev | Date | Change |
 |---|---|---|
+| 3 | 2026-11-07 | `CLT-R-020` closed by `c262020` (unique ids for every Mode B modal button and per-instance dialog headings) and verified in the browser. Added `CLT-R-022`: an open Mode B statement cannot be reopened once the page is left. |
 | 2 | 2026-11-07 | Added `CLT-R-019`–`CLT-R-021` from the full end-to-end sweep (`reports/FULL-E2E-RUN.md`): no sign-out at phone width, duplicate modal ids on the upload reconciliation page, and an unseeded local database. |
 | 1 | 2026-11-06 | File created with `CLT-R-001`…`CLT-R-011` seeded from `G0_READINESS_CHECKLIST.md` §3 and evidence gathered this session; `CLT-R-007` recorded as resolved by `74bfcb1`; `CLT-R-008`…`CLT-R-011` added from Gate 5 and packet findings. |

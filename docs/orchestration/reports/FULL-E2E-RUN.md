@@ -48,6 +48,27 @@ Each one was invisible to the existing suites and only appeared when the screen 
 4. **Fonts are still 31-byte stubs** (`CLT-R-014`): every page logs `Failed to decode downloaded font` / OTS errors. Unchanged by this sweep.
 5. **Not verified on a device.** The Pixel 6a was not attached, so nothing here covers `CLT-R-016`'s offline label on hardware; the web checks used a Pixel 5 viewport in desktop Chromium. `CLT-R-014` and `CLT-R-016` remain owed on device.
 
-## 5. How it was run
+## 5. Follow-up verification: Mode B modal ids (2026-11-07)
+
+`reconcile/upload/+page.svelte` had six `#btn-save` buttons (confirm creation, finalize, unmatch, accept, exception, supersede) and `Modal.svelte` gave every mounted dialog `id="modal-title"`. Fixed in `c262020`: each button names its action (`#btn-confirm-upload-statement`, `#btn-finalize-reconcile`, `#btn-confirm-unmatch`, `#btn-confirm-accept`, `#btn-confirm-exception`, `#btn-confirm-supersede`) and the dialog heading uses `$props.id()`.
+
+Driven in Chromium at a Pixel 5 viewport against the local dev server with a two-line bKash CSV for months with no covering statement:
+
+| Step | Observed |
+|---|---|
+| `POST /api/v1/reconcile/statements/upload` | `200`, two lines parsed, preview card shown |
+| `#btn-confirm-upload-statement` | enabled; `POST /api/v1/reconcile/statements` → `200` with a `statementId` |
+| Statement detail | `#btn-finalize-reconcile` present and correctly disabled while two lines are unmatched |
+| Accept dialog | opens, `#btn-confirm-accept` present and disabled until a note is typed |
+| Existing-statement path | `#btn-supersede` replaces the confirm button; `#btn-confirm-supersede` present and disabled until a reason is typed |
+| Duplicate ids in the live DOM, each step | none |
+
+Not exercised: `#btn-confirm-unmatch` and `#btn-confirm-exception`. Both need a matched line and an eligible covered entry in the same statement; the months used for this check have no ledger entries, and November (which does) already has a covering statement for every payable, so creation answers `422 payable_already_covered_by_active_statement`. Their wiring is unchanged apart from the id.
+
+Two observations from this pass: the floating New Entry pill sits over the bottom-right primary buttons at phone width and intercepted every real click until the click was dispatched directly (it is draggable, so this is an annoyance, not a dead end); and leaving the page strands an open Mode B statement, because nothing routes back to it (`CLT-R-022`).
+
+Test data left in the local dev database by this pass: one open two-line bKash statement for 2026-09 and one for 2026-10. They are not reconciled and will block those months' close until superseded.
+
+## 6. How it was run
 
 `/tmp/clt-g5/e2e-full.mjs <section>` — a Playwright driver outside the repo (not committed; it drives the running dev server and needs `G5_EMAIL`/`G5_PASSWORD` in the environment). Screenshots from the pass before the fixes are in `/tmp/clt-g5/full/shots/`, including `_reconcile_manual.png` taken before fix 1 and `ledger-search.png` after fix 2. The script is scratch tooling; the durable regression coverage is the repository suites named in §1.

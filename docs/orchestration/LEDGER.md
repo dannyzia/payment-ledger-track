@@ -86,3 +86,16 @@ verification.
 | 5 | 2026-11-06 | `CLT-R-015` fixed: the app group now verifies a Supabase session before its first render and redirects to `/login` when there is none, the guard treats a cached profile without a session as signed out, and the sync runner reports `signed_out` instead of a generic error. Reproduced on the device first (dashboard + "Sync error"), then re-checked for redirect, sign-in and offline restart. |
 | 6 | 2026-11-07 | `CLT-R-016` fixed: `push.ts` classifies a dropped connection as `network_offline` like `pull.ts`, so the indicator reads "Offline (N pending)" rather than "Sync error". Proved with the same Playwright script against the stashed pre-fix file and the fix under `net::ERR_FAILED`; APK re-check owed because the phone was not attached |
 | 7 | 2026-11-07 | Full sweep of every screen, control and entry as `CLT-T-056` (authorised in chat, no brief): 75/75 checks across six sections, plus 219/219 unit and 9/9 repository e2e. Six defects fixed in `cd1abd6`, `0369a18`, `0e50f0c`, `fd65e72` (blank Mode A page, dead ledger search, missing `payables.code`, missing statement links, duplicate modal ids, dead `/settings` link). Report: `reports/FULL-E2E-RUN.md`. Three risks raised (`CLT-R-019`–`CLT-R-021`). `CLT-R-014` still open and the device re-check still owed |
+| 8 | 2026-11-07 | `CLT-R-020` closed in `c262020`: the six colliding `#btn-save` buttons on the Mode B upload page now name their action, and `Modal` derives a per-instance heading id instead of `modal-title`. Confirmed in the browser that creation returns `200`, the accept and supersede dialogs open with their new ids, and the live DOM carries no duplicate ids; 219/219 unit and 9/9 e2e on the same tree. Two of the six handlers (`unmatch`, `exception`) need matched lines and are recorded as not exercised, not as passing. `CLT-R-022` raised: an open Mode B statement cannot be reopened |\nEOF
+git add docs/orchestration/LEDGER.md docs/orchestration/RISKS.md docs/orchestration/reports/FULL-E2E-RUN.md && git commit -q -m "$(cat <<'EOF'
+docs(orch): record the Mode B id fix, its verification, and CLT-R-022
+
+CLT-R-020 is closed with the browser evidence from c262020, and the sweep report
+gains a section on what was driven and what could not be (the unmatch and
+exception dialogs need matched lines). CLT-R-022 records the larger gap the pass
+surfaced: leaving the upload page strands an open Mode B statement with no route
+back to it.
+
+Task: CLT-T-056
+PRD: §11.3
+| 8 | 2026-11-07 | `CLT-R-020` closed in `c262020`: the six colliding `#btn-save` buttons on the Mode B upload page now name their action, and `Modal` derives a per-instance heading id instead of `modal-title`. Confirmed in the browser that creation returns `200`, the accept and supersede dialogs open with their new ids, and the live DOM carries no duplicate ids; 219/219 unit and 9/9 e2e on the same tree. Two of the six handlers (`unmatch`, `exception`) need matched lines and are recorded as not exercised, not as passing. `CLT-R-022` raised: an open Mode B statement cannot be reopened |
