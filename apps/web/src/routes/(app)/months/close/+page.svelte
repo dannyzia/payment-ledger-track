@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import Card from '$lib/ui/Card.svelte';
@@ -8,6 +7,7 @@
   import { session } from '$lib/auth/session.svelte';
   import { supabase } from '$lib/supabase/client';
   import { db } from '$lib/db';
+  import { syncRunner } from '$lib/sync/runner.svelte';
   import { evaluateMonthCloseGates, currentDhakaMonth, type MonthCloseGatesResult } from '$lib/reconcile/tolerance';
 
   // ?month=YYYY-MM lets the statement workspace return here on the month it came from.
@@ -26,6 +26,13 @@
   // instead of hunting for their month on the reconciliation overview (CLT-R-022).
   let blockingStatements = $state<Array<{ id: string; label: string; source: 'manual_total' | 'file' }>>([]);
 
+  // The gates are judged from the local Dexie cache, which is empty until the first
+  // sync pull lands. Until then every gate is unknown, not passed.
+  let gatesLoading = $state(true);
+  // A completed pull leaves a server_cursor in Dexie meta; without one this device
+  // has never held the ledger and no verdict can be trusted.
+  let hasPulled = $state(false);
+
   let gatesResult = $derived<MonthCloseGatesResult>(
     evaluateMonthCloseGates({
       callerRole: session.user?.role ?? 'staff',
@@ -41,20 +48,29 @@
   let isSubmitting = $state(false);
   let errorMessage = $state('');
 
-  async function evaluateGatesFromDatabase() {
-    if (!selectedMonth) return;
-    const monthDate = `${selectedMonth}-01`;
+  type GatesSnapshot = {
+    monthStatus: 'open' | 'closed';
+    zeroPendingStaleReviews: boolean;
+    allPayablesReconciled: boolean;
+    blockingStatements: Array<{ id: string; label: string; source: 'manual_total' | 'file' }>;
+    overpaymentsApproved: boolean;
+  };
+
+  // Reads the cache for one month and returns the verdict; callers decide whether it
+  // is still the month on screen before publishing it.
+  async function computeGates(month: string): Promise<GatesSnapshot> {
+    const monthDate = `${month}-01`;
 
     // 1. Check month close status from Dexie
     const closeRecord = await db.monthCloses.get(monthDate);
-    monthStatus = closeRecord?.status === 'closed' ? 'closed' : 'open';
+    const monthStatusResult: 'open' | 'closed' = closeRecord?.status === 'closed' ? 'closed' : 'open';
 
     // 2. Gate 3: Check pending stale rate review entries on ACTIVE entries (>৳50,000 flagged entries)
     // Strictly ignores voided or superseded entries conforming to PRD §7.3 close_month RPC
     const flaggedEntriesCount = await db.entries
-      .filter(e => e.entry_date.startsWith(selectedMonth) && e.status === 'active' && e.stale_review_status === 'flagged')
+      .filter(e => e.entry_date.startsWith(month) && e.status === 'active' && e.stale_review_status === 'flagged')
       .count();
-    zeroPendingStaleReviews = flaggedEntriesCount === 0;
+    const zeroPendingStaleReviewsResult = flaggedEntriesCount === 0;
 
     // 3. Gate 1: Check all payables are reconciled or not_applicable
     const settlements = await db.settlements.where('month').equals(monthDate).toArray();
@@ -84,15 +100,16 @@
     }
 
     const activeEntriesCount = await db.entries
-      .filter(e => e.entry_date.startsWith(selectedMonth) && e.status === 'active')
+      .filter(e => e.entry_date.startsWith(month) && e.status === 'active')
       .count();
 
+    let allPayablesReconciledResult: boolean;
     if (settlements.length === 0) {
       // Empty month with 0 entries auto-passes Gate 1; month with un-settled entries must wait for sync
-      allPayablesReconciled = activeEntriesCount === 0;
+      allPayablesReconciledResult = activeEntriesCount === 0;
     } else {
       const liableSettlements = settlements.filter(s => s.status !== 'not_applicable');
-      allPayablesReconciled = liableSettlements.every(s => reconciledStatementPayableIds.has(s.payable_id));
+      allPayablesReconciledResult = liableSettlements.every(s => reconciledStatementPayableIds.has(s.payable_id));
     }
 
     // Open statements still blocking Gate 1, each reachable from this checklist.
@@ -101,7 +118,7 @@
         .filter(s => s.status !== 'not_applicable' && !reconciledStatementPayableIds.has(s.payable_id))
         .map(s => s.payable_id)
     );
-    blockingStatements = allPayablesReconciled
+    const blockingStatementsResult = allPayablesReconciledResult
       ? []
       : statements
           .filter(st => st.status === 'open')
@@ -125,21 +142,56 @@
       const approvedAmount = BigInt(s.overpayment_approved_amount_poisha || '0');
       return s.overpayment_review_status !== 'approved' || approvedAmount !== surplus;
     });
-    overpaymentsApproved = !unapprovedOverpayment;
+
+    return {
+      monthStatus: monthStatusResult,
+      zeroPendingStaleReviews: zeroPendingStaleReviewsResult,
+      allPayablesReconciled: allPayablesReconciledResult,
+      blockingStatements: blockingStatementsResult,
+      overpaymentsApproved: !unapprovedOverpayment,
+    };
   }
 
-  onMount(() => {
-    evaluateGatesFromDatabase();
+  // Re-evaluate when the month changes and whenever a sync cycle touches the cache,
+  // so a gate shown as passed is never based on a half-filled cache.
+  $effect(() => {
+    const month = selectedMonth;
+    const syncStatus = syncRunner.status;
+    if (!month) return;
+    refreshGates(month, syncStatus);
   });
 
-  $effect(() => {
-    if (selectedMonth) {
-      evaluateGatesFromDatabase();
+  // Invalidates any evaluation still in flight, so a slow month cannot publish over
+  // the one now on screen.
+  let gatesToken = 0;
+
+  async function refreshGates(month: string, syncStatus: string) {
+    const token = ++gatesToken;
+    try {
+      const cursorRow = await db.meta.get('server_cursor');
+      hasPulled = Boolean(cursorRow);
+      // Waiting on the first pull of a device that has never synced: the cache is
+      // empty, so "Passed" would be a lie rather than a result.
+      if (!hasPulled && (syncStatus === 'syncing' || syncStatus === 'synced')) {
+        gatesLoading = true;
+        return;
+      }
+      const snapshot = await computeGates(month);
+      if (token !== gatesToken || month !== selectedMonth) return;
+      monthStatus = snapshot.monthStatus;
+      zeroPendingStaleReviews = snapshot.zeroPendingStaleReviews;
+      allPayablesReconciled = snapshot.allPayablesReconciled;
+      blockingStatements = snapshot.blockingStatements;
+      overpaymentsApproved = snapshot.overpaymentsApproved;
+      gatesLoading = false;
+    } catch (err) {
+      console.error('Month close gate evaluation failed', err);
+      if (token === gatesToken && month === selectedMonth) gatesLoading = false;
     }
-  });
+  }
 
   async function handleCloseMonth() {
-    if (!gatesResult.canClose || session.user?.role !== 'owner') return;
+    if (gatesLoading || !gatesResult.canClose || session.user?.role !== 'owner') return;
     isSubmitting = true;
     errorMessage = '';
 
@@ -222,7 +274,7 @@
       monthStatus = 'open';
       showReopenModal = false;
       reopenReason = '';
-      await evaluateGatesFromDatabase();
+      await refreshGates(selectedMonth, syncRunner.status);
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : 'Month reopen failed.';
     } finally {
@@ -275,12 +327,12 @@
       <div class="flex flex-col gap-3 text-sm">
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>1. All payables reconciled or marked not_applicable</span>
-          <span class="font-bold {allPayablesReconciled ? 'text-green-600' : 'text-red-600'}">
-            {allPayablesReconciled ? 'Passed' : 'Pending Reconciliation'}
+          <span class="font-bold {gatesLoading ? 'text-[var(--c-muted,#6b7280)]' : allPayablesReconciled ? 'text-green-600' : 'text-red-600'}">
+            {gatesLoading ? 'Checking…' : allPayablesReconciled ? 'Passed' : 'Pending Reconciliation'}
           </span>
         </div>
 
-        {#if !allPayablesReconciled && monthStatus === 'open'}
+        {#if !gatesLoading && !allPayablesReconciled && monthStatus === 'open'}
           <div class="p-3 rounded-xl bg-white/40 border border-black/5 -mt-1" data-testid="blocking-statements">
             {#if blockingStatements.length === 0}
               <p class="text-xs text-[var(--c-muted,#6b7280)]">
@@ -325,24 +377,34 @@
 
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>2. Active Owner approvals for any overpaid settlements (exact surplus)</span>
-          <span class="font-bold {overpaymentsApproved ? 'text-green-600' : 'text-red-600'}">
-            {overpaymentsApproved ? 'Passed' : 'Pending Owner Approval'}
+          <span class="font-bold {gatesLoading ? 'text-[var(--c-muted,#6b7280)]' : overpaymentsApproved ? 'text-green-600' : 'text-red-600'}">
+            {gatesLoading ? 'Checking…' : overpaymentsApproved ? 'Passed' : 'Pending Owner Approval'}
           </span>
         </div>
 
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>3. Zero unreviewed stale entries (>৳50,000 flagged active entries)</span>
-          <span class="font-bold {zeroPendingStaleReviews ? 'text-green-600' : 'text-red-600'}">
-            {zeroPendingStaleReviews ? 'Passed' : 'Pending Review'}
+          <span class="font-bold {gatesLoading ? 'text-[var(--c-muted,#6b7280)]' : zeroPendingStaleReviews ? 'text-green-600' : 'text-red-600'}">
+            {gatesLoading ? 'Checking…' : zeroPendingStaleReviews ? 'Passed' : 'Pending Review'}
           </span>
         </div>
       </div>
+
+      {#if gatesLoading}
+        <div class="mt-4 p-3 rounded-xl bg-slate-500/10 text-xs text-slate-700" data-testid="gates-loading">
+          Checking the local ledger cache while it syncs. Gate results appear once this month's data has been pulled.
+        </div>
+      {:else if !hasPulled}
+        <div class="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800" data-testid="gates-unsynced">
+          This device has not completed a full sync, so these gate results describe the cached data only. The server still verifies the month before it closes.
+        </div>
+      {/if}
 
       <div class="mt-4 p-3 rounded-xl bg-blue-500/10 text-xs text-blue-800">
         Notice: Client evaluation is advisory. Final closure is verified and locked atomically by PostgreSQL under Month Advisory Lock 1001.
       </div>
 
-      {#if !gatesResult.canClose && monthStatus === 'open'}
+      {#if !gatesLoading && !gatesResult.canClose && monthStatus === 'open'}
         <div class="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800">
           <div class="font-bold mb-1">Cannot Close Month:</div>
           <ul class="list-disc pl-4 flex flex-col gap-0.5">
@@ -359,7 +421,7 @@
             id="btn-save"
             variant="commission"
             class="min-h-[44px]"
-            disabled={!gatesResult.canClose}
+            disabled={gatesLoading || !gatesResult.canClose}
             loading={isSubmitting}
             onclick={handleCloseMonth}
           >
