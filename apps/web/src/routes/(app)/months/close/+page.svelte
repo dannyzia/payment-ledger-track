@@ -32,6 +32,9 @@
   // A completed pull leaves a server_cursor in Dexie meta; without one this device
   // has never held the ledger and no verdict can be trusted.
   let hasPulled = $state(false);
+  // No pull is possible right now (offline or sync error): the gates cannot be
+  // verified from an empty cache, so they read as unknown rather than passed.
+  let gatesUnsynced = $state(false);
 
   let gatesResult = $derived<MonthCloseGatesResult>(
     evaluateMonthCloseGates({
@@ -170,12 +173,16 @@
     try {
       const cursorRow = await db.meta.get('server_cursor');
       hasPulled = Boolean(cursorRow);
-      // Waiting on the first pull of a device that has never synced: the cache is
-      // empty, so "Passed" would be a lie rather than a result.
-      if (!hasPulled && (syncStatus === 'syncing' || syncStatus === 'synced')) {
-        gatesLoading = true;
+      // A device that has never pulled holds no ledger: judge nothing. Wait quietly
+      // while a sync is running, and say plainly that the gates are unverifiable
+      // when sync cannot run, instead of reporting an empty cache as passed.
+      if (!hasPulled) {
+        gatesUnsynced = syncStatus !== 'syncing' && syncStatus !== 'synced';
+        gatesLoading = !gatesUnsynced;
+        blockingStatements = [];
         return;
       }
+      gatesUnsynced = false;
       const snapshot = await computeGates(month);
       if (token !== gatesToken || month !== selectedMonth) return;
       monthStatus = snapshot.monthStatus;
@@ -191,7 +198,7 @@
   }
 
   async function handleCloseMonth() {
-    if (gatesLoading || !gatesResult.canClose || session.user?.role !== 'owner') return;
+    if (gatesLoading || gatesUnsynced || !gatesResult.canClose || session.user?.role !== 'owner') return;
     isSubmitting = true;
     errorMessage = '';
 
@@ -327,12 +334,12 @@
       <div class="flex flex-col gap-3 text-sm">
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>1. All payables reconciled or marked not_applicable</span>
-          <span class="font-bold {gatesLoading ? 'text-[var(--c-muted,#6b7280)]' : allPayablesReconciled ? 'text-green-600' : 'text-red-600'}">
-            {gatesLoading ? 'Checking…' : allPayablesReconciled ? 'Passed' : 'Pending Reconciliation'}
+          <span class="font-bold {gatesLoading || gatesUnsynced ? 'text-[var(--c-muted,#6b7280)]' : allPayablesReconciled ? 'text-green-600' : 'text-red-600'}">
+            {gatesLoading ? 'Checking…' : gatesUnsynced ? 'Not synced' : allPayablesReconciled ? 'Passed' : 'Pending Reconciliation'}
           </span>
         </div>
 
-        {#if !gatesLoading && !allPayablesReconciled && monthStatus === 'open'}
+        {#if !gatesLoading && !gatesUnsynced && !allPayablesReconciled && monthStatus === 'open'}
           <div class="p-3 rounded-xl bg-white/40 border border-black/5 -mt-1" data-testid="blocking-statements">
             {#if blockingStatements.length === 0}
               <p class="text-xs text-[var(--c-muted,#6b7280)]">
@@ -377,15 +384,15 @@
 
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>2. Active Owner approvals for any overpaid settlements (exact surplus)</span>
-          <span class="font-bold {gatesLoading ? 'text-[var(--c-muted,#6b7280)]' : overpaymentsApproved ? 'text-green-600' : 'text-red-600'}">
-            {gatesLoading ? 'Checking…' : overpaymentsApproved ? 'Passed' : 'Pending Owner Approval'}
+          <span class="font-bold {gatesLoading || gatesUnsynced ? 'text-[var(--c-muted,#6b7280)]' : overpaymentsApproved ? 'text-green-600' : 'text-red-600'}">
+            {gatesLoading ? 'Checking…' : gatesUnsynced ? 'Not synced' : overpaymentsApproved ? 'Passed' : 'Pending Owner Approval'}
           </span>
         </div>
 
         <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
           <span>3. Zero unreviewed stale entries (>৳50,000 flagged active entries)</span>
-          <span class="font-bold {gatesLoading ? 'text-[var(--c-muted,#6b7280)]' : zeroPendingStaleReviews ? 'text-green-600' : 'text-red-600'}">
-            {gatesLoading ? 'Checking…' : zeroPendingStaleReviews ? 'Passed' : 'Pending Review'}
+          <span class="font-bold {gatesLoading || gatesUnsynced ? 'text-[var(--c-muted,#6b7280)]' : zeroPendingStaleReviews ? 'text-green-600' : 'text-red-600'}">
+            {gatesLoading ? 'Checking…' : gatesUnsynced ? 'Not synced' : zeroPendingStaleReviews ? 'Passed' : 'Pending Review'}
           </span>
         </div>
       </div>
@@ -394,9 +401,9 @@
         <div class="mt-4 p-3 rounded-xl bg-slate-500/10 text-xs text-slate-700" data-testid="gates-loading">
           Checking the local ledger cache while it syncs. Gate results appear once this month's data has been pulled.
         </div>
-      {:else if !hasPulled}
+      {:else if gatesUnsynced}
         <div class="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800" data-testid="gates-unsynced">
-          This device has not completed a full sync, so these gate results describe the cached data only. The server still verifies the month before it closes.
+          This device has not synced, so the gates cannot be checked here and month close stays disabled. Go online, let the ledger sync, then reopen this checklist. The server verifies every gate again before a month closes.
         </div>
       {/if}
 
@@ -404,7 +411,7 @@
         Notice: Client evaluation is advisory. Final closure is verified and locked atomically by PostgreSQL under Month Advisory Lock 1001.
       </div>
 
-      {#if !gatesLoading && !gatesResult.canClose && monthStatus === 'open'}
+      {#if !gatesLoading && !gatesUnsynced && !gatesResult.canClose && monthStatus === 'open'}
         <div class="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800">
           <div class="font-bold mb-1">Cannot Close Month:</div>
           <ul class="list-disc pl-4 flex flex-col gap-0.5">
@@ -421,7 +428,7 @@
             id="btn-save"
             variant="commission"
             class="min-h-[44px]"
-            disabled={gatesLoading || !gatesResult.canClose}
+            disabled={gatesLoading || gatesUnsynced || !gatesResult.canClose}
             loading={isSubmitting}
             onclick={handleCloseMonth}
           >
