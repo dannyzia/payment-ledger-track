@@ -42,7 +42,8 @@ The app does **not** collect money. Staff record payments already received.
     `tests/db` run against a throwaway `clt_test` database that `tests/db/helpers/test-db.ts` provisions
     from `supabase/migrations`; they never write to the dev database (`DECISIONS.md` CLT-D-026).
     `CLT_BOOTSTRAP_DB_TEST=1 pnpm test` opts into the bootstrap suite, which needs the real Auth API and
-    wipes the financial tables of whatever `DATABASE_URL` points at.
+    wipes the financial tables of whatever `DATABASE_URL` points at. The web workspace's database test
+    (`apps/web/tests/reports/view_parity.test.ts`) runs its seeds in a transaction that is rolled back.
   - `pnpm test:e2e`: executes Playwright end-to-end tests
   - `pnpm lint`: executes ESLint and strict TypeScript typechecking
   - `pnpm typecheck`: runs `tsc --noEmit` across all workspaces

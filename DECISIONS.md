@@ -315,3 +315,18 @@ Two consequences worth recording:
 `CLT_TEST_DATABASE_URL` overrides the target for CI, and the helper refuses any
 database whose name does not mark it as throwaway (the dev `postgres` database is
 rejected by name).
+
+## CLT-D-027 — Web DB test runs inside a rolled-back transaction (2026-11-07)
+
+`apps/web/tests/reports/view_parity.test.ts` seeds entries to compare the SQL report
+views against the client aggregator. It used to delete those entries in `afterAll`,
+which was not enough: the entries' insert fires the settlement/statement
+recalculation trigger, and `fn_entries_recalc_settlements` returns early on DELETE,
+so the recalculated `expected_poisha` values stayed in the shared database after the
+rows were gone.
+
+The suite now opens one transaction before seeding and rolls it back in `afterAll`.
+The entries and every trigger side effect disappear together, whatever the assertion
+outcome. It still connects to `DATABASE_URL` because the SQL views are defined there,
+but it no longer commits anything. The `tests/db` suites use a separate throwaway
+database instead (`CLT-D-026`) because they need to own the schema's data outright.

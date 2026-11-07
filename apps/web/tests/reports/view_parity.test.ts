@@ -46,9 +46,15 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
     pgClient = new Client({ connectionString: CONNECTION_STRING });
     await pgClient.connect();
 
-    // Clean and seed test transactions across 3 distinct months. Rows are
-    // append-only by trigger (Rule 4): test cleanup is allowed to bypass it,
-    // mirroring the established grand pattern in tests/db/* suites.
+    // Everything this suite writes happens inside one transaction that is
+    // rolled back in afterAll (CLT-R-025). The seed entries fire the settlement
+    // and statement recalculation triggers, and a rolled-back transaction undoes
+    // those too - deleting the rows afterwards did not, because the recalc
+    // trigger does not run on DELETE and left inflated expected amounts behind in
+    // the shared database.
+    await pgClient.query('BEGIN');
+
+    // Seed test transactions across 3 distinct months.
     await pgClient.query(`
       ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
       DELETE FROM entries WHERE notes LIKE 'VIEW_PARITY_SEED_%';
@@ -107,11 +113,8 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
   });
 
   afterAll(async () => {
-    await pgClient.query(`
-      ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
-      DELETE FROM entries WHERE notes LIKE 'VIEW_PARITY_SEED_%';
-      ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
-    `);
+    // Rolls back the seed entries and every trigger side effect with them.
+    await pgClient.query('ROLLBACK');
     await pgClient.end();
   });
 
