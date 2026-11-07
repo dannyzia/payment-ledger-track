@@ -404,3 +404,31 @@ Second run: `Already seeded: entry 178 carries SEED-202612-RECON`. `2026-11`: `M
 Driven in the browser at Pixel 5 width after a sync: `/months/close?month=2026-12` renders `[data-testid=blocking-statements]` with exactly "No open statement covers the outstanding payables for 2026-12. Create one in Reconciliation.", the link href is `/reconcile?month=2026-12&return=close`, and clicking it lands on that URL with "No statements recorded for 2026-12. Click \"+ New Mode A Statement\" to submit a statement total." No page errors. The seeded entry is left in place so the branch stays exercisable; `2026-12` holds no real data.
 
 Not exercised: creating the statement from that landing page (a financial write) and closing the month afterwards.
+### 8.16 Statement line accept and statement finalize (2026-07, Mode B)
+
+Both remaining statement writes were run on a real file-sourced statement, ending in a reconciled 2026-07 bKash statement.
+
+**Fixture.** The original 2026-07 statement no longer existed: the earlier `pnpm test` run had emptied the dev database (`CLT-R-025`), leaving `statements = 0`. It was rebuilt without touching any migration or seed script. Two July entries were created in the normal entry form on bKash — `E-202607-000181` (`JULTRX001`, ৳1,250.00) and `E-202607-000182` (`JULTRX002`, ৳500.50) — and a bKash Merchant CSV with those two lines plus a statement-only `MISCFEE01` fee line (৳100.00 gross, ৳1.15 fee) was uploaded through `/reconcile/upload` for 2026-07 covering `bkash_charge_payable`. Statement total 2,129 poisha, expected 2,014 poisha, variance 115 poisha — deliberately above the 100-poisha tolerance so the justification path is required.
+
+**Write 1 — `accept_statement_line`.** `MISCFEE01` was left unmatched, accepted in the workspace with the review note "Bank monthly maintenance fee shown on the July statement; no ledger entry expected." The row now carries `match_status = accepted`, `reviewed_by = e0d3a430-…` (owner), a non-empty `review_note`, and the audit row:
+
+```
+statement_line.accept | statement_lines | c578d546-… | by e0d3a430-…
+before={"match_status": "unmatched"}
+after={"match_status": "accepted", "review_note": "Bank monthly maintenance fee shown on the July statement; no ledger entry expected."}
+```
+
+**Write 2 — `reconcile_statement`.** The two ledger lines were matched to their entries through the Match modal (each produced a `statement.match_line` row, `unmatched → matched` with `matched_entry_id`, actor = owner). With the variance justification entered, the finalize button went from disabled to enabled and the statement reconciled:
+
+```
+statement.reconcile | statements | 736a23c3-… | by e0d3a430-…
+before={"status": "open"}
+after={"status": "reconciled", "note": "Variance is the statement-only maintenance fee accepted with a review note; ledger entries match the rest."}
+```
+
+Resulting state: `statements.status = reconciled`, `expected_poisha = 2014`, `variance_poisha = 115`, `reconciled_by` = owner; all three lines terminal (two matched, one accepted); `statement_payables.status = reconciled` for `bkash_charge_payable`. `/months/close?month=2026-07` reports all three gates Passed (no `blocking-statements` element) — Gate 1 clears on reconciliation, while the settlement itself stays `due` (expected 2,014, paid 0) until a payment is recorded, as designed. No page errors during either write.
+
+**Minor findings (recorded, not fixed):**
+
+1. `statement.create` audit `after` is `{kind, month, source, total}` where PRD §15.1 says `{kind, month, source, statement_total_poisha, covered_payables}`; `statement.reconcile` writes only `{status, note}` where the PRD also names `variance` and `covered_payables`; `statement_line.accept` omits `reviewed_by`. All three rows identify the record and actor correctly, so the trail is usable; the payloads are just narrower than the matrix.
+2. The entry form selects the first method by `display_order` (Cash) when it opens. Clicking another chip before the cached profile/methods finish loading is overwritten by that default, which is how the first fixture pass saved two bKash-intended entries as Cash (both voided with reasons through the drawer; method selection was then waited for and re-verified via `aria-pressed`). That is a harness hazard as much as a UI one, but a fast tap on a slow device would hit the same overwrite.
