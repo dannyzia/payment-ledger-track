@@ -20,6 +20,7 @@
     kind: string;
     month: string;
     source: string;
+    sourceKind: 'manual_total' | 'file';
     statement_total_poisha: string;
     expected_poisha: string;
     variance_poisha: string;
@@ -91,6 +92,7 @@
         kind: st.kind === 'combined_card' ? 'Combined Card' : 'Single Payable',
         month: st.month,
         source: st.source === 'manual_total' ? 'Mode A (Manual)' : 'Mode B (File)',
+        sourceKind: st.source === 'manual_total' ? 'manual_total' : 'file',
         statement_total_poisha: total.toString(),
         expected_poisha: expected.toString(),
         variance_poisha: variance.toString(),
@@ -515,13 +517,24 @@
                   {:else if st.status === 'superseded'}
                     <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-700">Superseded</span>
                   {:else}
-                    <Button
-                      variant="commission"
-                      class="text-xs py-1.5 min-h-[36px]"
-                      onclick={() => { activeStatement = st; showReconcileModal = true; }}
-                    >
-                      Reconcile
-                    </Button>
+                    {#if st.sourceKind === 'file'}
+                      <Button
+                        variant="commission"
+                        class="text-xs py-1.5 min-h-[36px]"
+                        id="btn-resume-{st.id}"
+                        onclick={() => goto(`/reconcile/upload?statement=${st.id}`)}
+                      >
+                        Resume Matching
+                      </Button>
+                    {:else}
+                      <Button
+                        variant="commission"
+                        class="text-xs py-1.5 min-h-[36px]"
+                        onclick={() => { activeStatement = st; showReconcileModal = true; }}
+                      >
+                        Reconcile
+                      </Button>
+                    {/if}
                     <Button
                       variant="default"
                       class="text-xs py-1.5 min-h-[36px]"

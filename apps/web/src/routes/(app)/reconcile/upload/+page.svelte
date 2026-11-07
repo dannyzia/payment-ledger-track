@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto, replaceState } from '$app/navigation';
+  import { page } from '$app/state';
   import { supabase } from '$lib/supabase/client';
   import { authFetch } from '$lib/api/client';
   import { formatPoishaToBdt } from '@clt/shared';
@@ -82,6 +83,10 @@
   let supersedeModalOpen = $state(false);
   let supersedeReason = $state('');
 
+  // Set when the page was opened with ?statement=<id>, so a reload or a shared
+  // link returns to the same open statement (CLT-R-022).
+  let resumedStatementId = $state<string | null>(null);
+
   // Reconcile Finalize State
   let reconcileNote = $state('');
 
@@ -148,6 +153,9 @@
       }
       await fetchPayables();
       await checkExistingStatement();
+
+      const requestedId = page.url.searchParams.get('statement');
+      if (requestedId) await resumeStatement(requestedId);
     } catch (err: unknown) {
       errorMessage = err instanceof Error ? err.message : 'Failed to initialize reconciliation upload';
     } finally {
@@ -205,6 +213,19 @@
     activeStatement = null;
     statementLines = [];
     coveredEntries = [];
+  }
+
+  /**
+   * Keeps the address bar in step with the statement being worked on, so a reload
+   * or a shared link returns to it (CLT-R-022). Uses replaceState: switching from
+   * an upload to the working area is not a navigation the user should have to undo.
+   */
+  function rememberStatement(statementId: string | null) {
+    resumedStatementId = statementId;
+    const url = new URL(page.url);
+    if (statementId) url.searchParams.set('statement', statementId);
+    else url.searchParams.delete('statement');
+    replaceState(url, {});
   }
 
   // --- Step 1: Upload & Parse Preview ---
@@ -308,6 +329,7 @@
       uploadPreview = null;
       statementFile = null;
 
+      rememberStatement(statementId);
       await loadActiveStatement(statementId);
     } catch (err: unknown) {
       errorMessage = err instanceof Error ? err.message : 'Error confirming statement creation';
@@ -351,6 +373,7 @@
       statementFile = null;
       successMessage = 'Existing statement superseded; replacement statement created.';
 
+      rememberStatement(newStatementId);
       await loadActiveStatement(newStatementId);
       await checkExistingStatement();
     } catch (err: unknown) {
@@ -392,6 +415,62 @@
     } finally {
       loading = false;
     }
+  }
+
+  /**
+   * Reopens an open Mode B statement from ?statement=<id> (CLT-R-022). Without this
+   * the page always started at step 1 and an open statement could only ever be
+   * superseded — never matched, accepted or finalized — once it was left.
+   * Mode A statements have no lines, so they are redirected to their only path:
+   * superseding the total from the overview.
+   */
+  async function resumeStatement(statementId: string) {
+    loading = true;
+    try {
+      const { data: stmt, error: sErr } = await supabase
+        .from('statements')
+        .select('id, month, status, source, statement_total_poisha')
+        .eq('id', statementId)
+        .maybeSingle();
+      if (sErr) throw sErr;
+
+      if (!stmt) {
+        errorMessage = 'That statement no longer exists. Start a new upload below.';
+        rememberStatement(null);
+        return;
+      }
+      if (stmt.source !== 'file') {
+        errorMessage = `The statement for ${stmt.month} was entered as a Mode A total, so it has no lines to match. Supersede it from the Reconciliation overview instead.`;
+        rememberStatement(null);
+        return;
+      }
+      if (stmt.status !== 'open') {
+        errorMessage = `The statement for ${stmt.month} is already ${stmt.status}; only open statements can be resumed.`;
+        rememberStatement(null);
+        return;
+      }
+
+      resumedStatementId = stmt.id;
+      selectedMonthInput = String(stmt.month).slice(0, 7);
+      await loadActiveStatement(stmt.id);
+      if (activeStatement) selectedPayableIds = [...activeStatement.payable_ids];
+      successMessage = `Resumed the open statement for ${stmt.month}.`;
+    } catch (err: unknown) {
+      errorMessage = err instanceof Error ? err.message : 'Failed to resume statement';
+    } finally {
+      loading = false;
+    }
+  }
+
+  /** Leaves the working area and drops ?statement= so a reload starts clean. */
+  async function handleSwitchStatement() {
+    activeStatement = null;
+    statementLines = [];
+    coveredEntries = [];
+    uploadPreview = null;
+    successMessage = null;
+    rememberStatement(null);
+    await checkExistingStatement();
   }
 
   async function fetchStatementLines(statementId: string) {
@@ -687,6 +766,7 @@
 
       successMessage = 'Statement reconciled successfully!';
       activeStatement = { ...activeStatement, status: 'reconciled' };
+      rememberStatement(null);
     } catch (err: unknown) {
       errorMessage = err instanceof Error ? err.message : 'Failed to reconcile statement';
     } finally {
@@ -974,7 +1054,12 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <Button variant="default" class="min-h-[44px]" onclick={() => { activeStatement = null; }}>
+          {#if resumedStatementId}
+            <span class="text-[11px] text-[var(--c-muted,#6b7280)] font-mono hidden sm:inline">
+              Resumed statement
+            </span>
+          {/if}
+          <Button variant="default" class="min-h-[44px]" onclick={handleSwitchStatement}>
             Switch Statement
           </Button>
         </div>
