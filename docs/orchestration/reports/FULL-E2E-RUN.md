@@ -149,3 +149,19 @@ The page now accepts `?statement=<id>` and the Reconciliation overview offers **
 Bad identifiers are handled without a dead end: an unknown id, a Mode A id and a non-open id each produce a plain sentence and clear the parameter.
 
 Effect on the local data: the 2026-03 statement is now `reconciled` (note "SWEEP-RESUME…"), one line of the 2026-09 statement is `accepted`, and the 2026-06 line was unmatched and re-matched to the same entry. No month was closed.
+
+### 8.1 Reaching those statements from the month-close checklist (`b78ed2b`)
+
+`/months/close` used to show only "Pending Reconciliation" with no way through. Gate 1 now lists the open statements that block the selected month: Mode B rows carry **Resume Matching** (`#btn-blocking-resume-<id>`) straight to the statement workspace, Mode A rows carry **Finalize** to `/reconcile?month=<month>`, and a month whose outstanding payables have no open statement says so with a link to create one.
+
+Observed at Pixel 5 width:
+
+| Month | Checklist row | Action |
+|---|---|---|
+| 2026-09 | `bKash Merchant Charge · Mode B`, `#btn-blocking-resume-717bd561…` | click → `/reconcile/upload?statement=717bd561…`, workspace `Lines: 2 Matched: 0 Accepted: 1 Unmatched: 1` |
+| 2026-10 | `bKash Merchant Charge · Mode B` | button present |
+| 2026-11 | three Mode A statements, `#btn-blocking-reconcile-…` | click → `/reconcile?month=2026-11`, month input `2026-11` |
+| 2026-08 (Gate 1 passed) | block absent | — |
+| `/reconcile?month=banana` | — | falls back to the current Asia/Dhaka month |
+
+`svelte-check` 0 errors / 0 warnings, `vitest` 219/219, `vite build` clean.
