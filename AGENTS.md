@@ -45,6 +45,7 @@ The app does **not** collect money. Staff record payments already received.
   - `pnpm format`: runs Prettier formatting check/fix
   - `pnpm db:bootstrap`: runs `scripts/bootstrap.ts` initialization script via `tsx`
   - `pnpm db:reset`: resets local Supabase database via Supabase CLI (`supabase db reset`)
+  - `pnpm db:seed:recon-month [YYYY-MM] [method-code]`: local-only fixture for the month-close empty state. Creates one entry through `rpc_push_sync_op` in an otherwise empty month, which makes a method-charge payable due with no statements. Refuses non-local databases and any month that already holds entries, statements, settlements or closes; repeat runs are idempotent via the `SEED-YYYMM-RECON` reference. Defaults to next month, `bkash`.
 - Environment variables the PRD names: `BOOTSTRAP_OWNER_EMAIL`, `BOOTSTRAP_OWNER_PASSWORD` (bootstrap script), `PUBLIC_API_BASE` (native build). Supabase URL and key variable names are not specified; define them in `.env.example` at M0. Never commit real values (`.env*` is gitignored except `.env.example`).
 - Intended toolchain (PRD §13): SvelteKit 2 + Svelte 5 runes, SPA mode (`ssr = false`), Tailwind CSS 4 + CSS variables, Dexie, Supabase (Postgres, Auth, RLS, private Storage), Zod, Vitest + fast-check, Playwright, `@vite-pwa/sveltekit`, Capacitor (Android first, `@capacitor/haptics`, `@capacitor/preferences`), Vercel (`adapter-vercel`; native build uses `adapter-static`), `pg_cron` for sync-op retention.
 

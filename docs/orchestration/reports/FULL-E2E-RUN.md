@@ -378,3 +378,29 @@ None of them threw an unhandled rejection — every load is wrapped in `try/catc
 Verified offline at Pixel 5 width across all nine routes: the shared message renders once each, no page error and no unhandled rejection, and none of the six "No …" sentences appears. Online, all nine still load (audit 50 rows, devices 13, methods 5, payables 4, rates 5, users 6) with no banner. `svelte-check` 0/0; `vitest run src` 145/145.
 
 Not exercised: the mutation paths on those pages offline (save settings, publish rates, revoke a device, invite a user). They share the same catch and message, but no write was attempted; a click offline should be refused by the fetch rather than silently queued, and that was not confirmed.
+### 8.15 Seed for the month-close empty-state link
+
+The branch at `/months/close` saying "No open statement covers the outstanding payables for <month>. Create one in Reconciliation." had never rendered: every month in the data set either had no settlements at all (an empty month auto-passes Gate 1) or already had a statement.
+
+`scripts/seed-recon-month.ts` (run as `pnpm db:seed:recon-month [YYYY-MM] [method-code]`) builds that state. It pushes one entry through `rpc_push_sync_op` — not a direct insert — so the usual audit row, `server_seq`, sequence and settlement triggers all run, and the entry's method charge (115 bp on ৳2,500.00 = 2,875 poisha) makes the `bkash_charge_payable` settlement `due`. The VAT settlement is `not_applicable` because manual VAT was entered as zero, and the card settlements generate as `not_applicable`; the month has no statements.
+
+Guards: refuses a non-local `DATABASE_URL` or `NODE_ENV=production`, refuses a month that already holds entries, statements, settlements or `month_closes`, refuses a method that is inactive under the covering profile, and is idempotent through the `SEED-YYYMM-RECON` transaction reference. It prints the month's settlements, the statement count and the number of unreconciled liable settlements, and fails if the statement count is not zero or no liable settlement exists.
+
+Run for `2026-12` (default would be the next month; the explicit one keeps the fixture reproducible):
+
+```
+Seeded 2026-12: entry 178 on bkash, gross 250000
+Charge 2875 poisha → bkash payable becomes due
+  settlement bkash_charge_payable: due (expected 2875 poisha)
+  settlement mastercard_charge_payable: not_applicable (expected 0 poisha)
+  settlement vat_payable: not_applicable (expected 0 poisha)
+  settlement visa_charge_payable: not_applicable (expected 0 poisha)
+  statements: 0 (needs 0)
+  unreconciled liable settlements: 1 (needs >= 1)
+```
+
+Second run: `Already seeded: entry 178 carries SEED-202612-RECON`. `2026-11`: `Month 2026-11 is not empty (entries 4, statements 0, settlements 4, closes 0); pick another month`.
+
+Driven in the browser at Pixel 5 width after a sync: `/months/close?month=2026-12` renders `[data-testid=blocking-statements]` with exactly "No open statement covers the outstanding payables for 2026-12. Create one in Reconciliation.", the link href is `/reconcile?month=2026-12&return=close`, and clicking it lands on that URL with "No statements recorded for 2026-12. Click \"+ New Mode A Statement\" to submit a statement total." No page errors. The seeded entry is left in place so the branch stays exercisable; `2026-12` holds no real data.
+
+Not exercised: creating the statement from that landing page (a financial write) and closing the month afterwards.
