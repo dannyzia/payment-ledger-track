@@ -234,3 +234,21 @@ Exercised the offline-first path now that §8.4 makes an offline reload possible
 | Test data cleanup | entry voided through the ledger UI with a reason, flushed, and confirmed `voided` from a clean-cache device |
 
 Two notes. A dev-only worker caches what the server has already served, so a route never opened online cannot load offline in dev; production precaches every chunk, so this is not a shipped limitation. And a sweep assertion on the confirmation text read the shortest matching node ("Offline #LOCAL-xxxx") instead of the full sentence; the save itself was verified from the stored record and the flush, not from that string.
+
+
+### 8.6 Offline void and its audit trail (verification only, no code change)
+
+Entry `E-202611-000163` was created online, then voided with the network cut and the device reloaded offline from the dev cache.
+
+| Check | Observed |
+|---|---|
+| Ledger offline | target entry renderable from cache while offline |
+| Void offline | status `voided` in Dexie 828 ms after confirming, reason stored word for word, `navigator.onLine` false |
+| Outbox | one op, type `void_entry`, status `pending` |
+| Offline UI | ledger shows the voided state with no network |
+| Flush after reconnect | outbox empty in 1.03 s; `server_seq` advanced to 196 |
+| Server truth | clean-cache device pulls `voided` for the same entry number |
+| Audit row | `entry.void` on `entries` / entry id, `before {"status":"active"}` → `after {"status":"voided"}`, actor = the signed-in owner, exactly one event for the entry |
+| Admin viewer | `/admin/audit` filtered to `entries` + `void` lists the event as `entries:e37d5512...` with actor and `{"status":"voided"}` |
+
+**Minor finding (not fixed, out of scope for this run):** in the ledger list a voided row is marked only by `opacity-40` and `line-through`; there is no text such as "Voided". The detail drawer does say "Voided (Synced)", and the status filter can isolate voided rows, but a list row conveys its state by styling alone, which a screen reader cannot report and which fails the WCAG 1.4.1 expectation of not relying on visual presentation only. Candidate one-line fix: add a "Voided" text chip next to the customer name when `entry.status === 'voided'`.
