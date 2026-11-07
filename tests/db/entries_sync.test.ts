@@ -26,9 +26,9 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     await pool.query(`
       -- Clean previous test entries and sync_ops. A dirty re-run leaves a
       -- PUBLISHED rate profile whose immutability triggers block re-seeding;
-      -- this suite is the only writer of the local dev DB used here, so
+      -- this suite owns the throwaway test database, so
       -- disable those two triggers for the cleanup as postgres, then re-enable.
-      -- Generic local-dev cleanup: this suite is the only writer of the dev DB;
+      -- Generic cleanup: this suite owns the throwaway test database;
       -- wipe financial rows (incl. leftovers from other suites) so seeding is
       -- deterministic. audit_log rows are intentionally kept (Rule 5).
       DELETE FROM statement_lines;
@@ -100,7 +100,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
   afterAll(async () => {
     // Teardown test artifacts in reverse FK order. Entries are append-only via
-    // trigger; cleanup is allowed to bypass it (this suite owns the local dev DB).
+    // trigger; cleanup is allowed to bypass it (this suite owns the throwaway test database).
     await pool.query(`
       ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
       -- audit_log is append-only (Rule 5): test rows are left in place.

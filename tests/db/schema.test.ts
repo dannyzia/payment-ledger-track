@@ -25,8 +25,8 @@ describe('Database Schema, Security, and Invariant Tests', () => {
 
     // Seed baseline prerequisite rows safely (compatible with Plan 004 triggers)
     await pool.query(`
-      -- Generic local-dev cleanup: wipe financial rows and users so seeding is
-      -- deterministic across suite runs (this suite is a writer of the dev DB).
+      -- Generic cleanup: wipe financial rows and users in the throwaway test DB so seeding is
+      -- deterministic across suite runs (this suite owns that database).
       -- audit_log rows are kept (Rule 5).
       DELETE FROM statement_lines;
       DELETE FROM statement_payables;
