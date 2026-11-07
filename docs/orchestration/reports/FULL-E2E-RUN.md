@@ -76,3 +76,56 @@ Test data left in the local dev database by this pass: an open bKash statement f
 ## 6. How it was run
 
 `/tmp/clt-g5/e2e-full.mjs <section>` — a Playwright driver outside the repo (not committed; it drives the running dev server and needs `G5_EMAIL`/`G5_PASSWORD` in the environment). Screenshots from the pass before the fixes are in `/tmp/clt-g5/full/shots/`, including `_reconcile_manual.png` taken before fix 1 and `ledger-search.png` after fix 2. The script is scratch tooling; the durable regression coverage is the repository suites named in §1.
+
+## 7. Second full sweep: every screen, control and flow (2026-11-07)
+
+A second pass over all 21 routes with the same instruction ("every screen, every button, every text, every form"), run against the local dev server at a Pixel 5 viewport in desktop Chromium, in thirteen batches. 111 checks were driven; 9 defects were found and fixed in the working tree.
+
+### 7.1 What was driven, and with what result
+
+| Batch | Screen / flow | Result |
+|---|---|---|
+| Inventory | all 21 routes | 21/21 `200`, no duplicate ids, no horizontal overflow, no console errors |
+| Links | 21 internal hrefs | 20 resolve, 1 broken (`/settings` → 404; **defect 1**) |
+| 1 | auth: guards, login, sign-out (desktop + mobile), callback, session reload | 11/11 |
+| 2 | `entries/new`: save gating, five methods, `requires_txn_ref` rules, live breakdown, VAT > gross guard, real save + sync, ledger presence | 12/12 |
+| 3 | `ledger`: search, miss state, clear, filter drawer, voided filter, reset, Escape, keyboard detail, void with mandatory reason | 8/8 |
+| 4 | `reports`: month switching against DB totals, CSV, Excel, `window.print`, View Entries deep link, method cards | 7/7 |
+| 5 | `settlements`: four cards, month nav, detail, record-payment modal, payment written | 6/7 — **defects 3 and 5** |
+| 6a | `reconcile/manual` (Mode A): payable list, empty/invalid amounts, out-of-tolerance note, submit, cancel | 6/6 |
+| 6d | `reconcile`: reconcile and supersede modals, note gating, execution | 6/6 |
+| 7b/8 | `reconcile/upload` (Mode B): preview, create, accept, finalize | 6/6 after **defect 7** |
+| 9 | `dashboard` (sections, 16 links, disabled actions) and `months/close` readiness | 5/6 — the failure was the check's own assumption (2026-01 and 2026-04 legitimately pass all three gates); 2026-11 is correctly blocked by "Pending Reconciliation" |
+| 10 | `admin` hub (10 destinations), `admin/settings` save + reload + restore, `admin/audit` filter/reset, `admin/methods` add/edit, `admin/payables` add | 14/14 |
+| 11 | `admin/rates`, `admin/devices`, `admin/stale-reviews`, `admin/users` (invite validation, transfer guard) | 10/11 — the failure was the check's assumption that the rate draft is a dialog; it is an inline form |
+| 11b | `admin/rates` validation: over-100%, empty commission, future effective date | 4/4 after **defect 9**; a future effective date is accepted by design (the RPC only rejects past dates) |
+| 12 | `settlements/[id]`: payment, then partial reversal, then overpayment and Owner surplus approval | 13/13 after **defects 3, 4 and 5**; the approval button is enabled by default but its submit validates the mandatory reason |
+| 13 | Mode B upload against a month already carrying a Mode A manual statement | blocked with a readable explanation and a disabled action after **defect 8** |
+
+### 7.2 Defects found and fixed
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | The sidebar Settings link pointed at `/settings`, which 404s, and was shown to every role | `Sidebar.svelte`: `/admin/settings`, moved inside the admin/owner block |
+| 2 | Payment-method buttons on the entry form exposed no selected state to assistive tech | `aria-pressed={selectedMethodId === m.id}` |
+| 3 | The payment and reversal modals are both mounted on `settlements/[id]`, so `#pay-amount`, `#pay-date`, `#pay-ref`, `#pay-file`, `#pay-note` and `#btn-submit` existed twice; labels bound to the wrong field | `RecordPaymentModal.svelte` prefixes every id with `reversal-` when `isReversal` |
+| 4 | `OverpaymentApprovalModal` reused `#btn-submit`, colliding with the payment modal | renamed `#btn-approve-overpayment` |
+| 5 | Recording a payment threw Svelte `each_key_duplicate`: the new payment was prepended to a list that the cache reload had already added it to | both `onsuccess` handlers dedupe by id |
+| 6 | Mode A reconciliation surfaced the raw server code `payable_already_covered_by_active_statement` | mapped to a sentence naming the month and the covering option |
+| 7 | The floating New Entry pill covered the bottom-right primary buttons on the Mode B supersede dialog, so real clicks landed on the pill | `draggable.ts` now avoids the primary-action rects at rest as well as during a drag, and re-settles on a debounced `MutationObserver`; both observers and timers are disposed |
+| 8 | A month holding a Mode A `manual_total` statement made Mode B a dead end: the supersede request always failed with `422 manual_total_forbids_lines` | the upload page's existing-statement check no longer filters to file statements; for a manual statement it explains why a file cannot replace it, offers no supersede action, and shows a disabled blocked button after parsing |
+| 9 | An empty commission field on `admin/rates` left Save Draft and Publish enabled (`NaN` comparisons are always false), so the form posted and failed server-side | basis points are validated as whole numbers in 0–10000 for VAT, commission and method rates; Save, Publish and the publish dialog are disabled and an inline message is shown; `NaN%` no longer renders |
+
+The server-side Zod schema already rejected the bad rate payload, and the RPC already rejected backdating and cross-mode supersede, so defects 8 and 9 were usability and feedback gaps, not money-path openings.
+
+### 7.3 Not exercised, and why
+
+- **Closing or reopening a real month.** Both are irreversible state changes on business data, so only the readiness evaluation and the disabled state were driven.
+- **Owner transfer, user deactivation, device killswitch.** Each dialog was opened and its guard checked, then cancelled; the execution itself was not run.
+- **Rates draft save and publication.** Only validation was driven; no new profile version was created.
+- **Print output.** `window.print` is called and intercepted; the printed page itself was not inspected.
+- **Device re-checks.** The Pixel 6a was not attached for this pass.
+
+### 7.4 Test data left behind
+
+An overpaid 2026-11 mastercard settlement (৳186.50 against ৳180.00, surplus ৳6.50 approved), its ৳1.00 payments and ৳0.50 reversal; Mode B statements for 2026-02, 2026-03 (line accepted, not finalized) and 2026-08 (open, ৳100.00), plus a finalized 2026-02 statement. The open statements block those months' close until superseded or finalized.
