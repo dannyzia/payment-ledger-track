@@ -346,3 +346,24 @@ Run after both fixes, Pixel 5 viewport, local Supabase, dev server `127.0.0.1:51
 Also observed, not fixed: the audit `after` key is `replacement_entry_id` while PRD §15.1 names it `superseding_id`. Cosmetic contract drift, left for a decision since the audit UI prints the raw object.
 
 Harness incident: `pnpm test` executes `tests/db/*.test.ts`, whose `beforeAll` deletes `statement_lines`, `statements`, `settlements`, `payables`, `entries`, `rate_profiles`, `payment_methods` and `devices` before seeding, and then aborts on `duplicate key value violates unique constraint "one_owner"` against a database that already has the bootstrap owner. Three suites fail and the dev database is left empty (entries 0, rate profiles 0, methods 0). `pnpm db:bootstrap` restored the baseline (5 methods, 5 method rates, 1 published profile, 4 payables) and the run above was made on that restored database; `audit_log` was never touched (181 rows kept). This is recorded as `CLT-R-025`.
+### 8.13 Offline entry on a method that requires a transaction reference
+
+Four of the five seeded methods require a reference (`bkash`, `visa`, `mastercard`, `bank_transfer`); `cash` does not. Run at Pixel 5 width against the dev server with the network cut before the form was used. The scripted sweep reported 11/13: the two misses are the findings below (no inline message for an empty field, no reference in the audit row), not failures of the save path, and were confirmed by separate probes.
+
+| Check | Observed |
+|---|---|
+| Method list and labels | Cash, bKash, Visa, Mastercard, Bank Transfer; picking bKash changes the field caption to "Transaction Reference (Mandatory)" and sets `required`; Cash shows "(Optional)" and clears it |
+| Blank reference, offline | nothing written (0 entries, 0 outbox ops); focus jumps to `#input-txn-ref`, which is `:invalid` with the browser message "Please fill out this field."; customer name and gross survive; Enter from the amount field is refused the same way |
+| Whitespace-only reference | also nothing written, and here the app's own banner appears: "Transaction reference is mandatory for this payment channel." (the handler runs, `trim()` empties it) |
+| Valid reference, offline | saved in 277 ms as `#LOCAL-8297a9`, stored and queued as `TXN-77AB` (input `txn-77ab` was upper-cased), one pending `create_entry` carrying the reference |
+| Cash with no reference, offline | saved as `#LOCAL-c752ce` with `txn_ref` null |
+| Flush | 1.22 s, `E-202611-000176` (`TXN-77AB`, gross 75000) and `E-202611-000177` (no reference, gross 12000), outbox empty |
+| Clean device | pulls `E-202611-000176` with `TXN-77AB` |
+| Cleanup | both voided through the UI; server rows `voided` |
+
+Server-side guard, exercised by bypassing the client: the queued bKash op was saved with a valid reference, then `payload.txnRef` was deleted from Dexie before reconnecting — a client that skipped its own check. The push was answered `{status: "rejected", reason: "missing_txn_ref"}`, the local op moved to `rejected` with `outboxState: error_missing_ref` and the message "Transaction reference required for this method", and no entry row was created (`missing_txn_ref` for that customer: 0 rows). The rejected op was then discarded with an audited reason; the server row is `resolution_status = discarded`.
+
+Two findings, neither changed:
+
+1. **The inline error is unreachable for a truly empty field (Minor).** Because the input carries `required` and the save button is a submit inside the form, native constraint validation blocks the submit event, so `handleLocalSave` never runs and the `saveErrorMessage` branch for this case is dead code. The user still gets feedback and nothing is written, but via the generic browser bubble rather than the channel-specific sentence, which only whitespace input reaches.
+2. **`entry.create` audit rows do not record the reference (Minor).** PRD §15.1 describes `after` as `{ gross, net, snapshot, inputs }`; the logged object carries gross, net, vat, commission, charge, `method_id`, `entry_date` and snapshot, with no `txn_ref`. The immutable entry row keeps it, so nothing is lost, but the audit event alone cannot show that a reference was supplied.
