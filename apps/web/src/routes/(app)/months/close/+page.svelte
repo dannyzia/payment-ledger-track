@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Modal from '$lib/ui/Modal.svelte';
@@ -9,7 +10,11 @@
   import { db } from '$lib/db';
   import { evaluateMonthCloseGates, currentDhakaMonth, type MonthCloseGatesResult } from '$lib/reconcile/tolerance';
 
-  let selectedMonth = $state(currentDhakaMonth());
+  // ?month=YYYY-MM lets the statement workspace return here on the month it came from.
+  const monthParam = page.url.searchParams.get('month');
+  let selectedMonth = $state(
+    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth()
+  );
   let monthStatus = $state<'open' | 'closed'>('open');
 
   // Dynamic gate conditions evaluated from Dexie
@@ -297,7 +302,7 @@
                         variant="commission"
                         class="text-xs py-1 min-h-[36px]"
                         id="btn-blocking-resume-{st.id}"
-                        onclick={() => goto(`/reconcile/upload?statement=${st.id}`)}
+                        onclick={() => goto(`/reconcile/upload?statement=${st.id}&return=close&month=${selectedMonth}`)}
                       >
                         Resume Matching
                       </Button>

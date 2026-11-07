@@ -87,6 +87,11 @@
   // link returns to the same open statement (CLT-R-022).
   let resumedStatementId = $state<string | null>(null);
 
+  // Set when the workspace was opened from the month-close checklist, so Back
+  // returns to that checklist (and its month) instead of the overview.
+  const returnTo = page.url.searchParams.get('return') === 'close' ? 'close' : 'overview';
+  const returnMonth = page.url.searchParams.get('month');
+
   // Reconcile Finalize State
   let reconcileNote = $state('');
 
@@ -462,6 +467,16 @@
     }
   }
 
+  /** Goes back to whichever screen opened this workspace. */
+  function handleBack() {
+    if (returnTo === 'close') {
+      const month = activeStatement?.month?.slice(0, 7) ?? returnMonth;
+      goto(month ? `/months/close?month=${month}` : '/months/close');
+      return;
+    }
+    goto('/reconcile');
+  }
+
   /** Leaves the working area and drops ?statement= so a reload starts clean. */
   async function handleSwitchStatement() {
     activeStatement = null;
@@ -790,8 +805,8 @@
       </p>
     </div>
     <div class="flex items-center gap-2">
-      <Button variant="default" class="min-h-[44px]" onclick={() => goto('/reconcile')}>
-        &larr; Back to Overview
+      <Button id="btn-back" variant="default" class="min-h-[44px]" onclick={handleBack}>
+        &larr; {returnTo === 'close' ? 'Back to Month Close' : 'Back to Overview'}
       </Button>
     </div>
   </div>
