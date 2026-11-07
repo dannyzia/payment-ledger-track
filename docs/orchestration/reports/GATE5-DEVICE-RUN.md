@@ -55,7 +55,7 @@ was measured from `getBoundingClientRect()` instead of eyeballed.
 | H10 | Drag snaps to nearest edge | **FAIL on touch** — see `CLT-R-013`; the same drag with a **mouse** moved the menu (`top 728 → 702.8`) and wrote `clt-floating-menu-pos`, proving the drag code itself works | `evidence/gate5/h10-touch-drag-no-move.png` |
 | H11 | Collision avoidance against Save | **PARTIAL** — on `/entries/new` the menu sits at `top 728…791.5` while `#btn-save` occupies `410…457.6`: **zero vertical overlap**, and `elementFromPoint` at Save's centre returns `BUTTON#btn-save` | `evidence/gate5/h11-before-drag.png`, `h11-after-dodge.png` |
 | H16 | Touch activation of the menu's own controls | **PASS** — a single real touch on the menu's "New Entry" link moved `/dashboard` → `/entries/new`; the first press registers (the CLT-T-050 defect is gone on hardware) | `evidence/gate5/h16-new-entry-first-tap.png` |
-| — | Fonts render as specified | **FAIL** — see `CLT-R-014` | console: `Failed to decode downloaded font … OTS parsing error`; `document.fonts` → `Geist:error`, `Noto Sans Bengali:error` |
+| — | Fonts render as specified | **FAIL** — see `CLT-R-014`; **fixed and re-checked on hardware 2026-11-07, see §9** | console: `Failed to decode downloaded font … OTS parsing error`; `document.fonts` → `Geist:error`, `Noto Sans Bengali:error` |
 | H4 | Device id survives `pm clear` | **FAIL in §8** — a fresh UUID is issued after `pm clear`; the restore path only survives a web-storage wipe (`CLT-R-017`) |
 | H5–H8 | Offline entry, kill, sync, duplicate | **Blocked in this pass** (`CLT-R-012`): no payment method could be selected, so the breakdown stayed `৳0.00` and `#btn-save` stayed disabled. All four re-run in §8 and PASS | `evidence/gate5/h05-offline-save.png` |
 | H12 | Haptics only on drag release | **Not reachable** — requires a touch drag (H10) |
@@ -119,7 +119,7 @@ pinned at its default dock. Fix direction: a real grab affordance (a ≥44 px
 handle, or non-interactive padding band ≥16 px plus `touch-action: none` on it)
 rather than relying on a 9 px strip.
 
-### CLT-R-014 — **Major** — the self-hosted fonts are 31-byte stubs
+### CLT-R-014 — **RESOLVED 2026-11-07** — the self-hosted fonts were 31-byte stubs
 
 `apps/web/static/fonts/{Geist-Regular,GeistMono-Regular,NotoSansBengali-Regular}.woff2`
 are 31 bytes each — a bare `wOF2` header with an empty glyph table, referenced by
@@ -135,6 +135,46 @@ and `[...document.fonts]` reports `Geist:error`, `Noto Sans Bengali:error`
 Geist + Geist Mono **tabular figures** + Noto Sans Bengali; every money column
 in this build is rendered in a system font, so the tabular-figure requirement
 has never been met on any platform. This is silent — no test covers it.
+
+## 9. Font re-check on hardware (2026-11-07)
+
+Re-run after `CLT-R-014` was fixed: the placeholder `woff2` files were replaced
+with the real variable fonts (Geist and Geist Mono `latin`, Noto Sans Bengali
+`bengali`, all SIL OFL, provenance in `apps/web/static/fonts/README.md`).
+
+| Item | Value |
+|---|---|
+| Device | Pixel 6a (`bluejay`), attached, `adb devices` → `device` |
+| Build | `CAPACITOR_BUILD=true PUBLIC_API_BASE=http://127.0.0.1:5199 pnpm build` → `npx cap sync android` → `./gradlew assembleDebug` (JDK 17) → `BUILD SUCCESSFUL in 42s`, 23 tasks executed |
+| APK | 4,338,449 bytes, SHA-256 `1dfebd4b70955ca75da36ebb11bf7306754c0bfce66eccf68e24b46529d36d53` |
+| Assets inside the APK | `assets/public/fonts/Geist-Regular.woff2` 29,400 B, `GeistMono-Regular.woff2` 23,128 B, `NotoSansBengali-Regular.woff2` 107,720 B — the pre-fix APK shipped 31 B for each |
+| Install / launch | `adb install -r` → `Success`; `am start -W` → `LaunchState: COLD`, `TotalTime: 995` |
+| Tunnels | `adb reverse tcp:5199` (API) and `tcp:54321` (local Supabase); both removed after the run |
+
+Observed inside the app's WebView over CDP (`adb forward` to
+`webview_devtools_remote_28550`):
+
+- `[...document.fonts]` → `Geist 100 900 loaded`, `Geist Mono 100 900 loaded`,
+  `Noto Sans Bengali 100 900 loaded`; `document.fonts.load()` resolved one face
+  per family.
+- `D Capacitor: Handling local request: https://localhost/fonts/Geist-Regular.woff2`
+  (and the other two) with every woff2 response `200`.
+- Widths at 40 px: Geist Mono `iiii` **124.8** and `MMMM` **124.8** (identical —
+  real tabular monospace); Geist `Handgloves` 280.18 vs `sans-serif` 273.82;
+  Noto Sans Bengali `৳ টাকা` 142.38 vs `serif` 126.35, so Bengali and the Taka
+  sign come from the shipped font, not a system fallback.
+- Console and `adb logcat` contain **no** `Failed to decode downloaded font` and
+  **no** `OTS parsing error`; `requestfailed` is empty for `*.woff2`.
+- Checked on `/dashboard`, `/ledger`, `/reports`, `/entries/new`, `/settlements`
+  and `/reconcile/upload` after a real sign-in (`#login-email` → `#login-password`
+  → `Sign In`), each a full page load, all three faces `loaded` and the header
+  status read `Synced`. Body font is
+  `Geist, "Noto Sans Bengali", -apple-system, …` as declared.
+
+Not covered here: the sign-in flow was driven through the debug WebView, so this
+is a font and rendering check, not a repeat of H1–H16. The Capacitor
+`Preferences.get` / `LocalNotifications.requestPermissions` lines in logcat are
+normal native-call logging, not font errors.
 
 ## 5. Not verified in this run
 
