@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { ensureTestDatabase, testDatabaseUrl } from './helpers/test-db';
 import fs from 'node:fs';
 
 const { Pool } = pg;
@@ -12,11 +13,10 @@ const fixtures = JSON.parse(
 describe('Database SQL Arithmetic Backstop Parity Tests (PRD §6.5, §7.3)', () => {
   let pool: pg.Pool;
 
-  beforeAll(() => {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-    });
-  });
+  beforeAll(async () => {
+    await ensureTestDatabase();
+    pool = new Pool({ connectionString: testDatabaseUrl() });
+  }, 180_000);
 
   afterAll(async () => {
     await pool.end();

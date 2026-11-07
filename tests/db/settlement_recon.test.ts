@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { ensureTestDatabase, testDatabaseUrl } from './helpers/test-db';
 
 const { Pool } = pg;
 
@@ -27,9 +28,8 @@ describe('Settlement, Reconciliation, and Month Close Integration Tests', () => 
   const RATE_PROFILE_V1_ID = '00000000-0000-0000-0000-000000000030';
 
   beforeAll(async () => {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-    });
+    await ensureTestDatabase();
+    pool = new Pool({ connectionString: testDatabaseUrl() });
 
     // 1. Clean existing records in reverse dependency order
     await pool.query(`
@@ -114,7 +114,7 @@ describe('Settlement, Reconciliation, and Month Close Integration Tests', () => 
       VALUES (true, 100)
       ON CONFLICT (id) DO UPDATE SET reconcile_tolerance_poisha = 100;
     `);
-  });
+  }, 180_000);
 
   afterAll(async () => {
     if (pool) {

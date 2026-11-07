@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { ensureTestDatabase, testDatabaseUrl } from './helpers/test-db';
 
 const { Pool } = pg;
 
@@ -18,9 +19,8 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
   const DEVICE_ID = 'd0000000-0000-0000-0000-000000000001';
 
   beforeAll(async () => {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-    });
+    await ensureTestDatabase();
+    pool = new Pool({ connectionString: testDatabaseUrl() });
 
     // Clean teardown and deterministic setup of test fixtures
     await pool.query(`
@@ -96,7 +96,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
         ('${DEVICE_ID}', '${STAFF_ID}', 'Test Device', 1, false, now())
       ON CONFLICT (device_id, user_id) DO UPDATE SET revoked = false;
     `);
-  });
+  }, 180_000);
 
   afterAll(async () => {
     // Teardown test artifacts in reverse FK order. Entries are append-only via

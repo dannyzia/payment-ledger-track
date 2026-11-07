@@ -287,3 +287,31 @@ Deviations from Plan 021 blocks:
 10. **`pnpm test:gates --milestone production` (precondition 3) is expected to fail** until Gate 5 (physical Android device run) closes; `deploy-check.ts` therefore fails closed by design — the unit suite proves the ZIA-APPROVED and Q1–Q4 gates individually, and the end-to-end failure path is the desired behaviour, not a defect.
 11. **Health endpoint governance:** AGENTS.md §10 notes the PRD defines no health/version endpoint and adding one needs a Decision Request. This plan (021 §4) specifies the endpoint, so it is implemented and recorded here for the orchestrator's audit trail rather than invented ad hoc.
 12. **Lint:** 31 warnings, all `no-console`, from the CLI/test scripts (stdout is their interface); 0 errors. No ESLint suppressions added.
+
+## CLT-D-026 — Database suites run against a throwaway database (2026-11-07, CLT-R-025)
+
+Where the PRD is silent, the simplest safe option was chosen: the DB suites in
+`tests/db` no longer connect to the shared development database. `tests/db/helpers/test-db.ts`
+creates a database named `clt_test` on the same local server, applies the Supabase
+prelude the migrations assume (roles `anon`/`authenticated`/`service_role`/`supabase_auth_admin`,
+an `extensions` schema holding pgcrypto, and a minimal `auth` schema with `users`,
+`auth.uid()` and `auth.jwt()`), then applies every file in `supabase/migrations` in
+order and records their SHA-256 in `public.clt_test_schema`. A later run reuses the
+database while that hash matches and rebuilds it when the migrations change.
+
+Two consequences worth recording:
+
+1. **pg_cron scheduling is skipped in the test database.** `cron.schedule` may only
+   run in the database named by `cron.database_name` (the `postgres` database in
+   Supabase local), so provisioning drops that single block from
+   `20261029000005_functions_entries_rates_sync.sql`. Every other statement runs
+   verbatim; the helper fails loudly if the block's shape changes. The retention
+   job does not affect any assertion.
+2. **`tests/db/bootstrap.test.ts` is opt-in** (`CLT_BOOTSTRAP_DB_TEST=1`). It drives
+   the real Auth Admin API, so it cannot be pointed at a separate database without a
+   second Supabase stack; its destructive wipe would otherwise still hit the dev
+   database on every `pnpm test`. Running it deliberately is the only way it executes.
+
+`CLT_TEST_DATABASE_URL` overrides the target for CI, and the helper refuses any
+database whose name does not mark it as throwaway (the dev `postgres` database is
+rejected by name).

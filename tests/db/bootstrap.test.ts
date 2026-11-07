@@ -39,7 +39,14 @@ async function wipeSeededData(pool: pg.Pool): Promise<void> {
   `);
 }
 
-describe('Bootstrap Runbook and Seeding Verification (PRD §7.4, §17 M0)', () => {
+// This suite drives the real Supabase Auth Admin API, so it can only run
+// against the shared stack's database - it cannot use the throwaway clt_test
+// database. It stays opt-in so a plain `pnpm test` never wipes local data
+// (CLT-R-025). Run it deliberately with CLT_BOOTSTRAP_DB_TEST=1 when the dev
+// database holds nothing worth keeping.
+const BOOTSTRAP_DB_TEST = process.env.CLT_BOOTSTRAP_DB_TEST === '1';
+
+describe.skipIf(!BOOTSTRAP_DB_TEST)('Bootstrap Runbook and Seeding Verification (PRD §7.4, §17 M0)', () => {
   let pool: pg.Pool;
 
   beforeAll(async () => {

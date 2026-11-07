@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
+import { ensureTestDatabase, testDatabaseUrl } from './helpers/test-db';
 
 const { Pool } = pg;
 
@@ -19,9 +20,8 @@ describe('Database Schema, Security, and Invariant Tests', () => {
   const REJECTED_SYNC_OP_ID = '99999999-9999-9999-9999-999999999991';
 
   beforeAll(async () => {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-    });
+    await ensureTestDatabase();
+    pool = new Pool({ connectionString: testDatabaseUrl() });
 
     // Seed baseline prerequisite rows safely (compatible with Plan 004 triggers)
     await pool.query(`
@@ -144,7 +144,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       VALUES ('${REJECTED_SYNC_OP_ID}', '${OWNER_ID}', 'd1111111-1111-1111-1111-111111111111', 'create_entry', '{}'::jsonb, 'hash', now(), 'rejected', 'pending')
       ON CONFLICT (op_id) DO NOTHING;
     `);
-  });
+  }, 180_000);
 
   afterAll(async () => {
     // Teardown all test seed records in reverse FK order to prevent database pollution.
