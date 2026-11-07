@@ -518,3 +518,29 @@ stay ordinary errors); `svelte-check --threshold error` 655 files, 0 errors;
 Still owed: the same check on the packaged APK with the phone attached, plus
 H6's offline relaunch re-read, before this item can be struck from the Gate 5
 sign-off list.
+
+
+## 10. Font re-check on a freshly rebuilt APK (2026-11-07, later run)
+
+Rebuilt from the current tree rather than reusing the APK from §9.
+
+| Item | Value |
+|---|---|
+| Device | Pixel 6a (`24261JEGR10296`), attached, `adb devices` → `device` |
+| Build | `CAPACITOR_BUILD=true PUBLIC_API_BASE=http://127.0.0.1:5199 pnpm --filter @clt/web build` (static, `adapter-static`, "Wrote site to build") → `npx cap sync android` → `ANDROID_HOME=$HOME/android-sdk ./gradlew assembleDebug` → `BUILD SUCCESSFUL in 46s`, 160 tasks (41 executed) |
+| APK | 4,338,449 bytes, SHA-256 `44c1b68e445b97e9b8b0e34825d84303bcf950e45d1378006faf57f3a0282ec4` |
+| Fonts in the APK | `unzip -l` → `assets/public/fonts/Geist-Regular.woff2` 29,400 B, `GeistMono-Regular.woff2` 23,128 B, `NotoSansBengali-Regular.woff2` 107,720 B |
+| Install / launch | `adb install -r` → `Success`; `am start -W` → `LaunchState: COLD`, `TotalTime: 899` |
+| Tunnels | `adb reverse tcp:5199` and `tcp:54321` for the run; `adb forward tcp:9222` to the WebView debug socket; all removed afterwards |
+
+Observed in the app's own WebView over CDP:
+
+- `[...document.fonts]` → `Geist 100 900 loaded`, `Geist Mono 100 900 loaded`, `Noto Sans Bengali 100 900 loaded`; `document.fonts.load()` resolved one face per family.
+- Six routes after a real sign-in (`#login-email` → `#login-password` → submit), each a full page load: `/dashboard`, `/ledger`, `/reports`, `/entries/new`, `/settlements`, `/reconcile/upload` all reported Geist and Noto Sans Bengali `loaded`. Geist Mono reads `unloaded` on `/settlements` until something mono is styled — correct lazy behaviour: it flipped to `loaded` when asked, and its woff2 had already returned `200`.
+- Widths at 40 px: Geist Mono `iiii` **124.8** = `MMMM` **124.8**. Canvas advances at 32 px are identical for `0`, `1`, `m` and `i` (19.20 each), and at 16 px `1111` = `9999` (38.40), `৳1,234.56` = `৳9,876.54` (86.98), `E-202611-000001` = `E-202611-000199` (144.00) — real tabular figures.
+- Noto Sans Bengali `৳ টাকা` at 110 px measures **391.53** against **347.45** for `serif`, so the Taka sign and Bengali text come from the shipped face.
+- Body font resolves to `Geist, "Noto Sans Bengali", -apple-system, …`.
+- Every woff2 response `200`; Capacitor served them from the APK (`D Capacitor: Handling local request: https://localhost/fonts/…` 29 times, 10 Geist / 9 Geist Mono / 10 Noto).
+- `adb logcat` contains **0** `OTS parsing` or `Failed to decode downloaded font` lines; the WebView console has no font errors and no failed `woff2` requests.
+
+Done with the tunnels removed and the app force-stopped. As before this is a font and rendering check, not a repeat of H1–H16.
