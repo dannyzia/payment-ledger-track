@@ -216,3 +216,21 @@ A device that has never pulled now reads **Not synced** on all three gates, show
 | Production build | `vite build` clean; no `dev-offline-sw` string in the output, so the dev worker never ships |
 
 `svelte-check` 0 errors / 0 warnings, `tsc --noEmit` 0, `vitest` 219/219.
+
+
+### 8.5 Offline entry save and flush (verification only, no code change)
+
+Exercised the offline-first path now that §8.4 makes an offline reload possible: Pixel 5 viewport, route warmed online, network cut, entry saved, network restored.
+
+| Check | Observed |
+|---|---|
+| Offline route render | `/entries/new` reloaded from the dev cache with the "Offline" indicator |
+| Save latency offline | 99 ms, accepted with no network (Hard Rule 6) |
+| Local record | `#LOCAL-a2f33a`, `gross_poisha` `123456`, status `active` |
+| Outbox | one pending operation |
+| Flush after reconnect | entry number `E-202611-000162`, `server_seq` `193`, outbox drained in 1.04 s |
+| Fresh device pull | same entry number and components returned from the server |
+| Poisha conservation | `vat 0 + commission 51852 + businessCharge 0 + net 71604 === gross 123456` (profile commission 42%, manual VAT, no method charge on this method) |
+| Test data cleanup | entry voided through the ledger UI with a reason, flushed, and confirmed `voided` from a clean-cache device |
+
+Two notes. A dev-only worker caches what the server has already served, so a route never opened online cannot load offline in dev; production precaches every chunk, so this is not a shipped limitation. And a sweep assertion on the confirmation text read the shortest matching node ("Offline #LOCAL-xxxx") instead of the full sentence; the save itself was verified from the stored record and the flush, not from that string.
