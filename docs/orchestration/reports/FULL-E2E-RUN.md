@@ -282,3 +282,14 @@ The dev-only worker from §8.4 was exercised over every page route, not just one
 | Uncached route | a route never opened online still cannot load offline in dev, because the worker caches what the server has already served (production precaches every chunk) |
 
 **Fixed during this run:** `/admin/audit` was the one route that failed offline, throwing an unhandled `Failed to fetch` because `loadAuditLog` used `try/finally` with no `catch`; the page rendered its header and then nothing. It now catches, clears the table and shows a red banner ("The audit log is server-side only and needs a connection…"), matching the error banner pattern already used on `/admin/devices`. Verified: online loads 50 rows with no banner; offline reload shows the banner and logs no unhandled error; reconnecting clears the banner and reloads 50 rows. `svelte-check` 0 errors / 0 warnings; route sweep 18/18 after the fix.
+
+
+### 8.9 Statement workspace returns to the month-close checklist
+
+The checklist's own "Resume Matching" button already passed `return=close&month=…`, but the reconciliation overview dropped it: `#btn-resume-<id>` and the Mode B upload button built `/reconcile/upload?statement=…` with no origin, so a workspace entered through the overview said "Back to Overview" and returned to `/reconcile`.
+
+Now `months/close` hands off with `return=close` on both of its reconciliation links ("Create one in Reconciliation" and "Finalize"), the overview carries that origin via one `workspaceHref()` helper, and the workspace's existing unmatched behaviour is unchanged.
+
+Verified in the browser: checklist → overview → Resume Matching opens `/reconcile/upload?statement=…&return=close&month=2026-09` labelled "Back to Month Close", and Back lands on `/months/close?month=2026-09`; the overview's Upload button likewise carries the origin and its Back returns to the checklist; a workspace reload keeps the origin; and an overview opened *without* `return=close` still routes Back to `/reconcile` with no origin injected. `svelte-check` 0 errors / 0 warnings.
+
+Not exercised: the "Create one in Reconciliation" empty-state link. No month in the current data set reaches that branch (every month either has an open statement or passes gate 1), so that edit is verified only by reading the rendered source, not by a click.

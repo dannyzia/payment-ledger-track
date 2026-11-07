@@ -45,6 +45,21 @@
   let selectedMonth = $state(
     monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth()
   );
+
+  // ?return=close means this overview was opened from the month-close checklist,
+  // so anything it opens must carry that origin through to the workspace's Back
+  // button. Without it the workspace would return to this overview instead.
+  const returnToClose = page.url.searchParams.get('return') === 'close';
+  function workspaceHref(statementId?: string): string {
+    const q = new URLSearchParams();
+    if (statementId) q.set('statement', statementId);
+    if (returnToClose) {
+      q.set('return', 'close');
+      q.set('month', selectedMonth);
+    }
+    const qs = q.toString();
+    return `/reconcile/upload${qs ? `?${qs}` : ''}`;
+  }
   let statements = $state<StatementRow[]>([]);
   let closedMonthRejectedOps = $state<RecoveryItem[]>([]);
   let activeRecoveryItem = $state<RecoveryItem | null>(null);
@@ -449,7 +464,7 @@
           variant="default"
           class="min-h-[44px]"
           id="btn-mode-b-upload"
-          onclick={() => goto('/reconcile/upload')}
+          onclick={() => goto(workspaceHref())}
         >
           + Upload Statement File (Mode B)
         </Button>
@@ -528,7 +543,7 @@
                         variant="commission"
                         class="text-xs py-1.5 min-h-[36px]"
                         id="btn-resume-{st.id}"
-                        onclick={() => goto(`/reconcile/upload?statement=${st.id}`)}
+                        onclick={() => goto(workspaceHref(st.id))}
                       >
                         Resume Matching
                       </Button>

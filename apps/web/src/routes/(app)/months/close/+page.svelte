@@ -344,7 +344,7 @@
             {#if blockingStatements.length === 0}
               <p class="text-xs text-[var(--c-muted,#6b7280)]">
                 No open statement covers the outstanding payables for {selectedMonth}.
-                <a href="/reconcile" class="font-semibold text-[var(--brand,#3b82f6)] underline">Create one in Reconciliation</a>.
+                <a href={`/reconcile?month=${selectedMonth}&return=close`} class="font-semibold text-[var(--brand,#3b82f6)] underline">Create one in Reconciliation</a>.
               </p>
             {:else}
               <p class="text-xs font-semibold text-[var(--c-ink,#111827)] mb-2">
@@ -370,7 +370,7 @@
                         variant="default"
                         class="text-xs py-1 min-h-[36px]"
                         id="btn-blocking-reconcile-{st.id}"
-                        onclick={() => goto(`/reconcile?month=${selectedMonth}`)}
+                        onclick={() => goto(`/reconcile?month=${selectedMonth}&return=close`)}
                       >
                         Finalize
                       </Button>
