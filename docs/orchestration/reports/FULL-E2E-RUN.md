@@ -262,3 +262,8 @@ Verified in the browser: voided row `E-202611-000163` reads "… 1794058031238 *
 
 
 **Re-run at HEAD `44e2337` (2026-11-07), after the Voided chip landed:** entry `E-202611-000164` created online (`server_seq` 197), voided offline in 731 ms with the reason stored verbatim and `void_entry` queued, ledger row showing "Voided" **and** "Pending Sync" side by side while still offline; after reconnect the outbox drained in 1.03 s (`server_seq` 198), one audit row `entry.void` recorded `active → voided` with the owner as actor, and a clean-cache device pulled `voided`. 10/10 checks passed.
+
+
+**Re-run at HEAD `44e2337` (2026-11-07):** entry `E-202611-000165` saved with the network cut in **77 ms**, confirmation read "Saved offline as #LOCAL-ea9c38 — pending background sync.", local record `sync_status: pending` with `create_entry` queued, and the offline components already conserving the gross (`0 + 98 518 + 0 + 136 049 = 234 567`). After reconnect the op flushed in **1.04 s** to `E-202611-000165` / `server_seq` 199 with the same gross and net, and the `entry.create` audit row carries the rate snapshot (version 1, commission 4200 bp, manual VAT). 12/12 checks passed.
+
+One test-harness caveat worth repeating in future runs: `executeEntryVoid` writes the entry row and then the outbox row, so a sampler that polls between the two sees `voided` with an empty outbox and can end the run before the push. That is what happened on the first cleanup attempt here — the entry stayed active server-side until a second pass that waited for `sync_status !== 'pending'` as well. The application behaviour is correct; the wait condition in a sweep must include the sync status, not only the item count.
