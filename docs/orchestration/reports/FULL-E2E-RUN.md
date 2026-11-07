@@ -259,3 +259,6 @@ Entry `E-202611-000163` was created online, then voided with the network cut and
 `LedgerRow.svelte` now renders a `Voided` chip next to the customer name when `entry.status === 'voided'`, matching the existing `Pending Sync` / `Stale Rate` badge style. The row keeps its `opacity-40` and `line-through` treatment; the chip itself is undecorated (`text-decoration-line: none`), so it stays readable.
 
 Verified in the browser: voided row `E-202611-000163` reads "… 1794058031238 **Voided** Units: 1 …" and the word is part of the row's accessible name; an active row (`E-202611-000125`) carries no label, no strikethrough and full opacity. `svelte-check` 0 errors / 0 warnings; `vitest src/lib/ledger` 9/9.
+
+
+**Re-run at HEAD `44e2337` (2026-11-07), after the Voided chip landed:** entry `E-202611-000164` created online (`server_seq` 197), voided offline in 731 ms with the reason stored verbatim and `void_entry` queued, ledger row showing "Voided" **and** "Pending Sync" side by side while still offline; after reconnect the outbox drained in 1.03 s (`server_seq` 198), one audit row `entry.void` recorded `active → voided` with the owner as actor, and a clean-cache device pulled `voided`. 10/10 checks passed.
