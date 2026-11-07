@@ -178,6 +178,21 @@ The checklist link now carries `return=close` and the month, so the workspace's 
 | Resume from the overview (2026-10) | `#btn-back` text `← Back to Overview`, returns to `/reconcile` |
 | Direct `/reconcile/upload` | `← Back to Overview` |
 
-The checklist reads the local cache, so a deep link into it on a fresh browser profile shows Gate 1 as passed until the first sync pull lands; the close button is server-verified either way.
+The checklist reads the local cache; a fresh device used to show Gate 1 as passed before its first pull. That is fixed in §8.3.
+
+`svelte-check` 0 errors / 0 warnings, `vitest` 219/219.
+
+
+### 8.3 Gate loading state on a device that has never synced (`a652a8d`)
+
+`/months/close` judged the gates against Dexie, which is empty until the first pull completes, so a fresh device reported Gate 1 as **Passed** on a month with open statements and enabled the Close button. Local `server_cursor` in Dexie meta is now the readiness signal: without it the three gates read **Checking…**, a "Checking the local ledger cache…" banner (`#gates-loading`) explains why, and Close stays disabled. The checklist re-evaluates whenever a sync cycle settles, and an evaluation publishes only if its month is still the one on screen.
+
+| Check | Observed |
+|---|---|
+| Cold device (IndexedDB and cursor wiped), pull delayed 2.5 s | 11 consecutive samples, ~2.56 s, all showing `Checking…` and a disabled Close |
+| Same run, after the pull | Gate 1 `Pending Reconciliation`, blocking statement `bKash Merchant Charge · Mode B` listed |
+| Any sample before the pull | no `Passed` verdict |
+| Warm synced device, 2026-08 | Gate 1 `Passed`, Close enabled, no `#gates-unsynced` caveat |
+| Offline / error fallback | renders the cached verdict with a `#gates-unsynced` caveat instead of spinning — **not driven live**; a reload in dev is offline-unavailable (no service worker), so this branch is covered by inspection only |
 
 `svelte-check` 0 errors / 0 warnings, `vitest` 219/219.
