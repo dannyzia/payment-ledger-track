@@ -46,6 +46,27 @@ Still open before this can be answered: the roster table in `ORCHESTRATOR.md`
 §5 is `<fill>` for every role. `LEDGER.md`, `RISKS.md` and this file now exist,
 so the "ledger created" criterion is met.
 
+### CLT-D-029 — Display name is "Kumon Ledger Track"
+
+```
+Status: DECIDED
+Date: 2026-11-08
+Decided by: Zia (chat, asked because the code and the supplied artwork disagreed)
+Options: "Kumon Ledger Track" (matches the KUMON wordmark artwork);
+         "Cosmo Ledger Track" (current code and PRD naming);
+         "Kumon" (wordmark only)
+Outcome: "Kumon Ledger Track"
+Scope: display strings only — Capacitor appName, PWA manifest name and
+       short_name, HTML title, i18n brand strings, login and landing headings,
+       the reports footer fallback and the install banner. The Android package
+       id (com.cosmo.ledgertrack), the IndexedDB name (CosmoLedgerTrackDB), the
+       repo/package name and the CLT project key are unchanged.
+Why the package id stays: it is the store identity and the app's data
+       namespace; renaming it would ship a different app and orphan local data.
+Why the Dexie name stays: renaming the IndexedDB database would abandon every
+       existing device's offline outbox.
+```
+
 ### CLT-D-028 — Replace the remote's unrelated history (`origin/main`)
 
 ```
@@ -113,5 +134,6 @@ when answered.
 
 | Rev | Date | Change |
 |---|---|---|
+| 3 | 2026-11-08 | `CLT-D-029` recorded: the app's display name is **Kumon Ledger Track**, matching the KUMON artwork. Applied to Capacitor, the PWA manifest (`short_name` "Kumon Ledger"), titles, brand strings and the Android `app_name`; package id and Dexie database name deliberately untouched. |
 | 1 | 2026-11-06 | File created. `CLT-D-026` (G0) opened as PENDING; decisions recorded in AGENTS.md and root `DECISIONS.md` indexed in §3; three decision requests listed in §4. No approval is fabricated: nothing here is marked accepted. |
 | 2 | 2026-11-08 | `CLT-D-028` recorded: on Zia's chat decision, the unrelated `origin/main` history (six commits, root `a4cc8ae`) was replaced by this clone's `main` (`83b3764`) with `--force-with-lease`, after pinning the discarded tip as `backup/origin-main-20261108`. The ID space note is unchanged: the record states what was done and why, it does not create a task. |
