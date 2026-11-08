@@ -26,6 +26,7 @@
  * offset must fail loudly rather than write to the dev database.
  */
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
@@ -171,9 +172,21 @@ async function main(): Promise<void> {
   };
   run('pnpm', ['exec', 'tsx', 'scripts/bootstrap.ts'], stackEnv);
 
+  // A staff account the role-navigation specs can sign in as. The password is
+  // generated per run and only ever travels through the child environment.
+  const staffEmail = process.env.E2E_STAFF_EMAIL || 'staff.e2e@cosmoledger.local';
+  const staffPassword = process.env.E2E_STAFF_PASSWORD || randomUUID();
+  console.log('→ creating the staff fixture account in the isolated stack');
+  const staffEnv: NodeJS.ProcessEnv = {
+    ...stackEnv,
+    E2E_STAFF_EMAIL: staffEmail,
+    E2E_STAFF_PASSWORD: staffPassword,
+  };
+  run('pnpm', ['exec', 'tsx', 'scripts/e2e/create-staff.ts'], staffEnv);
+
   console.log(`→ running Playwright against ${status.API_URL} (app on :${APP_PORT})`);
   const playwrightEnv: NodeJS.ProcessEnv = {
-    ...stackEnv,
+    ...staffEnv,
     PUBLIC_API_BASE: '',
     CLT_E2E_ISOLATED: '1',
     PLAYWRIGHT_TEST_BASE_URL: `http://localhost:${APP_PORT}`,
