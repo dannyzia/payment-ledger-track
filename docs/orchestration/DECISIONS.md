@@ -46,6 +46,41 @@ Still open before this can be answered: the roster table in `ORCHESTRATOR.md`
 §5 is `<fill>` for every role. `LEDGER.md`, `RISKS.md` and this file now exist,
 so the "ledger created" criterion is met.
 
+### CLT-D-028 — Replace the remote's unrelated history (`origin/main`)
+
+```
+Status: DECIDED
+Date: 2026-11-08
+Decided by: Zia (chat, offered with three options; he chose the force-push)
+Options: force-push local main over origin/main; push to a new branch and leave
+         origin/main alone; merge the two unrelated histories
+Outcome: force-push local main over origin/main
+Scope: git history on origin/main only — no file content, no deployment,
+       no other ref
+```
+
+`origin/main` held six commits with root `a4cc8ae` (PRD v1.7–v1.12 docs);
+this clone held 86 with root `d0a5793` (the monorepo scaffold) and PRD v1.19.
+`git merge-base` found no common ancestor, so `git push` was rejected as
+non-fast-forward.
+
+Executed as approved: the discarded tip was pinned locally as
+`backup/origin-main-20261108` (`acd18d9`), then
+`git push --force-with-lease origin main` moved the remote from `acd18d9` to
+`83b3764`. Verified afterwards: `git ls-remote origin refs/heads/main` and
+local `HEAD` both read `83b376471c119a77f755f991ef3a725916c5c1cf`.
+
+Consequences to keep in mind:
+
+- The six old docs commits are no longer on `origin/main`; they survive in the
+  local `backup/origin-main-20261108` ref only. Delete that ref only when the
+  change is no longer wanted as a rollback point.
+- Any other clone made from the old remote must be re-cloned or reset; a pull
+  from it would recreate the unrelated history.
+- This also means the two fixes below went straight to `main`, against the
+  AGENTS.md §6 branch rule (`task/CLT-T-nnn`). The owner's instruction in chat
+  overrides it for this pair of commits; future tasks return to task branches.
+
 ## 3. Recorded elsewhere — index only
 
 These decisions are binding but were not written here; the authoritative
@@ -79,3 +114,4 @@ when answered.
 | Rev | Date | Change |
 |---|---|---|
 | 1 | 2026-11-06 | File created. `CLT-D-026` (G0) opened as PENDING; decisions recorded in AGENTS.md and root `DECISIONS.md` indexed in §3; three decision requests listed in §4. No approval is fabricated: nothing here is marked accepted. |
+| 2 | 2026-11-08 | `CLT-D-028` recorded: on Zia's chat decision, the unrelated `origin/main` history (six commits, root `a4cc8ae`) was replaced by this clone's `main` (`83b3764`) with `--force-with-lease`, after pinning the discarded tip as `backup/origin-main-20261108`. The ID space note is unchanged: the record states what was done and why, it does not create a task. |
