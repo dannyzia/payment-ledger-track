@@ -17,8 +17,8 @@ Status words are the AGENTS.md §6 set: `QUEUED`, `IN_PROGRESS`, `IN_REVIEW`,
 | CLT-T-053 | UNSET (chat-authorised) | Floating menu: touch drag (`CLT-R-013`) and the rotation clamp (`CLT-R-018`) | UNSET (roster empty) | none | `apps/web/src/lib/ui/FloatingMenu.svelte`, `apps/web/src/lib/ui/actions/draggable.ts` | IN_REVIEW | `reports/GATE5-DEVICE-RUN.md` §11–13 | 2026-11-06 |
 | CLT-T-054 | UNSET (chat-authorised) | Signed-out shell (`CLT-R-015`): app-group session gate, guard, sync `no_session` path | UNSET (roster empty) | none | `apps/web/src/routes/(app)/+layout.ts`, `apps/web/src/lib/auth/**`, `apps/web/src/lib/sync/{push,runner.svelte}.*`, `apps/web/src/lib/ui/SyncIndicator.svelte` | IN_REVIEW | `reports/GATE5-DEVICE-RUN.md` §15–18 | 2026-11-06 |
 | CLT-T-055 | UNSET (chat-authorised) | Offline label (`CLT-R-016`): classify push transport failures as `network_offline` | UNSET (roster empty) | none | `apps/web/src/lib/sync/push.ts`, `apps/web/src/lib/sync/push.test.ts`, `apps/web/src/lib/sync/runner.test.ts` | IN_REVIEW | `reports/GATE5-DEVICE-RUN.md` §19–21; APK re-check pending | 2026-11-07 |
-| CLT-T-059 | UNSET (chat-authorised) | Entry form: name the payment channel in the missing-transaction-reference message | UNSET (roster empty) | none (LEDGER row 30 finding) | `apps/web/src/routes/(app)/entries/new/+page.svelte` | DONE | commit `309bba9`; audit pass 2026-11-08 (row 41): 6/6 live checks, no entry written; web unit 222/222; svelte-check 0/0 | 2026-11-08 |
-| CLT-T-060 | UNSET (chat-authorised) | Settlement payment modal: translate server error codes into sentences | UNSET (roster empty) | none | `apps/web/src/lib/settlements/payment-errors.ts`, `apps/web/src/lib/settlements/settlements.test.ts`, `apps/web/src/lib/ui/RecordPaymentModal.svelte` | DONE | commit `83b3764`; audit pass 2026-11-08 (row 41): 7/7 live checks, all 11 RPC codes mapped; unit 222/222; svelte-check 0/0 | 2026-11-08 |
+| CLT-T-059 | UNSET (chat-authorised) | Entry form: name the payment channel in the missing-transaction-reference message | UNSET (roster empty) | none (LEDGER row 30 finding) | `apps/web/src/routes/(app)/entries/new/+page.svelte` | IN_REVIEW | commit `309bba9`; same-agent pass 2026-11-08 (row 41): 6/6 live checks, no entry written; web unit 222/222; svelte-check 0/0. Not yet reproduced by a separate agent (row 44) | 2026-11-08 |
+| CLT-T-060 | UNSET (chat-authorised) | Settlement payment modal: translate server error codes into sentences | UNSET (roster empty) | none | `apps/web/src/lib/settlements/payment-errors.ts`, `apps/web/src/lib/settlements/settlements.test.ts`, `apps/web/src/lib/ui/RecordPaymentModal.svelte` | IN_REVIEW | commit `83b3764`; same-agent pass 2026-11-08 (row 41): 7/7 live checks, all 11 RPC codes mapped; unit 222/222; svelte-check 0/0. Not yet reproduced by a separate agent (row 44) | 2026-11-08 |
 | CLT-T-061 | UNSET (chat-authorised) | E2E suite must not write to the shared development database by accident | UNSET (roster empty) | `CLT-T-060` | `apps/web/tests/e2e/global-setup.ts`, `apps/web/playwright.config.ts`, `apps/web/tests/e2e/offline_sync.spec.ts`, `AGENTS.md` | DONE | refusal verified both ways through Playwright (exit 1 with the message when `DATABASE_URL` names `postgres`; proceeds with `CLT_E2E_ALLOW_SHARED_DB=1`); prettier and eslint clean (4 pre-existing `no-console` warnings); entries unchanged at 15 / max 218 | 2026-11-08 |
 
 `CLT-T-059` and `CLT-T-060` were allocated at Zia's direction on 2026-11-08
@@ -28,12 +28,14 @@ with the `r<n>` suffix rather than reused.
 `CLT-T-061` followed the same route on the same day, after a Playwright run was found to have
 written entries `217`/`218`; it has no brief either.
 
-Both moved to `DONE` on 2026-11-08 on the strength of a second, differently
-constructed pass (row 41). One caveat is recorded there rather than hidden: that
-pass was executed by the same agent that wrote the code, because this runtime
-offers no separate audit agent. The AGENTS.md §10 third pillar is therefore met
-in execution but not in independence. If Zia wants that distinction enforced,
-the statuses go back to `IN_REVIEW` until a different agent reproduces them.
+Both are `IN_REVIEW`, not `DONE`. They were moved to `DONE` on 2026-11-08 on the
+strength of a second, differently constructed pass (row 41), but that pass was
+executed by the same agent that wrote the code, because this runtime offers no
+separate audit agent. AGENTS.md §10 requires the auditor of a piece of work to be
+a different agent, so the third pillar is met in execution and not in
+independence. Zia directed on 2026-11-08 that the statuses go back to `IN_REVIEW`
+until a genuinely separate agent reproduces the pass (row 44). Nothing about the
+code or the evidence changed; only the claim resting on it.
 
 Neither task had a brief written by the orchestrator before work started;
 CLT-T-050's brief exists (`docs/orchestration/briefs/CLT-T-050.md`) but is
@@ -96,6 +98,7 @@ verification.
 
 | Rev | Date | Change |
 |---|---|---|
+| 44 | 2026-11-08 | `CLT-T-059` and `CLT-T-060` returned to `IN_REVIEW` at Zia's direction. The row 41 pass reproduced both behaviours, but it ran in the same agent that wrote the code, and AGENTS.md §10 requires a different agent as auditor; the statuses now wait on that reproduction. The commits, test counts and live results are unchanged — what changed is how much the ledger claims from them. Row 41 stays as the record of the pass, with its caveat intact. |
 | 43 | 2026-11-08 | Traced the two stray entries to `apps/web/tests/e2e/offline_sync.spec.ts`: the config reuses the server on port 5199 (`reuseExistingServer: !CI`), so `pnpm test:e2e` signs in as the owner and saves through the API into the dev database; the ledger assertion failed on a seeded 2026-12 row sorting first and `retries: 1` repeated the save, hence `217` and `218` from two fresh device ids (`apps/web/test-results/` holds both attempts). `CLT-T-061` adds `tests/e2e/global-setup.ts`, which refuses to run unless the database name marks it throwaway or `CLT_E2E_ALLOW_SHARED_DB=1` is set, and the assertion now finds the run's own row; `CLT-R-029` records that the opt-in still writes and true isolation is unmet. Verified: refusal exit 1 and the opted-in path through the real Playwright CLI, eslint 0 errors, prettier clean, entries still 15 / max 218. Same-agent verification, no separate auditor available. |
 | 1 | 2026-11-06 | File created from `G0_READINESS_CHECKLIST.md` §3. Tasks CLT-T-050 and CLT-T-051 recorded from commits `74bfcb1`, `8b4f7ee`, `de66202`, `1a85769`. Plan statuses copied from the TOC; gate position recorded from the current tree. |
 | 2 | 2026-11-06 | Gate 5 row updated after the first physical-device run on the Pixel 6a (`reports/GATE5-DEVICE-RUN.md`): four items pass, the rest fail or are blocked by `CLT-R-012`–`CLT-R-014`. No task ID assigned to the run itself — it was authorised in chat, not by brief. |
