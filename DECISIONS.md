@@ -330,3 +330,34 @@ The entries and every trigger side effect disappear together, whatever the asser
 outcome. It still connects to `DATABASE_URL` because the SQL views are defined there,
 but it no longer commits anything. The `tests/db` suites use a separate throwaway
 database instead (`CLT-D-026`) because they need to own the schema's data outright.
+
+## CLT-D-030 — Audited maintenance purge routine for named entries
+
+Date: 2026-11-08. The PRD makes entries immutable (Rule 4) and `void` keeps the
+row, so test rows written by Playwright cannot be removed through any shipped
+path. Zia asked for their removal "with an audited SQL routine", which needed a
+choice the PRD does not cover:
+
+1. **A dedicated `maintenance_purge_entries(uuid[], text, uuid)`** rather than
+   loosening `fn_entries_immutability`, adding a DELETE policy, or scripting
+   `DISABLE TRIGGER` by hand each time. The trigger stays authoritative for
+   every caller except this one routine.
+2. **The routine is narrow, not general.** It refuses an empty list, a reason
+   under 10 characters, an unknown id anywhere in the batch, a closed month, and
+   any entry referenced by `statement_lines` or
+   `entry_reconciliation_exceptions` — deleting behind a statement would change
+   a reconciled total silently.
+3. **Audit first, delete second.** One `audit_log` row per entry, action
+   `entry.maintenance_purge`, carrying the full pre-delete row in `before` plus
+   the reason and actor in `after`. Because `audit_log` is append-only, that
+   snapshot is the surviving record of a row the system can no longer show.
+4. **Locks follow the hierarchy:** month locks (1001) in ascending order, then
+   the sequence lock (1002), then the entry row lock.
+5. **Settlements are recomputed** for every affected month after the deletes,
+   because the recalculation trigger does not fire on DELETE (`CLT-R-027`).
+6. **Trigger handling is scoped to the statement.** `trg_entries_immutability`
+   is disabled and re-enabled around each delete inside the same transaction,
+   with an assertion that it is back on before returning; any later failure
+   rolls the disable back too.
+7. **`service_role` only.** `EXECUTE` is revoked from `PUBLIC`, `anon` and
+   `authenticated` (hard rule 7). No client route calls this routine.
