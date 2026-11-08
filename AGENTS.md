@@ -44,11 +44,17 @@ The app does **not** collect money. Staff record payments already received.
     `CLT_BOOTSTRAP_DB_TEST=1 pnpm test` opts into the bootstrap suite, which needs the real Auth API and
     wipes the financial tables of whatever `DATABASE_URL` points at. The web workspace's database test
     (`apps/web/tests/reports/view_parity.test.ts`) runs its seeds in a transaction that is rolled back.
-  - `pnpm test:e2e`: executes Playwright end-to-end tests. These sign in and save real
-    entries through the running server, so the suite refuses to run unless `DATABASE_URL`
-    names a database whose name marks it throwaway (`test`/`e2e`); against the development
-    database it needs `CLT_E2E_ALLOW_SHARED_DB=1`, and the entries it writes cannot be deleted
-    (`CLT-R-029`)
+  - `pnpm test:e2e:isolated`: the supported way to run Playwright. Starts the second
+    Supabase stack in `e2e/supabase/` (API 54341, DB 54342), rebuilds it from
+    `supabase/migrations`, bootstraps the owner there, runs the suite on port 5198 and stops
+    the stack afterwards (`--keep` leaves it up). It refuses to run if that stack resolves to
+    the development ports, and it fails if the dev database's entry count changes during the
+    run.
+  - `pnpm test:e2e`: runs Playwright directly, without the isolated stack. These tests sign
+    in and save real entries through the app server, so the suite refuses unless
+    `DATABASE_URL` names a database marked throwaway (`test`/`e2e`); against the development
+    database it needs `CLT_E2E_ALLOW_SHARED_DB=1`. Entries it writes cannot be deleted from
+    the app (`CLT-R-029`); `maintenance_purge_entries` exists for owner-authorised cleanup.
   - `pnpm lint`: executes ESLint and strict TypeScript typechecking
   - `pnpm typecheck`: runs `tsc --noEmit` across all workspaces
   - `pnpm format`: runs Prettier formatting check/fix
