@@ -19,7 +19,8 @@
     "format": "prettier --check .",
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "db:seed:recon-month": "tsx scripts/seed-recon-month.ts",
-    "db:reset": "supabase db reset && docker restart supabase_kong_ledger >/dev/null 2>&1 || true"
+    "db:reset": "supabase db reset && docker restart supabase_kong_ledger >/dev/null 2>&1 || true",
+    "test:e2e:isolated": "tsx scripts/e2e/isolated-stack.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",

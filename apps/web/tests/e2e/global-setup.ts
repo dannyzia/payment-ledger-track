@@ -55,12 +55,28 @@ export function e2eTargetDatabase(): string {
   return `${databaseName(url)} on ${parsed.host}`;
 }
 
+/**
+ * The isolated stack (scripts/e2e/isolated-stack.ts) runs this suite against a
+ * second Supabase project on its own ports. It is accepted only when that
+ * marker is set *and* the target is demonstrably not the development stack, so
+ * a stray marker cannot turn into a dev-database write.
+ */
+function isIsolatedStack(url: string): boolean {
+  if (process.env.CLT_E2E_ISOLATED !== '1') return false;
+  const parsed = new URL(url);
+  return parsed.port === '54342';
+}
+
 export default function globalSetup(): void {
   const url = process.env.DATABASE_URL || DEV_DEFAULT_URL;
   const name = databaseName(url);
   const host = new URL(url).host;
   const optIn = process.env[OPT_IN_VAR] === '1';
 
+  if (isIsolatedStack(url)) {
+    console.log(`E2E writes go to the isolated throwaway stack on ${host}.`);
+    return;
+  }
   if (isDisposableDatabaseName(name)) {
     console.log(`E2E writes go to throwaway database "${name}" on ${host}.`);
     return;
