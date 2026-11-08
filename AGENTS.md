@@ -44,7 +44,11 @@ The app does **not** collect money. Staff record payments already received.
     `CLT_BOOTSTRAP_DB_TEST=1 pnpm test` opts into the bootstrap suite, which needs the real Auth API and
     wipes the financial tables of whatever `DATABASE_URL` points at. The web workspace's database test
     (`apps/web/tests/reports/view_parity.test.ts`) runs its seeds in a transaction that is rolled back.
-  - `pnpm test:e2e`: executes Playwright end-to-end tests
+  - `pnpm test:e2e`: executes Playwright end-to-end tests. These sign in and save real
+    entries through the running server, so the suite refuses to run unless `DATABASE_URL`
+    names a database whose name marks it throwaway (`test`/`e2e`); against the development
+    database it needs `CLT_E2E_ALLOW_SHARED_DB=1`, and the entries it writes cannot be deleted
+    (`CLT-R-029`)
   - `pnpm lint`: executes ESLint and strict TypeScript typechecking
   - `pnpm typecheck`: runs `tsc --noEmit` across all workspaces
   - `pnpm format`: runs Prettier formatting check/fix

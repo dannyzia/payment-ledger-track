@@ -25,7 +25,13 @@ for (const envName of ['.env', '.env.local']) {
   }
 }
 const webServerEnv: Record<string, string> = {};
-for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'DATABASE_URL', 'PUBLIC_API_BASE']) {
+for (const key of [
+  'SUPABASE_URL',
+  'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'DATABASE_URL',
+  'PUBLIC_API_BASE',
+]) {
   const value = rootEnv[key] ?? process.env[key];
   if (value) webServerEnv[key] = value;
 }
@@ -37,6 +43,9 @@ for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_K
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // Refuses to write to the shared development database without an explicit
+  // opt-in (CLT-R-029): these suites create real, undeletable entries.
+  globalSetup: './tests/e2e/global-setup.ts',
   timeout: 30000,
   fullyParallel: false,
   retries: 1,

@@ -177,11 +177,13 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
     // The menu's nav panel is collapsed by default: expand it with a real click
     // on the ☰ toggle, then activate the Ledger link it reveals.
     await mobileMenu.getByRole('button', { name: 'Toggle navigation menu' }).click();
-    await page
-      .locator('#mobile-nav-panel')
-      .getByRole('link', { name: 'Ledger' })
-      .click();
+    await page.locator('#mobile-nav-panel').getByRole('link', { name: 'Ledger' }).click();
     await page.waitForSelector('.ledger-row', { timeout: 20000 });
-    await expect(page.locator('.ledger-row').first()).toContainText('Playwright Test Customer');
+    // The ledger is ordered by entry date, so a seeded row from another month
+    // can sit first (CLT-R-029). Find this run's row by its customer name
+    // rather than assuming the top of the list.
+    await expect(
+      page.locator('.ledger-row').filter({ hasText: 'Playwright Test Customer' }).first(),
+    ).toBeVisible({ timeout: 20000 });
   });
 });
