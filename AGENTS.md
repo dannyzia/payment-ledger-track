@@ -60,6 +60,11 @@ The app does **not** collect money. Staff record payments already received.
   - `pnpm format`: runs Prettier formatting check/fix
   - `pnpm db:bootstrap`: runs `scripts/bootstrap.ts` initialization script via `tsx`
   - `pnpm db:reset`: resets local Supabase database via Supabase CLI (`supabase db reset`)
+  - `pnpm db:prune-devices [--apply] [--keep-per-user N] [--older-than-days N]`: prunes the device
+    registry (`scripts/maintenance/prune-devices.ts`). Dry run by default. Never deletes a device referenced
+    by an entry or a revoked one (revocation is killswitch state), and keeps the newest N per user; every
+    deletion writes a `device.prune` audit row. A pruned client re-registers on its next pull, so this cannot
+    lock anyone out.
   - `pnpm db:purge-entry --entry <n> --reason "<why>" [--dry-run]`: removes one named entry through
     `maintenance_purge_entries` (`scripts/maintenance/purge-entry.ts`). Entries are immutable, so this is the
     only sanctioned path; it previews the row and the settlement delta, refuses a closed month or a reconciled

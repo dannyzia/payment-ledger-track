@@ -21,7 +21,8 @@
     "db:seed:recon-month": "tsx scripts/seed-recon-month.ts",
     "db:reset": "supabase db reset && docker restart supabase_kong_ledger >/dev/null 2>&1 || true",
     "test:e2e:isolated": "tsx scripts/e2e/isolated-stack.ts",
-    "db:purge-entry": "tsx scripts/maintenance/purge-entry.ts"
+    "db:purge-entry": "tsx scripts/maintenance/purge-entry.ts",
+    "db:prune-devices": "tsx scripts/maintenance/prune-devices.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.2",
