@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "android:add": "cap add android && node scripts/prepare-android.mjs",
+    "android:sync": "cap sync android && node scripts/prepare-android.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.2.3",
