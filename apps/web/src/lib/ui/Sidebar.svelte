@@ -24,10 +24,11 @@
     <a href="/ledger" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
       {messages.menu.ledger}
     </a>
-    <a href="/reports" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
-      {messages.menu.reports}
-    </a>
     {#if role === 'admin' || role === 'owner'}
+      <!-- Reports is an admin/owner capability (PRD capability table); staff must not see the link (CLT-R-031). -->
+      <a href="/reports" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+        {messages.menu.reports}
+      </a>
       <a href="/settlements" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
         {messages.menu.settlements}
       </a>
