@@ -47,3 +47,5 @@ Thumbs.db
 *.tsbuildinfo
 supabase/.temp/
 supabase/.branches/
+e2e/supabase/.temp/
+e2e/supabase/.branches/
