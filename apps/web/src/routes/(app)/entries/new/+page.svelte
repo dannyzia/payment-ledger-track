@@ -32,6 +32,7 @@
   let isMonthClosed = $state(false);
   let saveSuccessMessage = $state('');
   let saveErrorMessage = $state('');
+  let txnRefError = $state('');
 
   // Supersede Mode State (S07)
   let supersedingOriginalId = $state<string | null>(null);
@@ -235,6 +236,7 @@
   async function handleLocalSave(e: SubmitEvent) {
     e.preventDefault();
     saveErrorMessage = '';
+    txnRefError = '';
 
     if (!session.user) {
       saveErrorMessage = 'User session is not available. Please log in.';
@@ -256,7 +258,10 @@
       return;
     }
     if (requiresTxnRef && !txnRef.trim()) {
-      saveErrorMessage = 'Transaction reference is mandatory for this payment channel.';
+      // Rendered next to the field: the channel name is the part a staff member
+      // needs, and the browser's own bubble cannot say which channel it means.
+      txnRefError = `Enter the ${currentMethod?.name ?? 'payment channel'} transaction reference before saving.`;
+      document.getElementById('input-txn-ref')?.focus();
       return;
     }
 
@@ -315,6 +320,7 @@
       customerName = '';
       grossInput = '';
       txnRef = '';
+      txnRefError = '';
       manualVatInput = '';
       notes = '';
       subDescription = '';
@@ -483,6 +489,7 @@
                   class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId === m.id ? 'bg-[var(--ink)] text-[var(--bg)] border-transparent' : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
                   onclick={() => {
                     selectedMethodId = m.id;
+                    txnRefError = '';
                     triggerDuplicateCheck();
                   }}
                 >
@@ -500,15 +507,20 @@
             <input
               id="input-txn-ref"
               type="text"
-              required={requiresTxnRef}
+              aria-invalid={txnRefError ? 'true' : undefined}
+              aria-describedby={txnRefError ? 'input-txn-ref-error' : undefined}
               placeholder="e.g. BJT84920KL"
               bind:value={txnRef}
               oninput={(e) => {
                 txnRef = (e.target as HTMLInputElement).value.toUpperCase();
+                txnRefError = '';
                 triggerDuplicateCheck();
               }}
               class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono uppercase"
             />
+            {#if txnRefError}
+              <p id="input-txn-ref-error" class="text-xs text-red-600 mt-1">{txnRefError}</p>
+            {/if}
           </div>
 
           <!-- Manual VAT Input if activeProfile.vat_mode === 'manual' -->
