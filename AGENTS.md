@@ -60,6 +60,11 @@ The app does **not** collect money. Staff record payments already received.
   - `pnpm format`: runs Prettier formatting check/fix
   - `pnpm db:bootstrap`: runs `scripts/bootstrap.ts` initialization script via `tsx`
   - `pnpm db:reset`: resets local Supabase database via Supabase CLI (`supabase db reset`)
+  - `pnpm db:purge-entry --entry <n> --reason "<why>" [--dry-run]`: removes one named entry through
+    `maintenance_purge_entries` (`scripts/maintenance/purge-entry.ts`). Entries are immutable, so this is the
+    only sanctioned path; it previews the row and the settlement delta, refuses a closed month or a reconciled
+    entry, prints the audit row, and verifies the immutability trigger is back on. `--dry-run` runs everything
+    and rolls back. Local databases only unless `--allow-remote` is passed.
   - `pnpm db:seed:recon-month [YYYY-MM] [method-code]`: local-only fixture for the month-close empty state. Creates one entry through `rpc_push_sync_op` in an otherwise empty month, which makes a method-charge payable due with no statements. Refuses non-local databases and any month that already holds entries, statements, settlements or closes; repeat runs are idempotent via the `SEED-YYYMM-RECON` reference. Defaults to next month, `bkash`.
 - **Android APK build (verified 2026-11-08, debug build only).** SDK lives at `/home/zia/android-sdk` (platform 34, build-tools 34.0.0); it is not exported, so set `ANDROID_HOME`/`ANDROID_SDK_ROOT` or write `apps/web/android/local.properties` with `sdk.dir`. The Gradle wrapper is 8.2.1, which predates JDK 21 support, so the build needs **JDK 17**: `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64` (JDK 21 fails). Command chain:
   `CAPACITOR_BUILD=true PUBLIC_API_BASE=<api origin> pnpm --filter @clt/web build`
