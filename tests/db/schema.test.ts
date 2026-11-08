@@ -185,10 +185,24 @@ describe('Database Schema, Security, and Invariant Tests', () => {
 
   it('Gate 1 Proof: Confirms Row Level Security is ENABLED on all 18 public tables', async () => {
     const expectedTables = [
-      'profiles', 'devices', 'payment_methods', 'rate_profiles', 'method_rates',
-      'entries', 'payables', 'entry_reconciliation_exceptions', 'settlements',
-      'settlement_payments', 'statements', 'statement_payables', 'statement_lines',
-      'month_closes', 'month_close_events', 'audit_log', 'sync_ops', 'app_settings'
+      'profiles',
+      'devices',
+      'payment_methods',
+      'rate_profiles',
+      'method_rates',
+      'entries',
+      'payables',
+      'entry_reconciliation_exceptions',
+      'settlements',
+      'settlement_payments',
+      'statements',
+      'statement_payables',
+      'statement_lines',
+      'month_closes',
+      'month_close_events',
+      'audit_log',
+      'sync_ops',
+      'app_settings',
     ];
 
     const res = await pool.query(`
@@ -196,7 +210,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       FROM pg_tables
       WHERE schemaname = 'public'
     `);
-    const rlsMap = new Map(res.rows.map(r => [r.tablename, r.rowsecurity]));
+    const rlsMap = new Map(res.rows.map((r) => [r.tablename, r.rowsecurity]));
 
     for (const table of expectedTables) {
       expect(rlsMap.has(table), `Table ${table} should exist in public schema`).toBe(true);
@@ -206,13 +220,16 @@ describe('Database Schema, Security, and Invariant Tests', () => {
 
   it('Gate 1 & Test #45 Proof: Direct writes are revoked on all 18 tables from anon and authenticated at runtime', async () => {
     // 1. Catalog privilege check: zero write privileges
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT table_name, privilege_type, grantee
       FROM information_schema.table_privileges
       WHERE table_schema = $1
         AND grantee = ANY($2::text[])
         AND privilege_type = ANY($3::text[])
-    `, ['public', ['anon', 'authenticated'], ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']]);
+    `,
+      ['public', ['anon', 'authenticated'], ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE']],
+    );
     expect(res.rows.length).toBe(0);
 
     // 2. Runtime execution check: authenticated role rejected
@@ -222,14 +239,18 @@ describe('Database Schema, Security, and Invariant Tests', () => {
     try {
       await wClient.query('SET ROLE authenticated');
       await expect(
-        wClient.query(`INSERT INTO entries (id, gross_poisha) VALUES ('00000000-0000-0000-0000-000000000001', 1000)`)
+        wClient.query(
+          `INSERT INTO entries (id, gross_poisha) VALUES ('00000000-0000-0000-0000-000000000001', 1000)`,
+        ),
       ).rejects.toThrow(/permission denied/i);
       await wClient.query('RESET ROLE');
 
       // 3. Runtime execution check: anon role rejected
       await wClient.query('SET ROLE anon');
       await expect(
-        wClient.query(`INSERT INTO entries (id, gross_poisha) VALUES ('00000000-0000-0000-0000-000000000001', 1000)`)
+        wClient.query(
+          `INSERT INTO entries (id, gross_poisha) VALUES ('00000000-0000-0000-0000-000000000001', 1000)`,
+        ),
       ).rejects.toThrow(/permission denied/i);
       await wClient.query('RESET ROLE');
     } finally {
@@ -238,12 +259,15 @@ describe('Database Schema, Security, and Invariant Tests', () => {
   });
 
   it('Gate 1 & Test #22 Proof: Routine execution is revoked from PUBLIC, anon, and authenticated in schema public', async () => {
-    const res = await pool.query(`
+    const res = await pool.query(
+      `
       SELECT routine_name, privilege_type, grantee
       FROM information_schema.routine_privileges
       WHERE routine_schema = $1
         AND grantee = ANY($2::text[])
-    `, ['public', ['PUBLIC', 'anon', 'authenticated']]);
+    `,
+      ['public', ['PUBLIC', 'anon', 'authenticated']],
+    );
     expect(res.rows.length).toBe(0);
   });
 
@@ -254,9 +278,15 @@ describe('Database Schema, Security, and Invariant Tests', () => {
     try {
       // Staff role denied on managerial reporting views
       await client.query('SET ROLE authenticated');
-      await client.query(`SET request.jwt.claims = '{"sub":"${STAFF_ID}","role":"authenticated","app_metadata":{"role":"staff"}}'`);
-      await expect(client.query('SELECT * FROM v_monthly_totals')).rejects.toThrow(/permission denied/i);
-      await expect(client.query('SELECT * FROM v_monthly_method_charges')).rejects.toThrow(/permission denied/i);
+      await client.query(
+        `SET request.jwt.claims = '{"sub":"${STAFF_ID}","role":"authenticated","app_metadata":{"role":"staff"}}'`,
+      );
+      await expect(client.query('SELECT * FROM v_monthly_totals')).rejects.toThrow(
+        /permission denied/i,
+      );
+      await expect(client.query('SELECT * FROM v_monthly_method_charges')).rejects.toThrow(
+        /permission denied/i,
+      );
 
       // Staff permitted on personal metrics, scoped to caller
       const staffMetrics = await client.query('SELECT * FROM v_staff_personal_metrics');
@@ -304,7 +334,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       FROM information_schema.check_constraints
       WHERE constraint_schema = 'public'
     `);
-    const found = new Set(res.rows.map(r => r.constraint_name));
+    const found = new Set(res.rows.map((r) => r.constraint_name));
     for (const c of expectedConstraints) {
       expect(found.has(c), `Constraint ${c} should exist in catalog`).toBe(true);
     }
@@ -316,7 +346,9 @@ describe('Database Schema, Security, and Invariant Tests', () => {
     // Negative: Second active owner profile throws one_owner partial index violation
     const secondOwnerId = '11111111-1111-1111-1111-111111111119';
     await expect(
-      pool.query(`INSERT INTO profiles (id, full_name, role, active) VALUES ('${secondOwnerId}', 'Second Owner', 'owner', true)`)
+      pool.query(
+        `INSERT INTO profiles (id, full_name, role, active) VALUES ('${secondOwnerId}', 'Second Owner', 'owner', true)`,
+      ),
     ).rejects.toThrow(/one_owner/);
 
     // Positive: Second user as staff or admin succeeds (auth.users parent required first)
@@ -350,7 +382,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO devices (device_id, user_id, device_name)
         VALUES ('${devId}', '${OWNER_ID}', 'Owner iPhone')
-      `)
+      `),
     ).rejects.toThrow(/uq_devices_device_user/);
   });
 
@@ -361,7 +393,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO rate_profiles (id, version, status, effective_from, vat_mode, vat_bp, commission_bp, commission_base, charges_borne_by)
         VALUES (gen_random_uuid(), 1, 'published', '2026-11-01', 'manual', 0, 4200, 'gross', 'business')
-      `)
+      `),
     ).rejects.toThrow(/uq_rate_profile_version/);
 
     // Positive: Version 2 succeeds
@@ -389,7 +421,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO payables (code, name, kind, method_id, due_day)
         VALUES ('vat_invalid', 'VAT', 'vat', '${METHOD_BKASH_ID}', 15)
-      `)
+      `),
     ).rejects.toThrow(/chk_payable_method_consistency/);
 
     // Negative 2: method_charge with null method_id throws chk_payable_method_consistency
@@ -397,7 +429,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO payables (code, name, kind, method_id, due_day)
         VALUES ('charge_invalid', 'Charge', 'method_charge', null, 15)
-      `)
+      `),
     ).rejects.toThrow(/chk_payable_method_consistency/);
 
     // Negative 3: Second active VAT payable throws uq_active_vat_payable
@@ -405,7 +437,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO payables (code, name, kind, due_day, active)
         VALUES ('vat_second_active', 'VAT 2', 'vat', 15, true)
-      `)
+      `),
     ).rejects.toThrow(/uq_active_vat_payable/);
   });
 
@@ -422,7 +454,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '${METHOD_BKASH_ID}', 100000, '${RATE_PROFILE_V1_ID}',
           '{"vat": {"mode": "manual"}}'::jsonb, 10000, 10000, 40000, 5000, 3000, 0, 45000, '${OWNER_ID}'
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_charge_partition/);
 
     // Negative 2: gross conservation violation (vat + comm + biz_charge + net != gross)
@@ -437,7 +469,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '${METHOD_BKASH_ID}', 100000, '${RATE_PROFILE_V1_ID}',
           '{"vat": {"mode": "manual"}}'::jsonb, 10000, 10000, 40000, 5000, 5000, 0, 50000, '${OWNER_ID}'
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_gross_conservation/);
   });
 
@@ -461,7 +493,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '${METHOD_BKASH_ID}', 100000, '${pctProfileId}',
           '{"vat": {"mode": "percent_of_gross"}}'::jsonb, 15000, 15000, 42000, 0, 0, 0, 43000, '${OWNER_ID}'
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_vat_input_mode_exclusivity/);
 
     await pool.query(`DELETE FROM rate_profiles WHERE id = '${pctProfileId}'`);
@@ -504,7 +536,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '{"vat": {"mode": "percent_of_gross"}}'::jsonb, 100001, 'Reason',
           10000, 40000, 0, 0, 0, 50000, '${OWNER_ID}'
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_vat_override_bound/);
 
     // Negative 2: VAT override without reason throws chk_vat_override_reason
@@ -521,7 +553,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '{"vat": {"mode": "percent_of_gross"}}'::jsonb, 10000, null,
           10000, 40000, 0, 0, 0, 50000, '${OWNER_ID}'
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_vat_override_reason/);
   });
 
@@ -540,7 +572,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '{"vat": {"mode": "manual"}}'::jsonb, 10000, 10000, 40000, 5000, 5000, 0, 45000,
           '${OWNER_ID}', 'approved'
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_stale_review/);
 
     // Negative 2: voided status without void_reason
@@ -557,7 +589,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '{"vat": {"mode": "manual"}}'::jsonb, 10000, 10000, 40000, 5000, 5000, 0, 45000,
           '${OWNER_ID}', 'voided', '${OWNER_ID}', now()
         )
-      `)
+      `),
     ).rejects.toThrow(/chk_void_fields/);
 
     // Positive: superseding entry 1
@@ -591,7 +623,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
           '{"vat": {"mode": "manual"}}'::jsonb, 10000, 10000, 40000, 5000, 5000, 0, 45000,
           '${OWNER_ID}', 'active', '${BASE_ENTRY_ID}', now()
         )
-      `)
+      `),
     ).rejects.toThrow(/uq_active_superseding_entry/);
 
     await pool.query(`
@@ -607,7 +639,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO settlements (payable_id, month, expected_poisha, paid_poisha, status, overpayment_review_status)
         VALUES ('${PAYABLE_VAT_ID}', '2026-11-01', 10000, 20000, 'overpaid', 'approved')
-      `)
+      `),
     ).rejects.toThrow(/chk_overpayment_approval/);
 
     // Negative 2: is_reversal = true without reverses_payment_id throws chk_reversal_reference
@@ -615,7 +647,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO settlement_payments (settlement_id, amount_poisha, is_reversal, reverses_payment_id, paid_on, recorded_by)
         VALUES ('${SETTLEMENT_ID}', 5000, true, null, '2026-10-15', '${OWNER_ID}')
-      `)
+      `),
     ).rejects.toThrow(/chk_reversal_reference/);
   });
 
@@ -625,7 +657,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO statements (kind, month, source, file_sha256, statement_total_poisha, expected_poisha, status)
         VALUES ('single_payable', '2026-11-01', 'file', null, 1000, 1000, 'open')
-      `)
+      `),
     ).rejects.toThrow(/chk_statement_source/);
   });
 
@@ -635,7 +667,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO statement_payables (statement_id, payable_id, month, status)
         VALUES ('${STATEMENT_ID}', '${PAYABLE_BKASH_ID}', '2026-11-01', 'open')
-      `)
+      `),
     ).rejects.toThrow(/foreign key constraint|violates foreign key/i);
   });
 
@@ -645,7 +677,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO statement_lines (statement_id, match_status, matched_entry_id)
         VALUES ('${STATEMENT_ID}', 'accepted', '${BASE_ENTRY_ID}')
-      `)
+      `),
     ).rejects.toThrow(/chk_statement_line_acceptance/);
   });
 
@@ -662,7 +694,7 @@ describe('Database Schema, Security, and Invariant Tests', () => {
       pool.query(`
         INSERT INTO sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, supersedes_rejected_op_id)
         VALUES (gen_random_uuid(), '${OWNER_ID}', 'd1111111-1111-1111-1111-111111111111', 'create_entry', '{}'::jsonb, 'hash3', now(), 'ok', '${REJECTED_SYNC_OP_ID}')
-      `)
+      `),
     ).rejects.toThrow(/uq_sync_ops_superseded/);
 
     await pool.query(`DELETE FROM sync_ops WHERE op_id = '${okOp1Id}'`);
@@ -671,39 +703,47 @@ describe('Database Schema, Security, and Invariant Tests', () => {
   it('Test #36: Month first-day boundary check across all 5 monthly tables', async () => {
     // 1. month_closes: non-first-day rejected
     await expect(
-      pool.query(`INSERT INTO month_closes (month, status) VALUES ('2026-10-15', 'closed')`)
+      pool.query(`INSERT INTO month_closes (month, status) VALUES ('2026-10-15', 'closed')`),
     ).rejects.toThrow(/chk_month_closes_month|month/i);
 
     // 2. settlements: non-first-day rejected
     await expect(
-      pool.query(`INSERT INTO settlements (payable_id, month, expected_poisha, paid_poisha) VALUES ('${PAYABLE_VAT_ID}', '2026-10-15', 1000, 0)`)
+      pool.query(
+        `INSERT INTO settlements (payable_id, month, expected_poisha, paid_poisha) VALUES ('${PAYABLE_VAT_ID}', '2026-10-15', 1000, 0)`,
+      ),
     ).rejects.toThrow(/chk_settlements_month|month/i);
 
     // 3. statements: non-first-day rejected
     await expect(
-      pool.query(`INSERT INTO statements (kind, month, source, statement_total_poisha, expected_poisha) VALUES ('single_payable', '2026-10-15', 'manual_total', 1000, 1000)`)
+      pool.query(
+        `INSERT INTO statements (kind, month, source, statement_total_poisha, expected_poisha) VALUES ('single_payable', '2026-10-15', 'manual_total', 1000, 1000)`,
+      ),
     ).rejects.toThrow(/chk_statements_month|month/i);
 
     // 4. statement_payables: non-first-day rejected
     await expect(
-      pool.query(`INSERT INTO statement_payables (statement_id, payable_id, month) VALUES ('${STATEMENT_ID}', '${PAYABLE_VAT_ID}', '2026-10-15')`)
+      pool.query(
+        `INSERT INTO statement_payables (statement_id, payable_id, month) VALUES ('${STATEMENT_ID}', '${PAYABLE_VAT_ID}', '2026-10-15')`,
+      ),
     ).rejects.toThrow(/chk_statement_payables_month|month/i);
 
     // 5. month_close_events: non-first-day rejected
     await expect(
-      pool.query(`INSERT INTO month_close_events (month, action, actor) VALUES ('2026-10-15', 'close', '${OWNER_ID}')`)
+      pool.query(
+        `INSERT INTO month_close_events (month, action, actor) VALUES ('2026-10-15', 'close', '${OWNER_ID}')`,
+      ),
     ).rejects.toThrow(/chk_month_close_events_month|month/i);
   });
 
   it('App Settings Invariants: singleton id check, boolean id check, and fixed timezone check', async () => {
     // Negative 1: id = false throws check constraint
-    await expect(
-      pool.query(`INSERT INTO app_settings (id) VALUES (false)`)
-    ).rejects.toThrow(/chk_app_settings_fixed_tz|app_settings_id_check|check constraint/i);
+    await expect(pool.query(`INSERT INTO app_settings (id) VALUES (false)`)).rejects.toThrow(
+      /chk_app_settings_fixed_tz|app_settings_id_check|check constraint/i,
+    );
 
     // Negative 2: timezone != 'Asia/Dhaka' throws chk_app_settings_fixed_tz
     await expect(
-      pool.query(`UPDATE app_settings SET timezone = 'UTC' WHERE id = true`)
+      pool.query(`UPDATE app_settings SET timezone = 'UTC' WHERE id = true`),
     ).rejects.toThrow(/chk_app_settings_fixed_tz/);
   });
 });

@@ -14,7 +14,7 @@ export const NINETY_DAYS_MS = MAX_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 export function isOpOlderThan90Days(
   clientCreatedAt: string,
   nowMs = Date.now(),
-  skewDeltaMs = 0
+  skewDeltaMs = 0,
 ): boolean {
   const createdAtMs = Date.parse(clientCreatedAt);
   if (isNaN(createdAtMs)) {

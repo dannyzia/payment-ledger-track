@@ -146,11 +146,14 @@ describe('Auth & Client Guard Suite (PRD §9.3, §16.2 Tests #10, #22, #30, #59,
   });
 
   it('clears session cache and resets user state upon signOut (PRD §9.3)', async () => {
-    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({
-      id: 'usr-to-logout',
-      role: 'owner',
-      active: true,
-    }));
+    localStorage.setItem(
+      PROFILE_CACHE_KEY,
+      JSON.stringify({
+        id: 'usr-to-logout',
+        role: 'owner',
+        active: true,
+      }),
+    );
     session.user = {
       id: 'usr-to-logout',
       email: 'owner@example.com',

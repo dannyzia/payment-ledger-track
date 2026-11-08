@@ -87,7 +87,7 @@ export const POST: RequestHandler = async (event) => {
 
   // Ensure private statements storage bucket exists
   const { data: buckets } = await supabase.storage.listBuckets();
-  if (!buckets?.some(b => b.name === 'statements')) {
+  if (!buckets?.some((b) => b.name === 'statements')) {
     await supabase.storage.createBucket('statements', { public: false });
   }
 
@@ -115,7 +115,7 @@ export const POST: RequestHandler = async (event) => {
     path: storagePath,
     fileSha256,
     linesCount: parsed.lines.length,
-    parsedLines: parsed.lines.map(l => ({
+    parsedLines: parsed.lines.map((l) => ({
       lineIndex: l.lineIndex,
       lineDate: l.date,
       reference: l.reference,

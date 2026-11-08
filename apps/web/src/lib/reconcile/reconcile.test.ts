@@ -147,19 +147,25 @@ describe('Month Close Gating Checklist (PRD §8.4, §16.2 Tests #7, #39, #58)', 
   it('blocks closing when payables are unreconciled (Gate 1)', () => {
     const result = evaluateMonthCloseGates({ ...baseInput, allPayablesReconciled: false });
     expect(result.canClose).toBe(false);
-    expect(result.blockingReasons).toContain('All payables must be reconciled or marked not_applicable.');
+    expect(result.blockingReasons).toContain(
+      'All payables must be reconciled or marked not_applicable.',
+    );
   });
 
   it('blocks closing when overpaid settlements lack Owner approval matching exact surplus (Gate 2)', () => {
     const result = evaluateMonthCloseGates({ ...baseInput, overpaymentsApproved: false });
     expect(result.canClose).toBe(false);
-    expect(result.blockingReasons).toContain('All overpaid settlements require active Owner approvals matching exact surplus.');
+    expect(result.blockingReasons).toContain(
+      'All overpaid settlements require active Owner approvals matching exact surplus.',
+    );
   });
 
   it('blocks closing when flagged active stale rate reviews remain pending (Gate 3, Test #58)', () => {
     const result = evaluateMonthCloseGates({ ...baseInput, zeroPendingStaleReviews: false });
     expect(result.canClose).toBe(false);
-    expect(result.blockingReasons).toContain('Zero pending stale reviews required on active entries (>৳50,000 flagged entries).');
+    expect(result.blockingReasons).toContain(
+      'Zero pending stale reviews required on active entries (>৳50,000 flagged entries).',
+    );
   });
 
   it('aggregates multiple blocking reasons simultaneously', () => {

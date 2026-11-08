@@ -11,7 +11,7 @@
 export function isVarianceWithinTolerance(
   variancePoisha: bigint,
   tolerancePoisha: bigint,
-  hasExplanationNote: boolean
+  hasExplanationNote: boolean,
 ): boolean {
   const absVariance = variancePoisha < 0n ? -variancePoisha : variancePoisha;
   if (absVariance <= tolerancePoisha) {
@@ -55,15 +55,15 @@ export interface PayableItem {
  * When kind is 'combined_card', resolves to all card payables (kind = 'card' or code in ('visa', 'mastercard')).
  * Otherwise resolves to the single selected payable ID.
  */
-export function resolveTargetPayableIds(
-  selectedOption: string,
-  payables: PayableItem[]
-): string[] {
+export function resolveTargetPayableIds(selectedOption: string, payables: PayableItem[]): string[] {
   if (selectedOption === 'combined_card') {
     const cardPayables = payables.filter(
-      p => p.kind === 'card' || p.code.toLowerCase().includes('visa') || p.code.toLowerCase().includes('mastercard')
+      (p) =>
+        p.kind === 'card' ||
+        p.code.toLowerCase().includes('visa') ||
+        p.code.toLowerCase().includes('mastercard'),
     );
-    return cardPayables.map(p => p.id);
+    return cardPayables.map((p) => p.id);
   }
   return selectedOption ? [selectedOption] : [];
 }
@@ -102,10 +102,14 @@ export function evaluateMonthCloseGates(input: MonthCloseGatesInput): MonthClose
     blockingReasons.push('All payables must be reconciled or marked not_applicable.');
   }
   if (!input.overpaymentsApproved) {
-    blockingReasons.push('All overpaid settlements require active Owner approvals matching exact surplus.');
+    blockingReasons.push(
+      'All overpaid settlements require active Owner approvals matching exact surplus.',
+    );
   }
   if (!input.zeroPendingStaleReviews) {
-    blockingReasons.push('Zero pending stale reviews required on active entries (>৳50,000 flagged entries).');
+    blockingReasons.push(
+      'Zero pending stale reviews required on active entries (>৳50,000 flagged entries).',
+    );
   }
   return {
     canClose: blockingReasons.length === 0,

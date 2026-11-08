@@ -19,7 +19,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Device-Id',
         'Access-Control-Max-Age': '86400',
-        'Vary': 'Origin',
+        Vary: 'Origin',
       },
     });
   }
@@ -29,7 +29,10 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (isCapacitorOrigin) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Device-Id');
+    response.headers.set(
+      'Access-Control-Allow-Headers',
+      'Authorization, Content-Type, X-Device-Id',
+    );
     response.headers.set('Vary', 'Origin');
   }
 

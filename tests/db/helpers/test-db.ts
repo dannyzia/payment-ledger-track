@@ -14,7 +14,9 @@ const { Client } = pg;
  */
 const DEV_DEFAULT_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const TEST_DB_NAME = process.env.CLT_TEST_DB_NAME ?? 'clt_test';
-const MIGRATIONS_DIR = path.resolve(fileURLToPath(new URL('../../../supabase/migrations', import.meta.url)));
+const MIGRATIONS_DIR = path.resolve(
+  fileURLToPath(new URL('../../../supabase/migrations', import.meta.url)),
+);
 
 const PRELUDE_SQL = `
 create schema if not exists extensions;
@@ -76,7 +78,7 @@ function assertThrowaway(connectionString: string): string {
   const name = new URL(connectionString).pathname.replace(/^\//, '');
   if (name === TEST_DB_NAME || /(^|_)test($|_)/i.test(name)) return name;
   throw new Error(
-    `Refusing to use database "${name}" for destructive tests: its name does not mark it as a throwaway test database.`
+    `Refusing to use database "${name}" for destructive tests: its name does not mark it as a throwaway test database.`,
   );
 }
 
@@ -102,7 +104,9 @@ function withoutCronSchedule(sql: string, name: string): string {
       throw new Error(`${name}: contains a pg_cron job but not the expected scheduling block`);
     }
     if (name.startsWith('20261029000005')) {
-      throw new Error(`${name}: expected the pg_cron scheduling block, found none (migration changed?)`);
+      throw new Error(
+        `${name}: expected the pg_cron scheduling block, found none (migration changed?)`,
+      );
     }
     return sql;
   }
@@ -116,7 +120,7 @@ async function dropAndCreate(admin: pg.Client): Promise<void> {
   const name = assertThrowaway(testDatabaseUrl());
   await admin.query(
     'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()',
-    [name]
+    [name],
   );
   await admin.query(`drop database if exists "${name}"`);
   await admin.query(`create database "${name}"`);
@@ -144,7 +148,7 @@ async function provision(explicitlyProvided: boolean): Promise<void> {
           if (!ready.rows[0].t) {
             throw new Error(
               `CLT_TEST_DATABASE_URL points at "${target}", which is not provisioned. ` +
-                'Run the migrations there first or unset it to use the auto-provisioned clt_test database.'
+                'Run the migrations there first or unset it to use the auto-provisioned clt_test database.',
             );
           }
         } finally {
@@ -160,7 +164,9 @@ async function provision(explicitlyProvided: boolean): Promise<void> {
           await probe.connect();
           const row = await probe.query("select to_regclass('public.clt_test_schema') as t");
           if (row.rows[0].t) {
-            const stamp = await probe.query('select migrations_sha256 from public.clt_test_schema where id = 1');
+            const stamp = await probe.query(
+              'select migrations_sha256 from public.clt_test_schema where id = 1',
+            );
             if (stamp.rows[0]?.migrations_sha256 === hash) return;
           }
         } catch {
@@ -182,14 +188,17 @@ async function provision(explicitlyProvided: boolean): Promise<void> {
             await db.query(sql);
           } catch (error) {
             throw new Error(
-              `Applying ${file.name} to the test database failed: ${(error as Error).message}`
+              `Applying ${file.name} to the test database failed: ${(error as Error).message}`,
             );
           }
         }
         await db.query(
-          'create table public.clt_test_schema (id int primary key, migrations_sha256 text not null, provisioned_at timestamptz not null default now())'
+          'create table public.clt_test_schema (id int primary key, migrations_sha256 text not null, provisioned_at timestamptz not null default now())',
         );
-        await db.query('insert into public.clt_test_schema (id, migrations_sha256) values (1, $1)', [hash]);
+        await db.query(
+          'insert into public.clt_test_schema (id, migrations_sha256) values (1, $1)',
+          [hash],
+        );
       } finally {
         await db.end();
       }

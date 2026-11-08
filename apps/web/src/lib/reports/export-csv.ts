@@ -11,7 +11,12 @@ export function escapeCsvField(val: string): string {
   if (/^[=+\-@\t\r]/.test(sanitized)) {
     sanitized = `'${sanitized}`;
   }
-  if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n') || sanitized.includes('\r')) {
+  if (
+    sanitized.includes(',') ||
+    sanitized.includes('"') ||
+    sanitized.includes('\n') ||
+    sanitized.includes('\r')
+  ) {
     return `"${sanitized.replace(/"/g, '""')}"`;
   }
   return sanitized;
@@ -37,7 +42,7 @@ export function formatPoishaForCsv(poishaStr: string): string {
  */
 export function formatMonthlyReportCsv(
   entries: LocalEntry[],
-  methodsMap: Record<string, CachedPaymentMethod> = {}
+  methodsMap: Record<string, CachedPaymentMethod> = {},
 ): string {
   const headers = [
     'Entry Number',
@@ -138,10 +143,13 @@ interface CapacitorWindow {
 export function exportMonthlyReportCsv(
   entries: LocalEntry[],
   month: string,
-  methodsMap: Record<string, CachedPaymentMethod> = {}
+  methodsMap: Record<string, CachedPaymentMethod> = {},
 ): void {
   // Mobile / Capacitor platform branch (Plan 019 handoff)
-  if (typeof window !== 'undefined' && (window as unknown as CapacitorWindow).Capacitor?.isNativePlatform?.()) {
+  if (
+    typeof window !== 'undefined' &&
+    (window as unknown as CapacitorWindow).Capacitor?.isNativePlatform?.()
+  ) {
     console.info('[Export CSV] Delegating to Capacitor Filesystem/Share plugin in Plan 019');
   }
 

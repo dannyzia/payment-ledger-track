@@ -83,7 +83,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Hardware Device Registry</h1>
-      <p class="text-sm text-[var(--muted)]">Track paired POS counter terminals, associated staff sessions, and hardware killswitches.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Track paired POS counter terminals, associated staff sessions, and hardware killswitches.
+      </p>
     </div>
     <Button variant="default" onclick={loadDevices}>Refresh</Button>
   </div>
@@ -96,7 +98,9 @@
 
   <Card class="p-0 overflow-hidden">
     <table class="w-full text-left text-sm">
-      <thead class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs">
+      <thead
+        class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+      >
         <tr>
           <th class="py-3 px-4 font-semibold">Device UUID & Label</th>
           <th class="py-3 px-4 font-semibold">Platform</th>
@@ -120,7 +124,9 @@
               {#if d.active_users.length > 0}
                 <div class="flex flex-wrap gap-1">
                   {#each d.active_users as u}
-                    <span class="inline-block px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 text-xs text-[var(--ink)]">
+                    <span
+                      class="inline-block px-2 py-0.5 rounded bg-black/5 dark:bg-white/5 text-xs text-[var(--ink)]"
+                    >
                       {u.full_name}
                     </span>
                   {/each}
@@ -178,14 +184,25 @@
 </div>
 
 <!-- Revoke Confirmation Modal -->
-<Modal bind:open={showRevokeModal} title="Confirm Hardware Device Killswitch" onclose={() => (showRevokeModal = false)}>
+<Modal
+  bind:open={showRevokeModal}
+  title="Confirm Hardware Device Killswitch"
+  onclose={() => (showRevokeModal = false)}
+>
   <div class="space-y-4">
     <p class="text-sm text-[var(--ink)]">
-      Are you sure you want to revoke terminal <strong class="font-mono">{selectedDevice?.device_id}</strong>?
+      Are you sure you want to revoke terminal <strong class="font-mono"
+        >{selectedDevice?.device_id}</strong
+      >?
     </p>
-    <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800 space-y-1">
+    <div
+      class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800 space-y-1"
+    >
       <p class="font-semibold">Killswitch Enforcement (PRD §7.3, §15.1):</p>
-      <p>• All ongoing sync push and pull operations from this physical device will immediately fail with HTTP 403 device_revoked.</p>
+      <p>
+        • All ongoing sync push and pull operations from this physical device will immediately fail
+        with HTTP 403 device_revoked.
+      </p>
       <p>• All active staff sessions sharing this device will be blocked from remote sync.</p>
       <p>• This action is logged permanently to the append-only audit trail.</p>
     </div>

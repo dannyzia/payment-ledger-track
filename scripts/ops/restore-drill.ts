@@ -43,7 +43,11 @@ Executes quarterly restore drill:
  * See scripts/ops/backup-export.ts — execSync cannot feed stdin, and an
  * unfed pipe would block gpg forever in cron.
  */
-function runGpgWithStdinPassphrase(args: string[], passphrase: string, env: NodeJS.ProcessEnv): void {
+function runGpgWithStdinPassphrase(
+  args: string[],
+  passphrase: string,
+  env: NodeJS.ProcessEnv,
+): void {
   const result = spawnSync('gpg', args, {
     input: passphrase,
     env,
@@ -123,7 +127,18 @@ export async function executeRestoreDrill(): Promise<void> {
     // 2. Decrypt archive using --passphrase-fd 0 via stdin
     console.log('Decrypting snapshot via stdin passphrase pipe...');
     runGpgWithStdinPassphrase(
-      ['--batch', '--yes', '--pinentry-mode', 'loopback', '--passphrase-fd', '0', '-d', '-o', decryptedDump, downloadPath],
+      [
+        '--batch',
+        '--yes',
+        '--pinentry-mode',
+        'loopback',
+        '--passphrase-fd',
+        '0',
+        '-d',
+        '-o',
+        decryptedDump,
+        downloadPath,
+      ],
       gpgPassphrase,
       execEnv,
     );
@@ -168,7 +183,9 @@ export async function executeRestoreDrill(): Promise<void> {
     const tablesRes = await pg.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
     );
-    const existingTables = new Set<string>(tablesRes.rows.map((r: { table_name: string }) => r.table_name));
+    const existingTables = new Set<string>(
+      tablesRes.rows.map((r: { table_name: string }) => r.table_name),
+    );
 
     const tableVerification: Record<string, { present: boolean; rowCount: number }> = {};
     let allTablesPresent = true;

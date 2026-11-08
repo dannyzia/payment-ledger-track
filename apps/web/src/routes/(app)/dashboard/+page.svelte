@@ -4,9 +4,7 @@
   import AdminDashboard from '$lib/ui/dashboards/AdminDashboard.svelte';
   import OwnerDashboard from '$lib/ui/dashboards/OwnerDashboard.svelte';
 
-  const userDisplayName = $derived(
-    session.user?.fullName ?? 'Counter Staff'
-  );
+  const userDisplayName = $derived(session.user?.fullName ?? 'Counter Staff');
 </script>
 
 <div class="role-dashboard p-6 max-w-5xl mx-auto w-full">

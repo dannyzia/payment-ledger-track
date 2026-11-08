@@ -56,7 +56,8 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
     stale_rates: false,
     rate_profile_id: input.rateProfileId,
     snapshot: input.snapshot,
-    vat_input_poisha: input.vatInputPoisha !== undefined ? input.vatInputPoisha.toString() : undefined,
+    vat_input_poisha:
+      input.vatInputPoisha !== undefined ? input.vatInputPoisha.toString() : undefined,
     supersedes_id: input.supersedesOriginalId ?? undefined,
   };
 
@@ -74,8 +75,12 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
     snapshot: input.snapshot,
     rateSnapshot: input.snapshot,
     vatInputPoisha: input.vatInputPoisha !== undefined ? input.vatInputPoisha.toString() : null,
-    vatOverridePoisha: input.vatOverridePoisha !== undefined ? input.vatOverridePoisha.toString() : null,
-    commissionOverridePoisha: input.commissionOverridePoisha !== undefined ? input.commissionOverridePoisha.toString() : null,
+    vatOverridePoisha:
+      input.vatOverridePoisha !== undefined ? input.vatOverridePoisha.toString() : null,
+    commissionOverridePoisha:
+      input.commissionOverridePoisha !== undefined
+        ? input.commissionOverridePoisha.toString()
+        : null,
     vatPoisha: input.vatPoisha.toString(),
     commissionPoisha: input.commissionPoisha.toString(),
     chargePoisha: totalCharge.toString(),
@@ -140,13 +145,15 @@ export async function checkDuplicate(input: {
   if (input.txnRef) {
     const normRef = input.txnRef.trim().toUpperCase();
     const hasRefMatch = activeEntries.some(
-      (e) => e.method_id === input.methodId && e.txn_ref?.toUpperCase() === normRef
+      (e) => e.method_id === input.methodId && e.txn_ref?.toUpperCase() === normRef,
     );
     if (hasRefMatch) return true;
   }
 
   const grossStr = input.grossPoisha.toString();
   return activeEntries.some(
-    (e) => e.customer_name.toLowerCase() === input.customerName.toLowerCase() && e.gross_poisha === grossStr
+    (e) =>
+      e.customer_name.toLowerCase() === input.customerName.toLowerCase() &&
+      e.gross_poisha === grossStr,
   );
 }

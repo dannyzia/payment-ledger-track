@@ -161,7 +161,8 @@
       showTransferModal = false;
       targetAdminId = '';
       transferConfirmText = '';
-      successMessage = 'Ownership transferred successfully. Your account has been demoted to Admin.';
+      successMessage =
+        'Ownership transferred successfully. Your account has been demoted to Admin.';
       await loadUsers();
     } catch (e) {
       errorMessage = adminFetchError(e);
@@ -177,7 +178,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Team Roster & Roles</h1>
-      <p class="text-sm text-[var(--muted)]">Manage authorized staff, administrators, and store ownership privileges.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Manage authorized staff, administrators, and store ownership privileges.
+      </p>
     </div>
     <div class="flex gap-3">
       {#if callerRole === 'owner'}
@@ -185,14 +188,14 @@
           Transfer Ownership
         </Button>
       {/if}
-      <Button variant="default" onclick={() => (showInviteModal = true)}>
-        Invite Team Member
-      </Button>
+      <Button variant="default" onclick={() => (showInviteModal = true)}>Invite Team Member</Button>
     </div>
   </div>
 
   {#if successMessage}
-    <div class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm">
+    <div
+      class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm"
+    >
       {successMessage}
     </div>
   {/if}
@@ -205,7 +208,9 @@
 
   <Card class="p-0 overflow-hidden">
     <table class="w-full text-left text-sm">
-      <thead class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs">
+      <thead
+        class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+      >
         <tr>
           <th class="py-3 px-4 font-semibold">Name & Email</th>
           <th class="py-3 px-4 font-semibold">Role</th>
@@ -222,7 +227,9 @@
               <div class="font-mono text-xs text-[var(--muted)]">{u.email}</div>
             </td>
             <td class="py-3 px-4">
-              <Chip variant={u.role === 'owner' ? 'commission' : u.role === 'admin' ? 'default' : 'vat'}>
+              <Chip
+                variant={u.role === 'owner' ? 'commission' : u.role === 'admin' ? 'default' : 'vat'}
+              >
                 {u.role.toUpperCase()}
               </Chip>
             </td>
@@ -240,7 +247,11 @@
                   {#if callerRole === 'owner'}
                     <select
                       value={u.role}
-                      onchange={(e) => updateUserRole(u.id, (e.target as HTMLSelectElement).value as 'staff' | 'admin')}
+                      onchange={(e) =>
+                        updateUserRole(
+                          u.id,
+                          (e.target as HTMLSelectElement).value as 'staff' | 'admin',
+                        )}
                       class="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white/50"
                     >
                       <option value="staff">Staff</option>
@@ -275,10 +286,18 @@
 </div>
 
 <!-- Invite Modal -->
-<Modal bind:open={showInviteModal} title="Invite New Team Member" onclose={() => (showInviteModal = false)}>
+<Modal
+  bind:open={showInviteModal}
+  title="Invite New Team Member"
+  onclose={() => (showInviteModal = false)}
+>
   <div class="space-y-4">
     <div>
-      <label for="invite-fullname" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Full Name</label>
+      <label
+        for="invite-fullname"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Full Name</label
+      >
       <input
         id="invite-fullname"
         type="text"
@@ -289,7 +308,11 @@
     </div>
 
     <div>
-      <label for="invite-email" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Email Address</label>
+      <label
+        for="invite-email"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Email Address</label
+      >
       <input
         id="invite-email"
         type="email"
@@ -300,7 +323,11 @@
     </div>
 
     <div>
-      <label for="invite-role-select" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Assigned Role</label>
+      <label
+        for="invite-role-select"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Assigned Role</label
+      >
       <select
         id="invite-role-select"
         bind:value={inviteRole}
@@ -312,13 +339,18 @@
         {/if}
       </select>
       <p class="text-[11px] text-[var(--muted)] mt-1">
-        Only the active store Owner can provision Administrator accounts. Owner accounts cannot be provisioned via invite.
+        Only the active store Owner can provision Administrator accounts. Owner accounts cannot be
+        provisioned via invite.
       </p>
     </div>
 
     <div class="flex justify-end gap-3 pt-4">
       <Button variant="default" onclick={() => (showInviteModal = false)}>Cancel</Button>
-      <Button variant="default" onclick={inviteUser} disabled={inviting || !inviteEmail || !inviteFullName}>
+      <Button
+        variant="default"
+        onclick={inviteUser}
+        disabled={inviting || !inviteEmail || !inviteFullName}
+      >
         {inviting ? 'Inviting...' : 'Send Invitation'}
       </Button>
     </div>
@@ -326,9 +358,15 @@
 </Modal>
 
 <!-- Ownership Transfer Modal -->
-<Modal bind:open={showTransferModal} title="Two-Step Atomic Ownership Transfer" onclose={() => (showTransferModal = false)}>
+<Modal
+  bind:open={showTransferModal}
+  title="Two-Step Atomic Ownership Transfer"
+  onclose={() => (showTransferModal = false)}
+>
   <div class="space-y-4">
-    <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800 space-y-1">
+    <div
+      class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800 space-y-1"
+    >
       <p class="font-semibold">Irreversible Owner Transfer Warning:</p>
       <p>• You are surrendering sole ownership of this organization.</p>
       <p>• The selected Admin will be elevated to Owner.</p>
@@ -337,7 +375,11 @@
     </div>
 
     <div>
-      <label for="transfer-admin-select" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Select Successor Administrator</label>
+      <label
+        for="transfer-admin-select"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Select Successor Administrator</label
+      >
       <select
         id="transfer-admin-select"
         bind:value={targetAdminId}
@@ -351,7 +393,10 @@
     </div>
 
     <div>
-      <label for="transfer-confirm-input" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">
+      <label
+        for="transfer-confirm-input"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+      >
         Type <strong class="text-red-700">TRANSFER OWNERSHIP</strong> to confirm:
       </label>
       <input

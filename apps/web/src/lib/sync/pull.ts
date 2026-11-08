@@ -143,7 +143,9 @@ export async function executeIncrementalPull(): Promise<void> {
   let hasMore = true;
   let isFirstBatch = true;
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   let token = session?.access_token;
 
   while (hasMore) {
@@ -188,7 +190,11 @@ export async function executeIncrementalPull(): Promise<void> {
         // Cursor past watermark: reset cursor to '0' and retry immediately (PRD §9.1(b))
         cursor = '0';
         localStorage.setItem('clt_server_cursor', '0');
-        await db.meta.put({ key: 'server_cursor', value: '0', updated_at: new Date().toISOString() });
+        await db.meta.put({
+          key: 'server_cursor',
+          value: '0',
+          updated_at: new Date().toISOString(),
+        });
         continue;
       }
 
@@ -196,7 +202,11 @@ export async function executeIncrementalPull(): Promise<void> {
         // Sync gap exceeded (>90d ops purged): full resync required
         cursor = '0';
         localStorage.setItem('clt_server_cursor', '0');
-        await db.meta.put({ key: 'server_cursor', value: '0', updated_at: new Date().toISOString() });
+        await db.meta.put({
+          key: 'server_cursor',
+          value: '0',
+          updated_at: new Date().toISOString(),
+        });
         continue;
       }
 
@@ -296,9 +306,14 @@ export async function executeIncrementalPull(): Promise<void> {
           variance_poisha: s.variance_poisha?.toString() ?? '0',
           status: s.status,
           overpayment_review_status:
-            s.overpayment_review_status === 'approved' ? 'approved' : s.overpayment_review_status === 'none' ? 'none' : undefined,
+            s.overpayment_review_status === 'approved'
+              ? 'approved'
+              : s.overpayment_review_status === 'none'
+                ? 'none'
+                : undefined,
           note: s.note ?? undefined,
-          overpayment_approved_amount_poisha: s.overpayment_approved_amount_poisha?.toString() ?? undefined,
+          overpayment_approved_amount_poisha:
+            s.overpayment_approved_amount_poisha?.toString() ?? undefined,
           overpayment_reason: s.overpayment_reason ?? undefined,
           overpayment_approved_by: s.overpayment_approved_by ?? undefined,
           overpayment_approved_at: s.overpayment_approved_at ?? undefined,
@@ -373,9 +388,12 @@ export async function executeIncrementalPull(): Promise<void> {
           gross_poisha: entry.gross_poisha.toString(),
           vat_poisha: entry.vat_poisha.toString(),
           commission_poisha: entry.commission_poisha.toString(),
-          charge_poisha: entry.charge_poisha !== undefined && entry.charge_poisha !== null
-            ? entry.charge_poisha.toString()
-            : (BigInt(entry.business_charge_poisha) + BigInt(entry.customer_charge_poisha)).toString(),
+          charge_poisha:
+            entry.charge_poisha !== undefined && entry.charge_poisha !== null
+              ? entry.charge_poisha.toString()
+              : (
+                  BigInt(entry.business_charge_poisha) + BigInt(entry.customer_charge_poisha)
+                ).toString(),
           business_charge_poisha: entry.business_charge_poisha.toString(),
           customer_charge_poisha: entry.customer_charge_poisha.toString(),
           net_poisha: entry.net_poisha.toString(),

@@ -42,7 +42,7 @@
   }
 
   function getChipVariant(
-    code?: string
+    code?: string,
   ): 'default' | 'commission' | 'vat' | 'bkash' | 'visa' | 'mastercard' {
     if (!code) return 'default';
     const lower = code.toLowerCase();
@@ -64,11 +64,14 @@
     // 1. VAT Payable Stream (PRD §8.3, §10)
     const vatPayable = payables.find((p) => p.kind === 'vat');
     const vatSettlement = settlements.find(
-      (s) => s.month === monthFirstDay && s.payable_id === (vatPayable?.id ?? 'vat')
+      (s) => s.month === monthFirstDay && s.payable_id === (vatPayable?.id ?? 'vat'),
     );
     let vatStatus = vatSettlement?.status ?? (monthlyVatPoisha === 0n ? 'not_applicable' : 'due');
     let vatSubtext: string | undefined;
-    if (vatSettlement?.status === 'paid' && monthlyVatPoisha > BigInt(vatSettlement.expected_poisha)) {
+    if (
+      vatSettlement?.status === 'paid' &&
+      monthlyVatPoisha > BigInt(vatSettlement.expected_poisha)
+    ) {
       vatStatus = 'partly_paid';
       const diff = monthlyVatPoisha - BigInt(vatSettlement.expected_poisha);
       vatSubtext = `+${formatPoishaToBdt(diff)} unsynced`;
@@ -150,9 +153,18 @@
   const statusBadges: Record<SettlementStatus, { label: string; cls: string }> = {
     not_applicable: { label: 'N/A', cls: 'bg-black/5 dark:bg-white/5 text-[var(--muted)]' },
     due: { label: 'Due', cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold' },
-    partly_paid: { label: 'Partly Paid', cls: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-semibold' },
-    paid: { label: 'Paid', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold' },
-    overpaid: { label: 'Overpaid', cls: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 font-semibold' },
+    partly_paid: {
+      label: 'Partly Paid',
+      cls: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-semibold',
+    },
+    paid: {
+      label: 'Paid',
+      cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold',
+    },
+    overpaid: {
+      label: 'Overpaid',
+      cls: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 font-semibold',
+    },
   };
 
   function getStatusBadge(status: SettlementStatus) {
@@ -162,10 +174,14 @@
 
 <div class="payables-table">
   <Card class="p-6">
-    <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
+    <div
+      class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+    >
       <div>
         <h2 class="text-base font-bold text-[var(--ink)]">Payables &amp; Liabilities Summary</h2>
-        <p class="text-xs text-[var(--muted)]">Derived from active entries and monthly settlement records.</p>
+        <p class="text-xs text-[var(--muted)]">
+          Derived from active entries and monthly settlement records.
+        </p>
       </div>
       <span class="text-xs text-[var(--muted)] font-mono">{monthFirstDay}</span>
     </div>
@@ -173,7 +189,9 @@
     <div class="overflow-x-auto">
       <table class="w-full text-left text-sm">
         <thead>
-          <tr class="text-xs text-[var(--muted)] border-b border-black/5 dark:border-white/5 uppercase tracking-wider">
+          <tr
+            class="text-xs text-[var(--muted)] border-b border-black/5 dark:border-white/5 uppercase tracking-wider"
+          >
             <th class="pb-2">Payable Stream</th>
             <th class="pb-2 text-center">Txn Count</th>
             <th class="pb-2 text-right">Amount (Poisha)</th>

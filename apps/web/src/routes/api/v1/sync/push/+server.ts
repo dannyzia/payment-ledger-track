@@ -9,7 +9,13 @@ import { calculateEntry, type RateSnapshot } from '@clt/calc';
 
 const pushOpSchema = z.object({
   opId: z.string().uuid(),
-  type: z.enum(['create_entry', 'request_void', 'void_entry', 'supersede_entry', 'discard_rejected_entry']),
+  type: z.enum([
+    'create_entry',
+    'request_void',
+    'void_entry',
+    'supersede_entry',
+    'discard_rejected_entry',
+  ]),
   payload: z.record(z.string(), z.unknown()),
   clientCreatedAt: z.string(),
   payloadHash: z.string().optional(),
@@ -18,7 +24,12 @@ const pushOpSchema = z.object({
 });
 
 const pushRequestSchema = z.object({
-  deviceId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/).refine((id) => id !== '00000000-0000-0000-0000-000000000000', { message: 'Nil UUID not allowed' }),
+  deviceId: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    .refine((id) => id !== '00000000-0000-0000-0000-000000000000', {
+      message: 'Nil UUID not allowed',
+    }),
   ops: z.array(pushOpSchema),
 });
 
@@ -38,17 +49,25 @@ export const POST: RequestHandler = async (event) => {
 
   // 2. Batch Size Limit Check (PRD §9.1: max 50 ops per request; HTTP 413)
   if (Array.isArray(rawBody.ops) && rawBody.ops.length > 50) {
-    return new Response(JSON.stringify({ error: 'payload_too_large', message: 'Batch exceeds maximum 50 operations limit' }), {
-      status: 413,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({
+        error: 'payload_too_large',
+        message: 'Batch exceeds maximum 50 operations limit',
+      }),
+      {
+        status: 413,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
   }
 
   const parsed = pushRequestSchema.safeParse(rawBody);
   if (!parsed.success) {
     const isDeviceIdError = parsed.error.issues.some((i) => i.path.includes('deviceId'));
     const errorCode = isDeviceIdError ? 'missing_device_id' : 'invalid_payload';
-    return new Response(JSON.stringify({ error: errorCode, issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: errorCode, issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   // 3. Rate Limiting Check (PRD §9.1: max 60 requests/minute per device/IP)
@@ -77,9 +96,17 @@ export const POST: RequestHandler = async (event) => {
   }
 
   // 5. Authoritative Snapshot Verification & SvelteKit Recomputation (PRD Hard Rule 3, Rule 9, §6.5, §9.1 Step 4)
-  type PushResultRow = { opId: string; status: 'ok' | 'duplicate' | 'rejected'; reason?: string; server_seq?: string | number; entry_number?: string | number };
+  type PushResultRow = {
+    opId: string;
+    status: 'ok' | 'duplicate' | 'rejected';
+    reason?: string;
+    server_seq?: string | number;
+    entry_number?: string | number;
+  };
   const results: PushResultRow[] = [];
-  const validOpsForRpc: Array<z.infer<typeof pushOpSchema> & { serverHash: string; stale_rates?: boolean }> = [];
+  const validOpsForRpc: Array<
+    z.infer<typeof pushOpSchema> & { serverHash: string; stale_rates?: boolean }
+  > = [];
 
   for (const op of parsed.data.ops) {
     // Watermark check per-op with fault isolation (Test #60)
@@ -118,9 +145,10 @@ export const POST: RequestHandler = async (event) => {
 
     // Validate calculations for create_entry and supersede_entry operations
     if (op.type === 'create_entry' || op.type === 'supersede_entry') {
-      const payload = op.type === 'create_entry'
-        ? (op.payload as Record<string, unknown>)
-        : ((op.payload.replacement as Record<string, unknown>) ?? {});
+      const payload =
+        op.type === 'create_entry'
+          ? (op.payload as Record<string, unknown>)
+          : ((op.payload.replacement as Record<string, unknown>) ?? {});
 
       const entryDate = payload.entryDate as string | undefined;
       const grossStr = payload.grossPoisha as string | undefined;
@@ -149,7 +177,10 @@ export const POST: RequestHandler = async (event) => {
       }
 
       // Find applicable method rate
-      const methodRateRow = (effectiveProfile.method_rates as Array<{ method_id: string; charge_bp: number }> | null | undefined)?.find((mr) => mr.method_id === methodId);
+      const methodRateRow = (
+        effectiveProfile.method_rates as
+          Array<{ method_id: string; charge_bp: number }> | null | undefined
+      )?.find((mr) => mr.method_id === methodId);
       const effectiveChargeBp = methodRateRow ? methodRateRow.charge_bp : 0;
       const effectiveChargesBorneBy = effectiveProfile.charges_borne_by || 'business';
 
@@ -176,11 +207,21 @@ export const POST: RequestHandler = async (event) => {
 
       try {
         const grossPoisha = BigInt(grossStr);
-        const vatInputPoisha = payload.vatInputPoisha ? BigInt(payload.vatInputPoisha as string) : undefined;
-        const vatOverridePoisha = payload.vatOverridePoisha ? BigInt(payload.vatOverridePoisha as string) : undefined;
-        const vatOverrideReason = (payload.vatOverrideReason as string) || (vatOverridePoisha !== undefined ? 'Admin override' : undefined);
-        const commissionOverridePoisha = payload.commissionOverridePoisha ? BigInt(payload.commissionOverridePoisha as string) : undefined;
-        const commissionOverrideReason = (payload.commissionOverrideReason as string) || (commissionOverridePoisha !== undefined ? 'Admin override' : undefined);
+        const vatInputPoisha = payload.vatInputPoisha
+          ? BigInt(payload.vatInputPoisha as string)
+          : undefined;
+        const vatOverridePoisha = payload.vatOverridePoisha
+          ? BigInt(payload.vatOverridePoisha as string)
+          : undefined;
+        const vatOverrideReason =
+          (payload.vatOverrideReason as string) ||
+          (vatOverridePoisha !== undefined ? 'Admin override' : undefined);
+        const commissionOverridePoisha = payload.commissionOverridePoisha
+          ? BigInt(payload.commissionOverridePoisha as string)
+          : undefined;
+        const commissionOverrideReason =
+          (payload.commissionOverrideReason as string) ||
+          (commissionOverridePoisha !== undefined ? 'Admin override' : undefined);
 
         // Authoritative re-computation using @clt/calc
         const calcResult = calculateEntry({
@@ -194,12 +235,21 @@ export const POST: RequestHandler = async (event) => {
         });
 
         // Verify calculated components
-        const vatMismatch = payload.vatPoisha !== undefined && payload.vatPoisha !== calcResult.vatPoisha.toString();
-        const commMismatch = payload.commissionPoisha !== undefined && payload.commissionPoisha !== calcResult.commissionPoisha.toString();
-        const busMismatch = payload.businessChargePoisha !== undefined && payload.businessChargePoisha !== calcResult.businessChargePoisha.toString();
-        const custMismatch = payload.customerChargePoisha !== undefined && payload.customerChargePoisha !== calcResult.customerChargePoisha.toString();
-        const clientNet = (payload.netPoisha ?? payload.netAfterDeductionsPoisha) as string | undefined;
-        const netMismatch = clientNet !== undefined && clientNet !== calcResult.netAfterDeductionsPoisha.toString();
+        const vatMismatch =
+          payload.vatPoisha !== undefined && payload.vatPoisha !== calcResult.vatPoisha.toString();
+        const commMismatch =
+          payload.commissionPoisha !== undefined &&
+          payload.commissionPoisha !== calcResult.commissionPoisha.toString();
+        const busMismatch =
+          payload.businessChargePoisha !== undefined &&
+          payload.businessChargePoisha !== calcResult.businessChargePoisha.toString();
+        const custMismatch =
+          payload.customerChargePoisha !== undefined &&
+          payload.customerChargePoisha !== calcResult.customerChargePoisha.toString();
+        const clientNet = (payload.netPoisha ?? payload.netAfterDeductionsPoisha) as
+          string | undefined;
+        const netMismatch =
+          clientNet !== undefined && clientNet !== calcResult.netAfterDeductionsPoisha.toString();
 
         if (vatMismatch || commMismatch || busMismatch || custMismatch || netMismatch) {
           throw new Error('Component mismatch');
@@ -260,7 +310,9 @@ export const POST: RequestHandler = async (event) => {
       return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     }
 
-    const rawResults = Array.isArray(rpcResults) ? rpcResults : (rpcResults as unknown as { results?: PushResultRow[] } | null)?.results ?? [];
+    const rawResults = Array.isArray(rpcResults)
+      ? rpcResults
+      : ((rpcResults as unknown as { results?: PushResultRow[] } | null)?.results ?? []);
     if (Array.isArray(rawResults)) {
       results.push(...(rawResults as PushResultRow[]));
     }

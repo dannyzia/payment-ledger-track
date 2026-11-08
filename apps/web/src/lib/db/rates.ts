@@ -4,11 +4,10 @@ import { db, type CachedRateProfile } from './index';
  * Resolves the date-effective published rate profile from local Dexie storage.
  * Ordering per PRD §6.5 & §7.3: effective_from DESC, version DESC LIMIT 1.
  */
-export async function resolveEffectiveRateProfile(entryDate: string): Promise<CachedRateProfile | null> {
-  const profiles = await db.rateProfiles
-    .where('status')
-    .equals('published')
-    .toArray();
+export async function resolveEffectiveRateProfile(
+  entryDate: string,
+): Promise<CachedRateProfile | null> {
+  const profiles = await db.rateProfiles.where('status').equals('published').toArray();
 
   const matching = profiles
     .filter((p) => p.effective_from <= entryDate)

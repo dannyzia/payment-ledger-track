@@ -14,7 +14,11 @@
   import { resolveEffectiveRateProfile } from '$lib/db/rates';
   import { calculateEntry, type RateSnapshot } from '@clt/calc';
   import { formatPoishaToBdt } from '@clt/shared';
-  import { currentDhakaMonth, isVarianceWithinTolerance, parseStrictBdtToPoisha } from '$lib/reconcile/tolerance';
+  import {
+    currentDhakaMonth,
+    isVarianceWithinTolerance,
+    parseStrictBdtToPoisha,
+  } from '$lib/reconcile/tolerance';
 
   interface StatementRow {
     id: string;
@@ -43,7 +47,7 @@
   // month that actually needs attention instead of the current one.
   const monthParam = page.url.searchParams.get('month');
   let selectedMonth = $state(
-    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth()
+    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth(),
   );
 
   // ?return=close means this overview was opened from the month-close checklist,
@@ -89,12 +93,15 @@
 
     // 2. Load payables to resolve names
     const payables: CachedPayable[] = await db.payables.toArray();
-    const payableMap = new Map(payables.map(p => [p.id, p.name]));
+    const payableMap = new Map(payables.map((p) => [p.id, p.name]));
 
     // 3. Query statements for month
-    const stList: CachedStatement[] = await db.statements.where('month').equals(monthDate).toArray();
+    const stList: CachedStatement[] = await db.statements
+      .where('month')
+      .equals(monthDate)
+      .toArray();
 
-    statements = stList.map(st => {
+    statements = stList.map((st) => {
       const total = BigInt(st.statement_total_poisha || st.total_gross_poisha || '0');
       const expected = BigInt(st.expected_poisha || '0');
       const variance = st.variance_poisha ? BigInt(st.variance_poisha) : total - expected;
@@ -103,7 +110,7 @@
       if (st.kind === 'combined_card') {
         payableNames = 'Visa Fee & Mastercard Fee (Combined)';
       } else if (st.payable_ids && st.payable_ids.length > 0) {
-        payableNames = st.payable_ids.map(id => payableMap.get(id) || id).join(', ');
+        payableNames = st.payable_ids.map((id) => payableMap.get(id) || id).join(', ');
       } else if (st.payable_id) {
         payableNames = payableMap.get(st.payable_id) || 'Payable Fee';
       }
@@ -127,7 +134,7 @@
     const rejected = await db.rejectedOps
       .where('status')
       .equals('pending')
-      .and(op => op.error_code === 'month_closed')
+      .and((op) => op.error_code === 'month_closed')
       .toArray();
 
     const items: RecoveryItem[] = [];
@@ -177,7 +184,9 @@
     const destMonth = `${newDate.substring(0, 7)}-01`;
     const closedRecord = await db.monthCloses.get(destMonth);
     if (closedRecord?.status === 'closed') {
-      throw new Error(`Destination month (${newDate.substring(0, 7)}) is closed. Please select an open month.`);
+      throw new Error(
+        `Destination month (${newDate.substring(0, 7)}) is closed. Please select an open month.`,
+      );
     }
 
     const localEntry = await db.entries.get(entryId);
@@ -266,7 +275,7 @@
     const res = await fetch('/api/v1/months/reopen', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -330,7 +339,7 @@
       const res = await fetch('/api/v1/reconcile/statements/reconcile', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -381,7 +390,7 @@
       const res = await fetch('/api/v1/reconcile/statements/supersede', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -435,7 +444,9 @@
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied</h2>
-      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">Reconciliation controls are restricted strictly to Administrators and Owners.</p>
+      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">
+        Reconciliation controls are restricted strictly to Administrators and Owners.
+      </p>
       <Button variant="default" onclick={() => goto('/dashboard')}>Return to Dashboard</Button>
     </Card>
   </div>
@@ -443,8 +454,12 @@
   <div class="reconcile-overview p-6 max-w-5xl mx-auto w-full">
     <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">Statement Reconciliation</h1>
-        <p class="text-sm text-[var(--c-muted,#6b7280)]">Reconcile internal payment ledgers against provider statements (PRD §11).</p>
+        <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
+          Statement Reconciliation
+        </h1>
+        <p class="text-sm text-[var(--c-muted,#6b7280)]">
+          Reconcile internal payment ledgers against provider statements (PRD §11).
+        </p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -453,11 +468,7 @@
           bind:value={selectedMonth}
           class="px-3 py-2 rounded-xl border border-black/10 text-sm font-semibold min-h-[44px]"
         />
-        <Button
-          variant="commission"
-          class="min-h-[44px]"
-          onclick={() => goto('/reconcile/manual')}
-        >
+        <Button variant="commission" class="min-h-[44px]" onclick={() => goto('/reconcile/manual')}>
           + New Mode A Statement
         </Button>
         <Button
@@ -475,21 +486,33 @@
       <div class="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
         <div class="flex items-center justify-between mb-3">
           <div>
-            <h2 class="text-sm font-bold text-amber-900">Needs Attention: Closed Month Entries ({closedMonthRejectedOps.length})</h2>
-            <p class="text-xs text-amber-700">Offline transactions rejected because the historical calendar month was closed before sync.</p>
+            <h2 class="text-sm font-bold text-amber-900">
+              Needs Attention: Closed Month Entries ({closedMonthRejectedOps.length})
+            </h2>
+            <p class="text-xs text-amber-700">
+              Offline transactions rejected because the historical calendar month was closed before
+              sync.
+            </p>
           </div>
         </div>
 
         <div class="flex flex-col gap-2">
           {#each closedMonthRejectedOps as item (item.opId)}
-            <div class="flex items-center justify-between p-3 rounded-xl bg-white/70 border border-amber-500/10 text-xs">
+            <div
+              class="flex items-center justify-between p-3 rounded-xl bg-white/70 border border-amber-500/10 text-xs"
+            >
               <div>
-                <span class="font-bold">Original Date: {item.entryDate}</span> · Gross: {formatPoishaToBdt(BigInt(item.grossPoisha))}
+                <span class="font-bold">Original Date: {item.entryDate}</span> · Gross: {formatPoishaToBdt(
+                  BigInt(item.grossPoisha),
+                )}
               </div>
               <Button
                 variant="default"
                 class="text-xs py-1.5 min-h-[36px]"
-                onclick={() => { activeRecoveryItem = item; showRecoveryModal = true; }}
+                onclick={() => {
+                  activeRecoveryItem = item;
+                  showRecoveryModal = true;
+                }}
               >
                 Resolve Entry
               </Button>
@@ -502,7 +525,8 @@
     <div class="flex flex-col gap-4">
       {#if statements.length === 0}
         <Card class="p-8 text-center text-[var(--c-muted,#6b7280)] text-sm">
-          No statements recorded for {selectedMonth}. Click "+ New Mode A Statement" to submit a statement total.
+          No statements recorded for {selectedMonth}. Click "+ New Mode A Statement" to submit a
+          statement total.
         </Card>
       {:else}
         {#each statements as st (st.id)}
@@ -512,31 +536,46 @@
                 <div class="font-bold text-base text-[var(--c-ink,#111827)]">{st.payableNames}</div>
                 <div class="text-xs text-[var(--c-muted,#6b7280)]">
                   {st.kind} · {st.source} · Month: {st.month}
-                  {#if st.note} · <span class="italic">"{st.note}"</span>{/if}
+                  {#if st.note}
+                    · <span class="italic">"{st.note}"</span>{/if}
                 </div>
               </div>
 
               <div class="flex items-center gap-6">
                 <div class="text-right">
                   <div class="text-xs text-[var(--c-muted,#6b7280)]">Statement Total</div>
-                  <div class="font-bold text-sm tabular-nums">{formatPoishaToBdt(BigInt(st.statement_total_poisha))}</div>
+                  <div class="font-bold text-sm tabular-nums">
+                    {formatPoishaToBdt(BigInt(st.statement_total_poisha))}
+                  </div>
                 </div>
                 <div class="text-right">
                   <div class="text-xs text-[var(--c-muted,#6b7280)]">Expected Liability</div>
-                  <div class="font-bold text-sm tabular-nums">{formatPoishaToBdt(BigInt(st.expected_poisha))}</div>
+                  <div class="font-bold text-sm tabular-nums">
+                    {formatPoishaToBdt(BigInt(st.expected_poisha))}
+                  </div>
                 </div>
                 <div class="text-right">
                   <div class="text-xs text-[var(--c-muted,#6b7280)]">Variance</div>
-                  <div class="font-bold text-sm tabular-nums {BigInt(st.variance_poisha) !== 0n ? 'text-blue-600' : ''}">
+                  <div
+                    class="font-bold text-sm tabular-nums {BigInt(st.variance_poisha) !== 0n
+                      ? 'text-blue-600'
+                      : ''}"
+                  >
                     {formatPoishaToBdt(BigInt(st.variance_poisha))}
                   </div>
                 </div>
 
                 <div class="flex items-center gap-2">
                   {#if st.status === 'reconciled'}
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700">Reconciled</span>
+                    <span
+                      class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700"
+                      >Reconciled</span
+                    >
                   {:else if st.status === 'superseded'}
-                    <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-700">Superseded</span>
+                    <span
+                      class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-700"
+                      >Superseded</span
+                    >
                   {:else}
                     {#if st.sourceKind === 'file'}
                       <Button
@@ -551,7 +590,10 @@
                       <Button
                         variant="commission"
                         class="text-xs py-1.5 min-h-[36px]"
-                        onclick={() => { activeStatement = st; showReconcileModal = true; }}
+                        onclick={() => {
+                          activeStatement = st;
+                          showReconcileModal = true;
+                        }}
                       >
                         Reconcile
                       </Button>
@@ -559,7 +601,10 @@
                     <Button
                       variant="default"
                       class="text-xs py-1.5 min-h-[36px]"
-                      onclick={() => { activeStatement = st; showSupersedeModal = true; }}
+                      onclick={() => {
+                        activeStatement = st;
+                        showSupersedeModal = true;
+                      }}
                     >
                       Supersede
                     </Button>
@@ -578,7 +623,10 @@
         entryId={activeRecoveryItem.entryId}
         originalDate={activeRecoveryItem.entryDate}
         grossPoisha={activeRecoveryItem.grossPoisha}
-        onclose={() => { showRecoveryModal = false; activeRecoveryItem = null; }}
+        onclose={() => {
+          showRecoveryModal = false;
+          activeRecoveryItem = null;
+        }}
         onreassign={handleReassignRecovery}
         onreopen={handleReopenRecovery}
         ondiscard={handleDiscardRecovery}
@@ -587,7 +635,13 @@
 
     <!-- Modal: Reconcile Statement -->
     {#if activeStatement}
-      <Modal bind:open={showReconcileModal} title="Confirm Statement Reconciliation" onclose={() => { showReconcileModal = false; }}>
+      <Modal
+        bind:open={showReconcileModal}
+        title="Confirm Statement Reconciliation"
+        onclose={() => {
+          showReconcileModal = false;
+        }}
+      >
         <form onsubmit={handleReconcileStatementSubmit} class="flex flex-col gap-4">
           {#if actionErrorMessage}
             <div role="alert" class="p-3 rounded-xl bg-red-500/10 text-red-700 text-xs font-medium">
@@ -598,21 +652,37 @@
           <div class="p-4 rounded-xl glass text-sm flex justify-between">
             <div>
               <div class="text-xs text-[var(--c-muted,#6b7280)]">Statement Total</div>
-              <div class="font-bold">{formatPoishaToBdt(BigInt(activeStatement.statement_total_poisha))}</div>
+              <div class="font-bold">
+                {formatPoishaToBdt(BigInt(activeStatement.statement_total_poisha))}
+              </div>
             </div>
             <div>
               <div class="text-xs text-[var(--c-muted,#6b7280)]">Expected Liability</div>
-              <div class="font-bold">{formatPoishaToBdt(BigInt(activeStatement.expected_poisha))}</div>
+              <div class="font-bold">
+                {formatPoishaToBdt(BigInt(activeStatement.expected_poisha))}
+              </div>
             </div>
             <div>
               <div class="text-xs text-[var(--c-muted,#6b7280)]">Variance</div>
-              <div class="font-bold">{formatPoishaToBdt(BigInt(activeStatement.variance_poisha))}</div>
+              <div class="font-bold">
+                {formatPoishaToBdt(BigInt(activeStatement.variance_poisha))}
+              </div>
             </div>
           </div>
 
           <div>
-            <label for="modal-rec-note" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
-              Explanatory Note {activeStatement && !isVarianceWithinTolerance(BigInt(activeStatement.variance_poisha), tolerancePoisha, false) ? '(Mandatory for variance > tolerance)' : '(Optional)'}
+            <label
+              for="modal-rec-note"
+              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >
+              Explanatory Note {activeStatement &&
+              !isVarianceWithinTolerance(
+                BigInt(activeStatement.variance_poisha),
+                tolerancePoisha,
+                false,
+              )
+                ? '(Mandatory for variance > tolerance)'
+                : '(Optional)'}
             </label>
             <textarea
               id="modal-rec-note"
@@ -624,7 +694,12 @@
           </div>
 
           <div class="flex justify-end gap-3">
-            <Button variant="default" onclick={() => { showReconcileModal = false; }}>Cancel</Button>
+            <Button
+              variant="default"
+              onclick={() => {
+                showReconcileModal = false;
+              }}>Cancel</Button
+            >
             <!-- Unique ids: two modals shared #btn-save, which is invalid HTML and
                  broke element lookups (E2E, 2026-11-07). -->
             <Button
@@ -632,7 +707,12 @@
               variant="commission"
               type="submit"
               loading={isActionSubmitting}
-              disabled={activeStatement && !isVarianceWithinTolerance(BigInt(activeStatement.variance_poisha), tolerancePoisha, reconcileNote.trim().length > 0)}
+              disabled={activeStatement &&
+                !isVarianceWithinTolerance(
+                  BigInt(activeStatement.variance_poisha),
+                  tolerancePoisha,
+                  reconcileNote.trim().length > 0,
+                )}
             >
               Reconcile Statement
             </Button>
@@ -641,7 +721,13 @@
       </Modal>
 
       <!-- Modal: Supersede Statement -->
-      <Modal bind:open={showSupersedeModal} title="Supersede Statement" onclose={() => { showSupersedeModal = false; }}>
+      <Modal
+        bind:open={showSupersedeModal}
+        title="Supersede Statement"
+        onclose={() => {
+          showSupersedeModal = false;
+        }}
+      >
         <form onsubmit={handleSupersedeStatementSubmit} class="flex flex-col gap-4">
           {#if actionErrorMessage}
             <div role="alert" class="p-3 rounded-xl bg-red-500/10 text-red-700 text-xs font-medium">
@@ -650,7 +736,11 @@
           {/if}
 
           <div>
-            <label for="modal-sup-total" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">New Statement Total (BDT)</label>
+            <label
+              for="modal-sup-total"
+              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              >New Statement Total (BDT)</label
+            >
             <input
               id="modal-sup-total"
               type="text"
@@ -663,7 +753,11 @@
           </div>
 
           <div>
-            <label for="modal-sup-reason" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Supersede Reason (Mandatory)</label>
+            <label
+              for="modal-sup-reason"
+              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              >Supersede Reason (Mandatory)</label
+            >
             <textarea
               id="modal-sup-reason"
               required
@@ -675,13 +769,19 @@
           </div>
 
           <div class="flex justify-end gap-3">
-            <Button variant="default" onclick={() => { showSupersedeModal = false; }}>Cancel</Button>
+            <Button
+              variant="default"
+              onclick={() => {
+                showSupersedeModal = false;
+              }}>Cancel</Button
+            >
             <Button
               id="btn-confirm-supersede"
               variant="mastercard"
               type="submit"
               loading={isActionSubmitting}
-              disabled={!supersedeReason.trim() || parseStrictBdtToPoisha(supersedeTotalBdt) === null}
+              disabled={!supersedeReason.trim() ||
+                parseStrictBdtToPoisha(supersedeTotalBdt) === null}
             >
               Confirm Supersede
             </Button>

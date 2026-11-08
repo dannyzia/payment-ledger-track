@@ -51,7 +51,10 @@
   function openReview(entry: StaleEntry, action: 'approved' | 'rejected') {
     selectedEntry = entry;
     reviewAction = action;
-    reviewReason = action === 'approved' ? 'Offline entry verified against paper receipt' : 'Rate variance unacceptable';
+    reviewReason =
+      action === 'approved'
+        ? 'Offline entry verified against paper receipt'
+        : 'Rate variance unacceptable';
     showModal = true;
   }
 
@@ -92,7 +95,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Stale Rate Review Queue</h1>
-      <p class="text-sm text-[var(--muted)]">Audit high-value offline transactions (&gt;৳50,000) recorded under superseded rate profiles.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Audit high-value offline transactions (&gt;৳50,000) recorded under superseded rate profiles.
+      </p>
     </div>
     <Button variant="default" onclick={loadStaleEntries}>Refresh Queue</Button>
   </div>
@@ -105,7 +110,9 @@
 
   <Card class="p-0 overflow-hidden">
     <table class="w-full text-left text-sm">
-      <thead class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs">
+      <thead
+        class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+      >
         <tr>
           <th class="py-3 px-4 font-semibold">Entry #</th>
           <th class="py-3 px-4 font-semibold">Entry Date</th>
@@ -124,10 +131,16 @@
               {formatPoishaToBdt(BigInt(e.gross_amount))}
             </td>
             <td class="py-3 px-4">
-              <span class="font-mono text-xs text-[var(--muted)]">Profile v{e.rate_profile_version}</span>
+              <span class="font-mono text-xs text-[var(--muted)]"
+                >Profile v{e.rate_profile_version}</span
+              >
             </td>
             <td class="py-3 px-4">
-              <Chip variant="default" class="bg-amber-500/10 text-amber-800 border border-amber-500/20">&gt;৳50,000 Offline Flag</Chip>
+              <Chip
+                variant="default"
+                class="bg-amber-500/10 text-amber-800 border border-amber-500/20"
+                >&gt;৳50,000 Offline Flag</Chip
+              >
             </td>
             <td class="py-3 px-4 text-right">
               <div class="flex items-center justify-end gap-2">
@@ -162,25 +175,38 @@
 </div>
 
 <!-- Review Action Modal -->
-<Modal bind:open={showModal} title={reviewAction === 'approved' ? 'Approve Stale-Rate Entry' : 'Void Flagged Stale Entry'} onclose={() => (showModal = false)}>
+<Modal
+  bind:open={showModal}
+  title={reviewAction === 'approved' ? 'Approve Stale-Rate Entry' : 'Void Flagged Stale Entry'}
+  onclose={() => (showModal = false)}
+>
   <div class="space-y-4">
     <p class="text-sm text-[var(--ink)]">
-      Reviewing Entry <strong class="font-mono">#{selectedEntry?.entry_number}</strong> with gross amount
-      <strong class="font-mono">{selectedEntry ? formatPoishaToBdt(BigInt(selectedEntry.gross_amount)) : ''}</strong>.
+      Reviewing Entry <strong class="font-mono">#{selectedEntry?.entry_number}</strong> with gross
+      amount
+      <strong class="font-mono"
+        >{selectedEntry ? formatPoishaToBdt(BigInt(selectedEntry.gross_amount)) : ''}</strong
+      >.
     </p>
 
     {#if reviewAction === 'approved'}
       <div class="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-800">
-        Approving retains the historical snapshot calculations and clears the audit flag. Settlements will reflect these snapshot numbers.
+        Approving retains the historical snapshot calculations and clears the audit flag.
+        Settlements will reflect these snapshot numbers.
       </div>
     {:else}
       <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800">
-        Rejecting voids this entry under advisory sequence lock and recomputes monthly payable settlements. This mutation is audited.
+        Rejecting voids this entry under advisory sequence lock and recomputes monthly payable
+        settlements. This mutation is audited.
       </div>
     {/if}
 
     <div>
-      <label for="review-reason-input" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Audit Justification Note</label>
+      <label
+        for="review-reason-input"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Audit Justification Note</label
+      >
       <textarea
         id="review-reason-input"
         rows="3"
@@ -198,7 +224,11 @@
         onclick={submitReview}
         disabled={submitting || !reviewReason}
       >
-        {submitting ? 'Submitting...' : reviewAction === 'approved' ? 'Confirm Approval' : 'Execute Void'}
+        {submitting
+          ? 'Submitting...'
+          : reviewAction === 'approved'
+            ? 'Confirm Approval'
+            : 'Execute Void'}
       </Button>
     </div>
   </div>

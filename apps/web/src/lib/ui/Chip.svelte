@@ -15,11 +15,14 @@
 
   const styleMap: Record<string, string> = {
     default: 'background-color: var(--surface); color: var(--ink); border: 1px solid var(--muted);',
-    commission: 'background-color: var(--pearl-b); color: var(--c-commission); border: 1px solid var(--c-commission);',
+    commission:
+      'background-color: var(--pearl-b); color: var(--c-commission); border: 1px solid var(--c-commission);',
     vat: 'background-color: var(--c-vat-bg); color: var(--c-vat); border: 1px solid var(--c-vat);',
-    bkash: 'background-color: var(--c-bkash-bg); color: var(--c-bkash); border: 1px solid var(--c-bkash);',
+    bkash:
+      'background-color: var(--c-bkash-bg); color: var(--c-bkash); border: 1px solid var(--c-bkash);',
     visa: 'background-color: var(--c-visa-bg); color: var(--c-visa); border: 1px solid var(--c-visa);',
-    mastercard: 'background-color: var(--c-mastercard-bg); color: var(--c-mastercard); border: 1px solid var(--c-mastercard);',
+    mastercard:
+      'background-color: var(--c-mastercard-bg); color: var(--c-mastercard); border: 1px solid var(--c-mastercard);',
   };
 </script>
 

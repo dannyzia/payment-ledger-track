@@ -34,10 +34,7 @@ function toCode(raw: string): string {
  * Turns an error payload from `/api/v1/settlements/payments` into something a person
  * can act on. Server sentences are kept as-is; known machine codes are translated.
  */
-export function describePaymentError(payload: {
-  error?: unknown;
-  message?: unknown;
-}): string {
+export function describePaymentError(payload: { error?: unknown; message?: unknown }): string {
   const error = typeof payload.error === 'string' ? payload.error : '';
   const message = typeof payload.message === 'string' ? payload.message : '';
 

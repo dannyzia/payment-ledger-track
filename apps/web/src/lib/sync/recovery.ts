@@ -179,7 +179,7 @@ export const REJECTION_MATRIX: Record<string, RejectionResolution> = {
 export async function handleOpRejection(
   opId: string,
   reason: string,
-  serverDateHeader?: string
+  serverDateHeader?: string,
 ): Promise<void> {
   const resolution = REJECTION_MATRIX[reason] || {
     action: 'move_to_review',
@@ -196,7 +196,9 @@ export async function handleOpRejection(
     entryId = op.payload.entryId as string | undefined;
   } else if (op.type === 'supersede_entry') {
     const replacement = op.payload.replacement as Record<string, unknown> | undefined;
-    entryId = (replacement?.entryId as string | undefined) ?? (op.payload.replacementEntryId as string | undefined);
+    entryId =
+      (replacement?.entryId as string | undefined) ??
+      (op.payload.replacementEntryId as string | undefined);
   }
 
   // 1. Ghost entry rollback on rejected supersede or void (PRD §9.2.2 M-3)
@@ -227,7 +229,10 @@ export async function handleOpRejection(
     return;
   }
 
-  if (reason === 'cannot_void_non_active' && (op.type === 'void_entry' || op.type === 'request_void')) {
+  if (
+    reason === 'cannot_void_non_active' &&
+    (op.type === 'void_entry' || op.type === 'request_void')
+  ) {
     if (entryId) {
       await db.entries.update(entryId, {
         void_requested_by: undefined,
@@ -356,7 +361,7 @@ export async function handleOpRejection(
  */
 export async function retryRejectedOp(
   failedOpId: string,
-  patchedPayload?: Partial<Record<string, unknown>>
+  patchedPayload?: Partial<Record<string, unknown>>,
 ): Promise<string> {
   const failedOp = await db.outbox.get(failedOpId);
   if (!failedOp) {
@@ -390,11 +395,24 @@ export async function retryRejectedOp(
       }
 
       const grossPoisha = BigInt((updatedPayload.grossPoisha as string) || localEntry.gross_poisha);
-      const vatInputPoisha = updatedPayload.vatInputPoisha ? BigInt(updatedPayload.vatInputPoisha as string) : undefined;
-      const vatOverridePoisha = updatedPayload.vatOverridePoisha ? BigInt(updatedPayload.vatOverridePoisha as string) : undefined;
-      const vatOverrideReason = (updatedPayload.vatOverrideReason as string | undefined) ?? ((localEntry as unknown as { vat_override_reason?: string }).vat_override_reason ?? undefined);
-      const commissionOverridePoisha = updatedPayload.commissionOverridePoisha ? BigInt(updatedPayload.commissionOverridePoisha as string) : undefined;
-      const commissionOverrideReason = (updatedPayload.commissionOverrideReason as string | undefined) ?? ((localEntry as unknown as { commission_override_reason?: string }).commission_override_reason ?? undefined);
+      const vatInputPoisha = updatedPayload.vatInputPoisha
+        ? BigInt(updatedPayload.vatInputPoisha as string)
+        : undefined;
+      const vatOverridePoisha = updatedPayload.vatOverridePoisha
+        ? BigInt(updatedPayload.vatOverridePoisha as string)
+        : undefined;
+      const vatOverrideReason =
+        (updatedPayload.vatOverrideReason as string | undefined) ??
+        (localEntry as unknown as { vat_override_reason?: string }).vat_override_reason ??
+        undefined;
+      const commissionOverridePoisha = updatedPayload.commissionOverridePoisha
+        ? BigInt(updatedPayload.commissionOverridePoisha as string)
+        : undefined;
+      const commissionOverrideReason =
+        (updatedPayload.commissionOverrideReason as string | undefined) ??
+        (localEntry as unknown as { commission_override_reason?: string })
+          .commission_override_reason ??
+        undefined;
 
       const calcResult = calculateEntry({
         grossPoisha,
@@ -459,7 +477,7 @@ export async function retryRejectedOp(
 export async function discardRejectedOp(
   failedOpId: string,
   actorId: string,
-  reason: string
+  reason: string,
 ): Promise<void> {
   if (!reason || reason.trim() === '') {
     throw new Error('Discard reason cannot be empty');
@@ -496,22 +514,22 @@ export async function discardRejectedOp(
     });
   }
 
-    const discardedRow = await db.rejectedOps.get(failedOpId);
-    if (discardedRow) {
-      await db.rejectedOps.update(failedOpId, {
-        status: 'discarded',
-      });
-    } else {
-      // The failed op never produced a local rejectedOps row (e.g. rejected before local recording): upsert defensively
-      const discardedEntryId = (failedOp?.payload?.entryId as string | undefined) ?? undefined;
-      await db.rejectedOps.put({
-        opId: failedOpId,
-        entry_id: discardedEntryId,
-        error_code: 'discarded_by_user',
-        error_message: reason,
-        rejected_at: new Date().toISOString(),
-        status: 'discarded',
-        payload: failedOp?.payload ?? {},
-      });
-    }
+  const discardedRow = await db.rejectedOps.get(failedOpId);
+  if (discardedRow) {
+    await db.rejectedOps.update(failedOpId, {
+      status: 'discarded',
+    });
+  } else {
+    // The failed op never produced a local rejectedOps row (e.g. rejected before local recording): upsert defensively
+    const discardedEntryId = (failedOp?.payload?.entryId as string | undefined) ?? undefined;
+    await db.rejectedOps.put({
+      opId: failedOpId,
+      entry_id: discardedEntryId,
+      error_code: 'discarded_by_user',
+      error_message: reason,
+      rejected_at: new Date().toISOString(),
+      status: 'discarded',
+      payload: failedOp?.payload ?? {},
+    });
+  }
 }

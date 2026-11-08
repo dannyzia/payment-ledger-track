@@ -32,9 +32,15 @@
 </script>
 
 <div class="receipt-breakdown">
-  <Card class="p-5 border-dashed border-2 border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/20">
-    <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
-      <span class="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Live Calculation Breakdown</span>
+  <Card
+    class="p-5 border-dashed border-2 border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/20"
+  >
+    <div
+      class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+    >
+      <span class="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]"
+        >Live Calculation Breakdown</span
+      >
       <span class="text-[11px] font-mono text-[var(--muted)]">Engine v1</span>
     </div>
 
@@ -42,7 +48,8 @@
       <!-- Gross -->
       <div class="flex justify-between items-center">
         <span class="font-sans font-medium text-[var(--ink)]">Gross Collected</span>
-        <span class="font-semibold text-sm text-[var(--ink)]">{formatPoishaToBdt(grossPoisha)}</span>
+        <span class="font-semibold text-sm text-[var(--ink)]">{formatPoishaToBdt(grossPoisha)}</span
+        >
       </div>
 
       <!-- VAT Deduction (Safe decimal percentage format without BigInt division crash) -->
@@ -57,9 +64,15 @@
 
       <!-- Commission Deduction (minus sign per PRD §6.3 & §8.1) -->
       <div class="flex justify-between items-center text-[var(--muted)]">
-        <span class="font-sans">Commission ({commissionBp !== undefined ? (commissionBp / 100).toFixed(2) : '0.00'}%)</span>
+        <span class="font-sans"
+          >Commission ({commissionBp !== undefined
+            ? (commissionBp / 100).toFixed(2)
+            : '0.00'}%)</span
+        >
         <span class="text-emerald-800 dark:text-emerald-400">
-          {commissionPoisha > 0n ? `-${formatPoishaToBdt(commissionPoisha)}` : formatPoishaToBdt(0n)}
+          {commissionPoisha > 0n
+            ? `-${formatPoishaToBdt(commissionPoisha)}`
+            : formatPoishaToBdt(0n)}
         </span>
       </div>
 
@@ -70,7 +83,8 @@
         </span>
         {#if chargesBorneBy === 'customer'}
           <span class="text-blue-700 dark:text-blue-300">
-            {formatPoishaToBdt(chargePoisha)} <span class="font-sans text-[10px]">(Customer-paid — not deducted)</span>
+            {formatPoishaToBdt(chargePoisha)}
+            <span class="font-sans text-[10px]">(Customer-paid — not deducted)</span>
           </span>
         {:else}
           <span class="text-rose-700 dark:text-rose-400">
@@ -82,7 +96,9 @@
       <!-- Divider -->
       <div class="border-t border-dashed border-black/20 dark:border-white/20 pt-2.5 mt-2">
         <div class="flex justify-between items-center">
-          <span class="font-sans font-bold text-xs uppercase tracking-wider text-[var(--ink)]">Net After Deductions</span>
+          <span class="font-sans font-bold text-xs uppercase tracking-wider text-[var(--ink)]"
+            >Net After Deductions</span
+          >
           <span class="font-bold text-base text-[var(--ink)]">{formatPoishaToBdt(netPoisha)}</span>
         </div>
       </div>

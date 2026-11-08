@@ -13,14 +13,13 @@ export const GET: RequestHandler = async (event) => {
   const actor = event.url.searchParams.get('actor');
   const startDate = event.url.searchParams.get('startDate');
   const endDate = event.url.searchParams.get('endDate');
-  const limit = Math.min(100, Math.max(1, parseInt(event.url.searchParams.get('limit') || '50', 10)));
+  const limit = Math.min(
+    100,
+    Math.max(1, parseInt(event.url.searchParams.get('limit') || '50', 10)),
+  );
 
   const supabase = getServiceSupabase();
-  let query = supabase
-    .from('audit_log')
-    .select('*')
-    .order('id', { ascending: false })
-    .limit(limit);
+  let query = supabase.from('audit_log').select('*').order('id', { ascending: false }).limit(limit);
 
   if (table) query = query.eq('target_table', table);
   if (action) query = query.ilike('action', `%${action}%`);

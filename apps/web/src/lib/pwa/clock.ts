@@ -15,7 +15,7 @@ export const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000; // 5 minutes
 export function calculateClockSkewDelta(
   serverDateHeader: string,
   clientNowMs = Date.now(),
-  roundTripTimeMs = 0
+  roundTripTimeMs = 0,
 ): number {
   const serverTimeMs = Date.parse(serverDateHeader);
   if (isNaN(serverTimeMs)) {

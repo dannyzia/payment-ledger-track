@@ -37,11 +37,11 @@
 
   const canRecordPayment = $derived(
     !isMonthClosed ||
-      (settlement ? BigInt(settlement.paid_poisha) < BigInt(settlement.expected_poisha) : false)
+      (settlement ? BigInt(settlement.paid_poisha) < BigInt(settlement.expected_poisha) : false),
   );
 
   function getChipVariant(
-    code?: string
+    code?: string,
   ): 'default' | 'commission' | 'vat' | 'bkash' | 'visa' | 'mastercard' {
     if (!code) return 'default';
     const lower = code.toLowerCase();
@@ -58,11 +58,16 @@
   }
 
   // Calculates remaining reversible balance for a payment (PRD Test #13 partial reversal support)
-  function getReversibleBalance(p: CachedSettlementPayment, allPayments: CachedSettlementPayment[]): bigint {
+  function getReversibleBalance(
+    p: CachedSettlementPayment,
+    allPayments: CachedSettlementPayment[],
+  ): bigint {
     if (p.is_reversal) return 0n;
     const original = BigInt(p.amount_poisha);
     const reversed = allPayments
-      .filter((other) => other.is_reversal && (other.reverses_payment_id ?? other.reverses_id) === p.id)
+      .filter(
+        (other) => other.is_reversal && (other.reverses_payment_id ?? other.reverses_id) === p.id,
+      )
       .reduce((acc, r) => acc + BigInt(r.amount_poisha), 0n);
     return original > reversed ? original - reversed : 0n;
   }
@@ -71,11 +76,17 @@
   async function loadServerPayments(sId: string) {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`/api/v1/settlements/payments?settlement_id=${encodeURIComponent(sId)}`, {
-        headers: { Authorization: `Bearer ${token ?? ''}` },
-      });
+      const res = await fetch(
+        `/api/v1/settlements/payments?settlement_id=${encodeURIComponent(sId)}`,
+        {
+          headers: { Authorization: `Bearer ${token ?? ''}` },
+        },
+      );
       if (res.ok) {
-        const data = (await res.json()) as { settlement?: CachedSettlement; payments?: CachedSettlementPayment[] };
+        const data = (await res.json()) as {
+          settlement?: CachedSettlement;
+          payments?: CachedSettlementPayment[];
+        };
         if (data.settlement) {
           await db.settlements.put(data.settlement);
         }
@@ -84,7 +95,10 @@
         }
       }
     } catch (err) {
-      console.warn('Offline: viewing cached payments from Dexie', err instanceof Error ? err.message : err);
+      console.warn(
+        'Offline: viewing cached payments from Dexie',
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 
@@ -94,9 +108,7 @@
 
     loadServerPayments(settlementId);
 
-    const subSettlement = liveQuery(() =>
-      db.settlements.get(settlementId)
-    ).subscribe((s) => {
+    const subSettlement = liveQuery(() => db.settlements.get(settlementId)).subscribe((s) => {
       settlement = s ?? null;
       if (s) {
         db.payables.get(s.payable_id).then((p) => {
@@ -107,14 +119,18 @@
             });
           }
         });
-        db.monthCloses.where('month').equals(s.month).first().then((mc) => {
-          isMonthClosed = mc?.status === 'closed';
-        });
+        db.monthCloses
+          .where('month')
+          .equals(s.month)
+          .first()
+          .then((mc) => {
+            isMonthClosed = mc?.status === 'closed';
+          });
       }
     });
 
     const subPayments = liveQuery(() =>
-      db.settlementPayments.where('settlement_id').equals(settlementId).toArray()
+      db.settlementPayments.where('settlement_id').equals(settlementId).toArray(),
     ).subscribe((pList) => {
       // Sort payments chronologically descending
       payments = pList.sort((a, b) => b.paid_on.localeCompare(a.paid_on));
@@ -139,7 +155,7 @@
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await fetch(
         `/api/v1/settlements/receipts/signed-url?path=${encodeURIComponent(receiptPath)}`,
-        { headers: { Authorization: `Bearer ${token ?? ''}` } }
+        { headers: { Authorization: `Bearer ${token ?? ''}` } },
       );
 
       if (!res.ok) throw new Error('Failed to retrieve signed URL');
@@ -164,7 +180,9 @@
 
 <div class="settlement-detail p-6 max-w-4xl mx-auto w-full">
   {#if !isAuthorized}
-    <div class="p-8 text-center bg-amber-500/10 border border-amber-500/20 rounded-2xl max-w-md mx-auto mt-12">
+    <div
+      class="p-8 text-center bg-amber-500/10 border border-amber-500/20 rounded-2xl max-w-md mx-auto mt-12"
+    >
       <span class="text-3xl mb-2 block">🔒</span>
       <h2 class="text-base font-bold text-amber-900 dark:text-amber-200">Access Restricted</h2>
       <p class="text-xs text-amber-700 dark:text-amber-300 mt-1">
@@ -183,7 +201,10 @@
       <div>
         <div class="flex items-center gap-2">
           {#if payable?.kind === 'vat'}
-            <span class="px-1.5 py-0.5 rounded text-[10px] bg-[var(--c-vat)]/10 text-[var(--c-vat)] font-bold">VAT</span>
+            <span
+              class="px-1.5 py-0.5 rounded text-[10px] bg-[var(--c-vat)]/10 text-[var(--c-vat)] font-bold"
+              >VAT</span
+            >
           {:else if method}
             <Chip variant={getChipVariant(method.code)}>
               {method.code}
@@ -200,14 +221,22 @@
         <Button variant="default" onclick={() => goto('/settlements')}>
           ← Back to Settlements
         </Button>
-        <Button variant="commission" onclick={() => { recordModalOpen = true; }} disabled={!canRecordPayment}>
+        <Button
+          variant="commission"
+          onclick={() => {
+            recordModalOpen = true;
+          }}
+          disabled={!canRecordPayment}
+        >
           + Record Payment
         </Button>
       </div>
     </div>
 
     {#if isMonthClosed}
-      <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs font-semibold text-red-700 dark:text-red-400">
+      <div
+        class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-xs font-semibold text-red-700 dark:text-red-400"
+      >
         🔒 This month is closed. Payment reversals and overpayments are permanently locked.
       </div>
     {/if}
@@ -236,7 +265,9 @@
           {settlement.status.replace('_', ' ')}
         </div>
         <div class="text-[10px] text-[var(--muted)] mt-1">
-          Variance: {formatPoishaToBdt(BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha))}
+          Variance: {formatPoishaToBdt(
+            BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha),
+          )}
         </div>
       </Card>
     </div>
@@ -248,17 +279,26 @@
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div class="flex items-center gap-2">
-                <span class="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold">
-                  {settlement.overpayment_review_status === 'approved' ? '✓ Overpayment Approved' : '⚠️ Overpayment Pending Approval'}
+                <span
+                  class="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold"
+                >
+                  {settlement.overpayment_review_status === 'approved'
+                    ? '✓ Overpayment Approved'
+                    : '⚠️ Overpayment Pending Approval'}
                 </span>
                 <span class="text-xs text-purple-900 dark:text-purple-200 font-bold">
-                  Surplus: +{formatPoishaToBdt(BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha))}
+                  Surplus: +{formatPoishaToBdt(
+                    BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha),
+                  )}
                 </span>
               </div>
 
               {#if settlement.overpayment_review_status === 'approved'}
                 <p class="text-xs text-purple-700/80 dark:text-purple-300/80 mt-1">
-                  Reason: "{settlement.overpayment_reason}" &bull; Authorized: {settlement.overpayment_approved_at?.slice(0, 10)}
+                  Reason: "{settlement.overpayment_reason}" &bull; Authorized: {settlement.overpayment_approved_at?.slice(
+                    0,
+                    10,
+                  )}
                 </p>
               {:else}
                 <p class="text-xs text-purple-700/80 dark:text-purple-300/80 mt-1">
@@ -268,7 +308,12 @@
             </div>
 
             {#if settlement.overpayment_review_status !== 'approved' && session.user?.role === 'owner'}
-              <Button variant="commission" onclick={() => { overpaymentModalOpen = true; }}>
+              <Button
+                variant="commission"
+                onclick={() => {
+                  overpaymentModalOpen = true;
+                }}
+              >
                 Authorize Surplus
               </Button>
             {/if}
@@ -279,7 +324,9 @@
 
     <!-- Payment Records Ledger Table -->
     <Card class="p-6">
-      <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
+      <div
+        class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+      >
         <h2 class="text-base font-bold text-[var(--ink)]">Settlement Payments &amp; Reversals</h2>
         <span class="text-xs text-[var(--muted)]">{payments.length} items</span>
       </div>
@@ -292,7 +339,9 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr class="text-xs text-[var(--muted)] border-b border-black/5 uppercase tracking-wider">
+              <tr
+                class="text-xs text-[var(--muted)] border-b border-black/5 uppercase tracking-wider"
+              >
                 <th class="pb-2">Date</th>
                 <th class="pb-2 text-right">Amount (BDT)</th>
                 <th class="pb-2">Reference</th>
@@ -305,20 +354,36 @@
               {#each payments as p (p.id)}
                 {@const reversibleBalance = getReversibleBalance(p, payments)}
                 {@const isFullyReversed = !p.is_reversal && reversibleBalance === 0n}
-                {@const isPartlyReversed = !p.is_reversal && reversibleBalance > 0n && reversibleBalance < BigInt(p.amount_poisha)}
+                {@const isPartlyReversed =
+                  !p.is_reversal &&
+                  reversibleBalance > 0n &&
+                  reversibleBalance < BigInt(p.amount_poisha)}
                 {@const receiptPath = p.receipt_storage_path ?? p.receipt_path}
                 <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
                   <td class="py-3 text-[var(--ink)]">
                     {p.paid_on}
                     {#if p.is_reversal}
-                      <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 font-bold">Reversal</span>
+                      <span
+                        class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 font-bold"
+                        >Reversal</span
+                      >
                     {:else if isFullyReversed}
-                      <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-black/10 text-[var(--muted)] font-bold">Reversed</span>
+                      <span
+                        class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-black/10 text-[var(--muted)] font-bold"
+                        >Reversed</span
+                      >
                     {:else if isPartlyReversed}
-                      <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold">Partly Reversed</span>
+                      <span
+                        class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 font-bold"
+                        >Partly Reversed</span
+                      >
                     {/if}
                   </td>
-                  <td class="py-3 text-right font-bold tabular-nums {p.is_reversal ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}">
+                  <td
+                    class="py-3 text-right font-bold tabular-nums {p.is_reversal
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-emerald-600 dark:text-emerald-400'}"
+                  >
                     {p.is_reversal ? '-' : ''}{formatPoishaToBdt(BigInt(p.amount_poisha))}
                   </td>
                   <td class="py-3 text-[var(--muted)]">{p.reference || '—'}</td>
@@ -367,7 +432,9 @@
       expectedPoisha={settlement.expected_poisha}
       paidPoisha={settlement.paid_poisha}
       {isMonthClosed}
-      onclose={() => { recordModalOpen = false; }}
+      onclose={() => {
+        recordModalOpen = false;
+      }}
       onsuccess={(newP, updatedSett) => {
         // The Dexie liveQuery also delivers this row, so replace by id instead of
         // prepending blindly: a duplicate keyed entry throws each_key_duplicate.
@@ -386,7 +453,10 @@
         reversesPayment={selectedPaymentForReversal}
         maxReversiblePoisha={selectedPaymentReversibleBalance}
         {isMonthClosed}
-        onclose={() => { reversalModalOpen = false; selectedPaymentForReversal = null; }}
+        onclose={() => {
+          reversalModalOpen = false;
+          selectedPaymentForReversal = null;
+        }}
         onsuccess={(newP, updatedSett) => {
           payments = [newP, ...payments.filter((p) => p.id !== newP.id)];
           if (updatedSett) {
@@ -399,7 +469,9 @@
     <OverpaymentApprovalModal
       bind:open={overpaymentModalOpen}
       {settlement}
-      onclose={() => { overpaymentModalOpen = false; }}
+      onclose={() => {
+        overpaymentModalOpen = false;
+      }}
       onsuccess={(updated) => {
         settlement = updated;
       }}

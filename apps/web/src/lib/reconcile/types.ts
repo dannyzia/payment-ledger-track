@@ -5,10 +5,10 @@
 
 export interface StatementLine {
   lineIndex: number;
-  date?: string;          // ISO YYYY-MM-DD
-  reference?: string;     // Normalized transaction reference / TxnID / AuthCode
-  grossPoisha?: bigint;   // Transaction amount in poisha
-  feePoisha?: bigint;     // Merchant fee in poisha
+  date?: string; // ISO YYYY-MM-DD
+  reference?: string; // Normalized transaction reference / TxnID / AuthCode
+  grossPoisha?: bigint; // Transaction amount in poisha
+  feePoisha?: bigint; // Merchant fee in poisha
   raw: Record<string, unknown>;
 }
 

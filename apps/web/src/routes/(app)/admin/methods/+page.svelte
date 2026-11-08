@@ -113,7 +113,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Payment Methods</h1>
-      <p class="text-sm text-[var(--muted)]">Configure active payment channels, transaction reference requirements, and display ordering.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Configure active payment channels, transaction reference requirements, and display ordering.
+      </p>
     </div>
     <Button variant="default" onclick={openCreateModal}>Add Payment Method</Button>
   </div>
@@ -126,7 +128,9 @@
 
   <Card class="p-0 overflow-hidden">
     <table class="w-full text-left text-sm">
-      <thead class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs">
+      <thead
+        class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+      >
         <tr>
           <th class="py-3 px-4 font-semibold">Order</th>
           <th class="py-3 px-4 font-semibold">Channel Name</th>
@@ -174,10 +178,18 @@
 </div>
 
 <!-- Create / Edit Modal -->
-<Modal bind:open={showModal} title={isEditing ? 'Edit Payment Method' : 'Add Payment Method'} onclose={() => (showModal = false)}>
+<Modal
+  bind:open={showModal}
+  title={isEditing ? 'Edit Payment Method' : 'Add Payment Method'}
+  onclose={() => (showModal = false)}
+>
   <div class="space-y-4">
     <div>
-      <label for="method-name" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Display Name</label>
+      <label
+        for="method-name"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Display Name</label
+      >
       <input
         id="method-name"
         type="text"
@@ -188,7 +200,11 @@
     </div>
 
     <div>
-      <label for="method-code" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Code (Immutable after creation)</label>
+      <label
+        for="method-code"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Code (Immutable after creation)</label
+      >
       <input
         id="method-code"
         type="text"
@@ -198,12 +214,18 @@
         class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono disabled:opacity-50"
       />
       {#if isEditing}
-        <p class="text-[11px] text-[var(--muted)] mt-1">Method codes are permanently bound to financial records and cannot be altered.</p>
+        <p class="text-[11px] text-[var(--muted)] mt-1">
+          Method codes are permanently bound to financial records and cannot be altered.
+        </p>
       {/if}
     </div>
 
     <div>
-      <label for="method-order" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Sort Order</label>
+      <label
+        for="method-order"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Sort Order</label
+      >
       <input
         id="method-order"
         type="number"
@@ -215,18 +237,32 @@
 
     <div class="pt-2 space-y-2">
       <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" bind:checked={methodRequiresTxnRef} class="rounded border-black/20 text-black" />
-        <span class="text-sm font-medium text-[var(--ink)]">Require Transaction Reference on Entry</span>
+        <input
+          type="checkbox"
+          bind:checked={methodRequiresTxnRef}
+          class="rounded border-black/20 text-black"
+        />
+        <span class="text-sm font-medium text-[var(--ink)]"
+          >Require Transaction Reference on Entry</span
+        >
       </label>
       <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" bind:checked={methodActive} class="rounded border-black/20 text-black" />
+        <input
+          type="checkbox"
+          bind:checked={methodActive}
+          class="rounded border-black/20 text-black"
+        />
         <span class="text-sm font-medium text-[var(--ink)]">Active for Payment Entry</span>
       </label>
     </div>
 
     <div class="flex justify-end gap-3 pt-4">
       <Button variant="default" onclick={() => (showModal = false)}>Cancel</Button>
-      <Button variant="default" onclick={saveMethod} disabled={saving || !methodName || !methodCode}>
+      <Button
+        variant="default"
+        onclick={saveMethod}
+        disabled={saving || !methodName || !methodCode}
+      >
         {saving ? 'Saving...' : 'Save Method'}
       </Button>
     </div>

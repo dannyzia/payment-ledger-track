@@ -8,12 +8,16 @@
   import { supabase } from '$lib/supabase/client';
   import { db } from '$lib/db';
   import { syncRunner } from '$lib/sync/runner.svelte';
-  import { evaluateMonthCloseGates, currentDhakaMonth, type MonthCloseGatesResult } from '$lib/reconcile/tolerance';
+  import {
+    evaluateMonthCloseGates,
+    currentDhakaMonth,
+    type MonthCloseGatesResult,
+  } from '$lib/reconcile/tolerance';
 
   // ?month=YYYY-MM lets the statement workspace return here on the month it came from.
   const monthParam = page.url.searchParams.get('month');
   let selectedMonth = $state(
-    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth()
+    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) ? monthParam : currentDhakaMonth(),
   );
   let monthStatus = $state<'open' | 'closed'>('open');
 
@@ -24,7 +28,9 @@
 
   // Open statements that are holding Gate 1 back, so they can be resumed from here
   // instead of hunting for their month on the reconciliation overview (CLT-R-022).
-  let blockingStatements = $state<Array<{ id: string; label: string; source: 'manual_total' | 'file' }>>([]);
+  let blockingStatements = $state<
+    Array<{ id: string; label: string; source: 'manual_total' | 'file' }>
+  >([]);
 
   // The gates are judged from the local Dexie cache, which is empty until the first
   // sync pull lands. Until then every gate is unknown, not passed.
@@ -43,7 +49,7 @@
       overpaymentsApproved,
       zeroPendingStaleReviews,
       monthStatus,
-    })
+    }),
   );
 
   let showReopenModal = $state(false);
@@ -66,12 +72,18 @@
 
     // 1. Check month close status from Dexie
     const closeRecord = await db.monthCloses.get(monthDate);
-    const monthStatusResult: 'open' | 'closed' = closeRecord?.status === 'closed' ? 'closed' : 'open';
+    const monthStatusResult: 'open' | 'closed' =
+      closeRecord?.status === 'closed' ? 'closed' : 'open';
 
     // 2. Gate 3: Check pending stale rate review entries on ACTIVE entries (>৳50,000 flagged entries)
     // Strictly ignores voided or superseded entries conforming to PRD §7.3 close_month RPC
     const flaggedEntriesCount = await db.entries
-      .filter(e => e.entry_date.startsWith(month) && e.status === 'active' && e.stale_review_status === 'flagged')
+      .filter(
+        (e) =>
+          e.entry_date.startsWith(month) &&
+          e.status === 'active' &&
+          e.stale_review_status === 'flagged',
+      )
       .count();
     const zeroPendingStaleReviewsResult = flaggedEntriesCount === 0;
 
@@ -82,10 +94,16 @@
     // DDL payables.kind is ('vat' | 'method_charge'); the 'card' kind literal from the pure helper
     // contract is compared via string cast because it can never occur in cached DDL rows (CLT-D-019).
     const cardPayableIds = payables
-      .filter(p => (p.kind as string) === 'card' || (p.code ?? '').toLowerCase().includes('visa') || (p.code ?? '').toLowerCase().includes('mastercard'))
-      .map(p => p.id);
+      .filter(
+        (p) =>
+          (p.kind as string) === 'card' ||
+          (p.code ?? '').toLowerCase().includes('visa') ||
+          (p.code ?? '').toLowerCase().includes('mastercard'),
+      )
+      .map((p) => p.id);
 
-    const payableName = (id?: string) => payables.find(p => p.id === id)?.name ?? 'Unknown payable';
+    const payableName = (id?: string) =>
+      payables.find((p) => p.id === id)?.name ?? 'Unknown payable';
 
     const reconciledStatementPayableIds = new Set<string>();
     for (const st of statements) {
@@ -103,7 +121,7 @@
     }
 
     const activeEntriesCount = await db.entries
-      .filter(e => e.entry_date.startsWith(month) && e.status === 'active')
+      .filter((e) => e.entry_date.startsWith(month) && e.status === 'active')
       .count();
 
     let allPayablesReconciledResult: boolean;
@@ -111,36 +129,48 @@
       // Empty month with 0 entries auto-passes Gate 1; month with un-settled entries must wait for sync
       allPayablesReconciledResult = activeEntriesCount === 0;
     } else {
-      const liableSettlements = settlements.filter(s => s.status !== 'not_applicable');
-      allPayablesReconciledResult = liableSettlements.every(s => reconciledStatementPayableIds.has(s.payable_id));
+      const liableSettlements = settlements.filter((s) => s.status !== 'not_applicable');
+      allPayablesReconciledResult = liableSettlements.every((s) =>
+        reconciledStatementPayableIds.has(s.payable_id),
+      );
     }
 
     // Open statements still blocking Gate 1, each reachable from this checklist.
     const unreconciledPayableIds = new Set(
       settlements
-        .filter(s => s.status !== 'not_applicable' && !reconciledStatementPayableIds.has(s.payable_id))
-        .map(s => s.payable_id)
+        .filter(
+          (s) => s.status !== 'not_applicable' && !reconciledStatementPayableIds.has(s.payable_id),
+        )
+        .map((s) => s.payable_id),
     );
     const blockingStatementsResult = allPayablesReconciledResult
       ? []
       : statements
-          .filter(st => st.status === 'open')
-          .filter(st => {
-            if (st.kind === 'combined_card') return cardPayableIds.some(cid => unreconciledPayableIds.has(cid));
-            const ids = st.payable_ids?.length ? st.payable_ids : st.payable_id ? [st.payable_id] : [];
-            return ids.some(id => unreconciledPayableIds.has(id));
+          .filter((st) => st.status === 'open')
+          .filter((st) => {
+            if (st.kind === 'combined_card')
+              return cardPayableIds.some((cid) => unreconciledPayableIds.has(cid));
+            const ids = st.payable_ids?.length
+              ? st.payable_ids
+              : st.payable_id
+                ? [st.payable_id]
+                : [];
+            return ids.some((id) => unreconciledPayableIds.has(id));
           })
-          .map(st => ({
+          .map((st) => ({
             id: st.id,
             source: st.source,
-            label: st.kind === 'combined_card'
-              ? 'Combined card statement'
-              : (st.payable_ids?.length ? st.payable_ids.map(payableName).join(', ') : payableName(st.payable_id)),
+            label:
+              st.kind === 'combined_card'
+                ? 'Combined card statement'
+                : st.payable_ids?.length
+                  ? st.payable_ids.map(payableName).join(', ')
+                  : payableName(st.payable_id),
           }));
 
     // 4. Gate 2: Check active Owner approvals for overpaid settlements matching exact surplus
-    const overpaidSettlements = settlements.filter(s => s.status === 'overpaid');
-    const unapprovedOverpayment = overpaidSettlements.some(s => {
+    const overpaidSettlements = settlements.filter((s) => s.status === 'overpaid');
+    const unapprovedOverpayment = overpaidSettlements.some((s) => {
       const surplus = BigInt(s.paid_poisha || '0') - BigInt(s.expected_poisha || '0');
       const approvedAmount = BigInt(s.overpayment_approved_amount_poisha || '0');
       return s.overpayment_review_status !== 'approved' || approvedAmount !== surplus;
@@ -198,7 +228,8 @@
   }
 
   async function handleCloseMonth() {
-    if (gatesLoading || gatesUnsynced || !gatesResult.canClose || session.user?.role !== 'owner') return;
+    if (gatesLoading || gatesUnsynced || !gatesResult.canClose || session.user?.role !== 'owner')
+      return;
     isSubmitting = true;
     errorMessage = '';
 
@@ -210,7 +241,7 @@
       const res = await fetch('/api/v1/months/close', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ month: `${selectedMonth}-01` }),
@@ -250,7 +281,7 @@
       const res = await fetch('/api/v1/months/reopen', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -294,7 +325,10 @@
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied (Owner Role Required)</h2>
-      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">Month Close and Reopen controls are restricted exclusively to the Owner (Hard Rule 7, PRD §8.4).</p>
+      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">
+        Month Close and Reopen controls are restricted exclusively to the Owner (Hard Rule 7, PRD
+        §8.4).
+      </p>
       <Button variant="default" onclick={() => goto('/dashboard')}>Return to Dashboard</Button>
     </Card>
   </div>
@@ -302,8 +336,12 @@
   <div class="month-close-page p-6 max-w-4xl mx-auto w-full">
     <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">Month Close Controls</h1>
-        <p class="text-sm text-[var(--c-muted,#6b7280)]">Owner-only execution permanently locking financial transactions (PRD §8.4).</p>
+        <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
+          Month Close Controls
+        </h1>
+        <p class="text-sm text-[var(--c-muted,#6b7280)]">
+          Owner-only execution permanently locking financial transactions (PRD §8.4).
+        </p>
       </div>
 
       <input
@@ -321,30 +359,58 @@
 
     <Card class="p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">Implementation Readiness Checklist for {selectedMonth}</h2>
+        <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">
+          Implementation Readiness Checklist for {selectedMonth}
+        </h2>
         <div>
           {#if monthStatus === 'closed'}
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-700">Closed & Locked</span>
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-700"
+              >Closed & Locked</span
+            >
           {:else}
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700">Open for Entries</span>
+            <span
+              class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700"
+              >Open for Entries</span
+            >
           {/if}
         </div>
       </div>
 
       <div class="flex flex-col gap-3 text-sm">
-        <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
+        <div
+          class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5"
+        >
           <span>1. All payables reconciled or marked not_applicable</span>
-          <span class="font-bold {gatesLoading || gatesUnsynced ? 'text-[var(--c-muted,#6b7280)]' : allPayablesReconciled ? 'text-green-600' : 'text-red-600'}">
-            {gatesLoading ? 'Checking…' : gatesUnsynced ? 'Not synced' : allPayablesReconciled ? 'Passed' : 'Pending Reconciliation'}
+          <span
+            class="font-bold {gatesLoading || gatesUnsynced
+              ? 'text-[var(--c-muted,#6b7280)]'
+              : allPayablesReconciled
+                ? 'text-green-600'
+                : 'text-red-600'}"
+          >
+            {gatesLoading
+              ? 'Checking…'
+              : gatesUnsynced
+                ? 'Not synced'
+                : allPayablesReconciled
+                  ? 'Passed'
+                  : 'Pending Reconciliation'}
           </span>
         </div>
 
         {#if !gatesLoading && !gatesUnsynced && !allPayablesReconciled && monthStatus === 'open'}
-          <div class="p-3 rounded-xl bg-white/40 border border-black/5 -mt-1" data-testid="blocking-statements">
+          <div
+            class="p-3 rounded-xl bg-white/40 border border-black/5 -mt-1"
+            data-testid="blocking-statements"
+          >
             {#if blockingStatements.length === 0}
               <p class="text-xs text-[var(--c-muted,#6b7280)]">
                 No open statement covers the outstanding payables for {selectedMonth}.
-                <a href={`/reconcile?month=${selectedMonth}&return=close`} class="font-semibold text-[var(--brand,#3b82f6)] underline">Create one in Reconciliation</a>.
+                <a
+                  href={`/reconcile?month=${selectedMonth}&return=close`}
+                  class="font-semibold text-[var(--brand,#3b82f6)] underline"
+                  >Create one in Reconciliation</a
+                >.
               </p>
             {:else}
               <p class="text-xs font-semibold text-[var(--c-ink,#111827)] mb-2">
@@ -361,7 +427,10 @@
                         variant="commission"
                         class="text-xs py-1 min-h-[36px]"
                         id="btn-blocking-resume-{st.id}"
-                        onclick={() => goto(`/reconcile/upload?statement=${st.id}&return=close&month=${selectedMonth}`)}
+                        onclick={() =>
+                          goto(
+                            `/reconcile/upload?statement=${st.id}&return=close&month=${selectedMonth}`,
+                          )}
                       >
                         Resume Matching
                       </Button>
@@ -382,33 +451,71 @@
           </div>
         {/if}
 
-        <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
+        <div
+          class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5"
+        >
           <span>2. Active Owner approvals for any overpaid settlements (exact surplus)</span>
-          <span class="font-bold {gatesLoading || gatesUnsynced ? 'text-[var(--c-muted,#6b7280)]' : overpaymentsApproved ? 'text-green-600' : 'text-red-600'}">
-            {gatesLoading ? 'Checking…' : gatesUnsynced ? 'Not synced' : overpaymentsApproved ? 'Passed' : 'Pending Owner Approval'}
+          <span
+            class="font-bold {gatesLoading || gatesUnsynced
+              ? 'text-[var(--c-muted,#6b7280)]'
+              : overpaymentsApproved
+                ? 'text-green-600'
+                : 'text-red-600'}"
+          >
+            {gatesLoading
+              ? 'Checking…'
+              : gatesUnsynced
+                ? 'Not synced'
+                : overpaymentsApproved
+                  ? 'Passed'
+                  : 'Pending Owner Approval'}
           </span>
         </div>
 
-        <div class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5">
+        <div
+          class="flex items-center justify-between p-3 rounded-xl bg-white/40 border border-black/5"
+        >
           <span>3. Zero unreviewed stale entries (>৳50,000 flagged active entries)</span>
-          <span class="font-bold {gatesLoading || gatesUnsynced ? 'text-[var(--c-muted,#6b7280)]' : zeroPendingStaleReviews ? 'text-green-600' : 'text-red-600'}">
-            {gatesLoading ? 'Checking…' : gatesUnsynced ? 'Not synced' : zeroPendingStaleReviews ? 'Passed' : 'Pending Review'}
+          <span
+            class="font-bold {gatesLoading || gatesUnsynced
+              ? 'text-[var(--c-muted,#6b7280)]'
+              : zeroPendingStaleReviews
+                ? 'text-green-600'
+                : 'text-red-600'}"
+          >
+            {gatesLoading
+              ? 'Checking…'
+              : gatesUnsynced
+                ? 'Not synced'
+                : zeroPendingStaleReviews
+                  ? 'Passed'
+                  : 'Pending Review'}
           </span>
         </div>
       </div>
 
       {#if gatesLoading}
-        <div class="mt-4 p-3 rounded-xl bg-slate-500/10 text-xs text-slate-700" data-testid="gates-loading">
-          Checking the local ledger cache while it syncs. Gate results appear once this month's data has been pulled.
+        <div
+          class="mt-4 p-3 rounded-xl bg-slate-500/10 text-xs text-slate-700"
+          data-testid="gates-loading"
+        >
+          Checking the local ledger cache while it syncs. Gate results appear once this month's data
+          has been pulled.
         </div>
       {:else if gatesUnsynced}
-        <div class="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800" data-testid="gates-unsynced">
-          This device has not synced, so the gates cannot be checked here and month close stays disabled. Go online, let the ledger sync, then reopen this checklist. The server verifies every gate again before a month closes.
+        <div
+          class="mt-4 p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800"
+          data-testid="gates-unsynced"
+        >
+          This device has not synced, so the gates cannot be checked here and month close stays
+          disabled. Go online, let the ledger sync, then reopen this checklist. The server verifies
+          every gate again before a month closes.
         </div>
       {/if}
 
       <div class="mt-4 p-3 rounded-xl bg-blue-500/10 text-xs text-blue-800">
-        Notice: Client evaluation is advisory. Final closure is verified and locked atomically by PostgreSQL under Month Advisory Lock 1001.
+        Notice: Client evaluation is advisory. Final closure is verified and locked atomically by
+        PostgreSQL under Month Advisory Lock 1001.
       </div>
 
       {#if !gatesLoading && !gatesUnsynced && !gatesResult.canClose && monthStatus === 'open'}
@@ -439,7 +546,9 @@
             id="btn-reopen-modal"
             variant="mastercard"
             class="min-h-[44px]"
-            onclick={() => { showReopenModal = true; }}
+            onclick={() => {
+              showReopenModal = true;
+            }}
           >
             Reopen Month (Owner Only)
           </Button>
@@ -447,14 +556,25 @@
       </div>
     </Card>
 
-    <Modal bind:open={showReopenModal} title="Reopen Closed Calendar Month" onclose={() => { showReopenModal = false; }}>
+    <Modal
+      bind:open={showReopenModal}
+      title="Reopen Closed Calendar Month"
+      onclose={() => {
+        showReopenModal = false;
+      }}
+    >
       <form onsubmit={handleReopenMonth} class="flex flex-col gap-4">
         <div class="p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800">
-          Warning: Reopening month {selectedMonth} unfreezes financial transactions, un-reconciles all reconciled statements for that month (flipping them back to open), and permits offline entries to sync into this historical period (PRD §8.4).
+          Warning: Reopening month {selectedMonth} unfreezes financial transactions, un-reconciles all
+          reconciled statements for that month (flipping them back to open), and permits offline entries
+          to sync into this historical period (PRD §8.4).
         </div>
 
         <div>
-          <label for="modal-reopen-reason" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+          <label
+            for="modal-reopen-reason"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+          >
             Mandatory Month Reopen Reason
           </label>
           <textarea
@@ -468,10 +588,21 @@
         </div>
 
         <div class="flex justify-end gap-3">
-          <Button variant="default" onclick={() => { showReopenModal = false; }}>Cancel</Button>
+          <Button
+            variant="default"
+            onclick={() => {
+              showReopenModal = false;
+            }}>Cancel</Button
+          >
           <!-- Distinct id: this page already has a #btn-save for the close action,
                and duplicate ids broke element lookups (E2E, 2026-11-07). -->
-          <Button id="btn-confirm-reopen" variant="mastercard" type="submit" loading={isSubmitting} disabled={!reopenReason.trim()}>
+          <Button
+            id="btn-confirm-reopen"
+            variant="mastercard"
+            type="submit"
+            loading={isSubmitting}
+            disabled={!reopenReason.trim()}
+          >
             Confirm Reopen Month
           </Button>
         </div>

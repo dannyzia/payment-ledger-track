@@ -54,7 +54,9 @@ export async function flushOutboxPush(): Promise<{
   const MAX_ITERATIONS = 20; // 20 * 50 = 1,000 ops maximum per sync cycle
 
   // Retrieve active session token and user ID
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (!session?.user?.id) {
     // CLT-R-015: no Supabase session means signed out, not a sync failure. The
     // caller sends the user to /login instead of showing a generic error.
@@ -99,7 +101,7 @@ export async function flushOutboxPush(): Promise<{
           supersedesRejectedOpId: op.supersedesRejectedOpId ?? undefined,
           maxKnownRateVersion: op.maxKnownRateVersion,
         };
-      })
+      }),
     );
 
     const body = JSON.stringify({ deviceId, ops: preparedOps });
@@ -151,7 +153,11 @@ export async function flushOutboxPush(): Promise<{
           if (item.server_seq !== undefined && item.server_seq !== null) {
             updates.server_seq = item.server_seq.toString();
           }
-          if (item.entry_number !== undefined && item.entry_number !== null && op.payload.entryDate) {
+          if (
+            item.entry_number !== undefined &&
+            item.entry_number !== null &&
+            op.payload.entryDate
+          ) {
             const ym = (op.payload.entryDate as string).replace(/-/g, '').substring(0, 6);
             updates.entry_number = `E-${ym}-${item.entry_number.toString().padStart(6, '0')}`;
           }
@@ -166,23 +172,40 @@ export async function flushOutboxPush(): Promise<{
             if (item.server_seq !== undefined && item.server_seq !== null) {
               updates.server_seq = item.server_seq.toString();
             }
-            if (item.entry_number !== undefined && item.entry_number !== null && replacement.entryDate) {
+            if (
+              item.entry_number !== undefined &&
+              item.entry_number !== null &&
+              replacement.entryDate
+            ) {
               const ym = (replacement.entryDate as string).replace(/-/g, '').substring(0, 6);
               updates.entry_number = `E-${ym}-${item.entry_number.toString().padStart(6, '0')}`;
             }
             await db.entries.update(replacementId, updates);
           }
           if (op.payload.originalEntryId) {
-            await db.entries.update(op.payload.originalEntryId as string, { status: 'superseded', sync_status: 'synced' });
+            await db.entries.update(op.payload.originalEntryId as string, {
+              status: 'superseded',
+              sync_status: 'synced',
+            });
           }
-        } else if ((op?.type === 'void_entry' || op?.type === 'request_void') && op.payload.entryId) {
+        } else if (
+          (op?.type === 'void_entry' || op?.type === 'request_void') &&
+          op.payload.entryId
+        ) {
           const newStatus = op.type === 'void_entry' ? 'voided' : 'active';
-          await db.entries.update(op.payload.entryId as string, { status: newStatus, sync_status: 'synced' });
+          await db.entries.update(op.payload.entryId as string, {
+            status: newStatus,
+            sync_status: 'synced',
+          });
         }
       } else {
         opsProgressMade++;
         await handleOpRejection(item.opId, item.reason || 'unknown_rejection', serverDateHeader);
-        if (item.reason === 'device_revoked' || item.reason === 'user_deactivated' || item.reason === 'upgrade_required') {
+        if (
+          item.reason === 'device_revoked' ||
+          item.reason === 'user_deactivated' ||
+          item.reason === 'upgrade_required'
+        ) {
           hasFatalRejection = true;
         }
       }

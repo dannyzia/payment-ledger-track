@@ -70,7 +70,11 @@
     aria-label={messages.pwa.installBannerAria}
   >
     <div class="flex items-center gap-3">
-      <img src="/icons/icon-192.png" alt="Kumon Ledger Track" class="w-10 h-10 rounded-lg shadow-sm" />
+      <img
+        src="/icons/icon-192.png"
+        alt="Kumon Ledger Track"
+        class="w-10 h-10 rounded-lg shadow-sm"
+      />
       <div>
         <p class="text-sm font-semibold text-[var(--ink)]">{messages.pwa.installBannerTitle}</p>
         <p class="text-xs text-[var(--muted)]">{messages.pwa.installBannerSubtitle}</p>

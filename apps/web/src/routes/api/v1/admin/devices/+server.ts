@@ -4,7 +4,10 @@ import { getCallerContext } from '$lib/server/auth';
 import { getServiceSupabase } from '$lib/server/supabase';
 
 const manageDeviceSchema = z.object({
-  deviceId: z.string().uuid().transform((s) => s.toLowerCase()),
+  deviceId: z
+    .string()
+    .uuid()
+    .transform((s) => s.toLowerCase()),
   action: z.enum(['revoke', 'unrevoke']),
 });
 
@@ -17,7 +20,9 @@ export const GET: RequestHandler = async (event) => {
   const supabase = getServiceSupabase();
   const { data: deviceRows, error: devErr } = await supabase
     .from('devices')
-    .select('id, device_id, device_name, last_seen_at, last_rate_version, revoked, user_id, profiles(full_name)')
+    .select(
+      'id, device_id, device_name, last_seen_at, last_rate_version, revoked, user_id, profiles(full_name)',
+    )
     .order('last_seen_at', { ascending: false });
 
   if (devErr) {
@@ -25,7 +30,7 @@ export const GET: RequestHandler = async (event) => {
   }
 
   // Group active user sessions by physical device_id
-  
+
   type DeviceGroup = {
     device_id: string;
     label: string | null;
@@ -53,7 +58,9 @@ export const GET: RequestHandler = async (event) => {
       }
       group.active_users.push({
         user_id: row.user_id,
-        full_name: (row.profiles as unknown as { full_name?: string | null } | null)?.full_name || 'Staff User',
+        full_name:
+          (row.profiles as unknown as { full_name?: string | null } | null)?.full_name ||
+          'Staff User',
         email: '',
       });
     }
@@ -74,7 +81,9 @@ export const POST: RequestHandler = async (event) => {
   const body = await event.request.json();
   const parsed = manageDeviceSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const supabase = getServiceSupabase();

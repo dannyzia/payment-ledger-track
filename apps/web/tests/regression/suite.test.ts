@@ -37,8 +37,7 @@ describe('PRD §16.2 Mandatory Critical Regression Test Suite (#1 to #65)', () =
       expect(
         res.rows.every(
           (r) =>
-            r.proconfig !== null &&
-            r.proconfig.some((c: string) => c.includes('search_path=')),
+            r.proconfig !== null && r.proconfig.some((c: string) => c.includes('search_path=')),
         ),
       ).toBe(true);
     });
@@ -128,9 +127,7 @@ describe('PRD §16.2 Mandatory Critical Regression Test Suite (#1 to #65)', () =
     });
 
     it('Test #20: Zero-Liability Settlement Status', async () => {
-      const r1 = await pgClient.query(
-        'SELECT calc_settlement_status(0::bigint, 0::bigint) AS s',
-      );
+      const r1 = await pgClient.query('SELECT calc_settlement_status(0::bigint, 0::bigint) AS s');
       expect(r1.rows[0].s).toBe('not_applicable');
       const r2 = await pgClient.query(
         'SELECT calc_settlement_status(0::bigint, 5000::bigint) AS s',

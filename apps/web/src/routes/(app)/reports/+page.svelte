@@ -12,7 +12,11 @@
     type CachedAppSettings,
   } from '$lib/db';
   import { session } from '$lib/auth/session.svelte';
-  import { computeMonthlyAggregates, computeMonthOverMonthDelta, MonthSchema } from '$lib/reports/aggregates';
+  import {
+    computeMonthlyAggregates,
+    computeMonthOverMonthDelta,
+    MonthSchema,
+  } from '$lib/reports/aggregates';
   import { exportMonthlyReportCsv } from '$lib/reports/export-csv';
   import { exportMonthlyReportXlsx } from '$lib/reports/export-xlsx';
   import { triggerPrintStatement } from '$lib/reports/export-pdf';
@@ -22,9 +26,7 @@
 
   // Default to current month in Asia/Dhaka timezone (PRD §8.3)
   const currentDhakaMonth = () =>
-    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' })
-      .format(new Date())
-      .slice(0, 7);
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date()).slice(0, 7);
 
   // Helper to compute previous month (YYYY-MM) safely handling year boundaries
   function getPriorMonthString(monthStr: string): string {
@@ -41,7 +43,7 @@
   }
 
   function getChipVariant(
-    code?: string
+    code?: string,
   ): 'default' | 'commission' | 'vat' | 'bkash' | 'visa' | 'mastercard' {
     if (!code) return 'default';
     const lower = code.toLowerCase();
@@ -110,19 +112,19 @@
     const endPrior = `${priorMonth}-31`;
 
     const subCurrent = liveQuery(() =>
-      db.entries.where('entry_date').between(startCurrent, endCurrent, true, true).toArray()
+      db.entries.where('entry_date').between(startCurrent, endCurrent, true, true).toArray(),
     ).subscribe((rows) => {
       monthEntries = rows;
     });
 
     const subPrior = liveQuery(() =>
-      db.entries.where('entry_date').between(startPrior, endPrior, true, true).toArray()
+      db.entries.where('entry_date').between(startPrior, endPrior, true, true).toArray(),
     ).subscribe((rows) => {
       priorMonthEntries = rows;
     });
 
     const subSettlements = liveQuery(() =>
-      db.settlements.where('month').equals(`${validMonth}-01`).toArray()
+      db.settlements.where('month').equals(`${validMonth}-01`).toArray(),
     ).subscribe((rows) => {
       settlements = rows;
     });
@@ -148,14 +150,14 @@
   const aggregates = $derived(computeMonthlyAggregates(monthEntries, validMonth, methodsMap));
 
   const priorAggregates = $derived(
-    computeMonthlyAggregates(priorMonthEntries, priorMonth, methodsMap)
+    computeMonthlyAggregates(priorMonthEntries, priorMonth, methodsMap),
   );
 
   const momDelta = $derived(computeMonthOverMonthDelta(aggregates, priorAggregates));
 
   // Active entries for table list and export
   const activeMonthEntries = $derived(
-    monthEntries.filter((e) => e.status === 'active' && e.sync_status !== 'rejected')
+    monthEntries.filter((e) => e.status === 'active' && e.sync_status !== 'rejected'),
   );
 
   function handlePrevMonth() {
@@ -185,7 +187,7 @@
 
   // Max daily gross for the trend chart bar scaling (PRD §8.3)
   const maxDailyGross = $derived(
-    aggregates.dailyBreakdowns.reduce((max, d) => (d.grossPoisha > max ? d.grossPoisha : max), 1n)
+    aggregates.dailyBreakdowns.reduce((max, d) => (d.grossPoisha > max ? d.grossPoisha : max), 1n),
   );
 
   // Generation timestamp for print statement header
@@ -194,7 +196,7 @@
       timeZone: 'Asia/Dhaka',
       dateStyle: 'medium',
       timeStyle: 'short',
-    }).format(new Date())
+    }).format(new Date()),
   );
 </script>
 
@@ -207,12 +209,14 @@
       ></div>
     </div>
   {:else if !isAuthorized}
-    <div class="p-8 text-center bg-amber-500/10 border border-amber-500/20 rounded-2xl max-w-md mx-auto mt-12">
+    <div
+      class="p-8 text-center bg-amber-500/10 border border-amber-500/20 rounded-2xl max-w-md mx-auto mt-12"
+    >
       <span class="text-3xl mb-2 block">🔒</span>
       <h2 class="text-base font-bold text-amber-900 dark:text-amber-200">Access Restricted</h2>
       <p class="text-xs text-amber-700 dark:text-amber-300 mt-1">
-        Monthly Reports and Settlement Statements are restricted to Admin and Owner roles. Staff access
-        personal metrics from the Staff Dashboard.
+        Monthly Reports and Settlement Statements are restricted to Admin and Owner roles. Staff
+        access personal metrics from the Staff Dashboard.
       </p>
       <Button variant="default" class="mt-4" onclick={() => goto('/dashboard')}>
         Back to Dashboard
@@ -273,12 +277,15 @@
         <div class="flex items-center gap-2">
           <span class="text-sm">⏳</span>
           <span class="text-xs font-semibold text-amber-800 dark:text-amber-300">
-            Includes {aggregates.pendingEntriesCount} unsynced pending {aggregates.pendingEntriesCount === 1
+            Includes {aggregates.pendingEntriesCount} unsynced pending {aggregates.pendingEntriesCount ===
+            1
               ? 'transaction'
               : 'transactions'}.
           </span>
         </div>
-        <span class="text-[10px] text-amber-700/80 dark:text-amber-400/80">Totals include local offline entries</span>
+        <span class="text-[10px] text-amber-700/80 dark:text-amber-400/80"
+          >Totals include local offline entries</span
+        >
       </div>
     {/if}
 
@@ -294,7 +301,9 @@
           <div class="text-xl font-bold tabular-nums text-[var(--ink)]">
             {formatPoishaToBdt(aggregates.totalGrossPoisha)}
           </div>
-          <div class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5">
+          <div
+            class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5"
+          >
             <span class="text-[10px] text-[var(--muted)]">{aggregates.totalEntries} txns ↗</span>
             {#if momDelta.grossDeltaPercent !== null}
               <span
@@ -302,7 +311,8 @@
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-red-600 dark:text-red-400'}"
               >
-                {momDelta.grossDeltaPercent >= 0 ? '↑' : '↓'} {Math.abs(momDelta.grossDeltaPercent)}% MoM
+                {momDelta.grossDeltaPercent >= 0 ? '↑' : '↓'}
+                {Math.abs(momDelta.grossDeltaPercent)}% MoM
               </span>
             {/if}
           </div>
@@ -316,14 +326,18 @@
       >
         <Card class="p-5 hover:border-[var(--accent)] transition-colors h-full">
           <div class="text-xs font-semibold text-[var(--muted)] mb-1">Total Units / Qty</div>
-          <div class="text-xl font-bold tabular-nums text-[var(--ink)]">{aggregates.totalSubQty}</div>
-          <div class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5">
+          <div class="text-xl font-bold tabular-nums text-[var(--ink)]">
+            {aggregates.totalSubQty}
+          </div>
+          <div
+            class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5"
+          >
             <span class="text-[10px] text-[var(--muted)]">Sum of sub_qty units ↗</span>
             <span class="text-[10px] font-mono text-[var(--muted)]">
               Avg
-              {(aggregates.totalEntries > 0
+              {aggregates.totalEntries > 0
                 ? (aggregates.totalSubQty / aggregates.totalEntries).toFixed(1)
-                : 0)}
+                : 0}
               / txn
             </span>
           </div>
@@ -340,7 +354,9 @@
           <div class="text-xl font-bold tabular-nums text-[var(--c-commission)]">
             {formatPoishaToBdt(aggregates.totalCommissionPoisha)}
           </div>
-          <div class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5">
+          <div
+            class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5"
+          >
             <span class="text-[10px] text-[var(--muted)]">From rate profile ↗</span>
             {#if momDelta.commissionDeltaPercent !== null}
               <span
@@ -348,7 +364,8 @@
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-red-600 dark:text-red-400'}"
               >
-                {momDelta.commissionDeltaPercent >= 0 ? '↑' : '↓'} {Math.abs(momDelta.commissionDeltaPercent)}% MoM
+                {momDelta.commissionDeltaPercent >= 0 ? '↑' : '↓'}
+                {Math.abs(momDelta.commissionDeltaPercent)}% MoM
               </span>
             {/if}
           </div>
@@ -365,7 +382,9 @@
           <div class="text-xl font-bold tabular-nums text-[var(--accent)]">
             {formatPoishaToBdt(aggregates.totalNetPoisha)}
           </div>
-          <div class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5">
+          <div
+            class="flex items-center justify-between mt-2 pt-2 border-t border-black/5 dark:border-white/5"
+          >
             <span class="text-[10px] text-[var(--muted)]">Net revenue ↗</span>
             {#if momDelta.netDeltaPercent !== null}
               <span
@@ -373,7 +392,8 @@
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : 'text-red-600 dark:text-red-400'}"
               >
-                {momDelta.netDeltaPercent >= 0 ? '↑' : '↓'} {Math.abs(momDelta.netDeltaPercent)}% MoM
+                {momDelta.netDeltaPercent >= 0 ? '↑' : '↓'}
+                {Math.abs(momDelta.netDeltaPercent)}% MoM
               </span>
             {/if}
           </div>
@@ -385,12 +405,18 @@
     {#if aggregates.dailyBreakdowns.length > 0}
       <div class="mb-6 no-print">
         <Card class="p-6">
-          <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
+          <div
+            class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+          >
             <div>
               <h2 class="text-base font-bold text-[var(--ink)]">Daily Collections Trend</h2>
-              <p class="text-xs text-[var(--muted)]">Daily gross collections across {validMonth}.</p>
+              <p class="text-xs text-[var(--muted)]">
+                Daily gross collections across {validMonth}.
+              </p>
             </div>
-            <span class="text-xs text-[var(--muted)]">{aggregates.dailyBreakdowns.length} active days</span>
+            <span class="text-xs text-[var(--muted)]"
+              >{aggregates.dailyBreakdowns.length} active days</span
+            >
           </div>
 
           <div class="h-28 flex items-end gap-1.5 pt-4 overflow-x-auto">
@@ -437,10 +463,16 @@
     <!-- Payment Method Volumes & Charges Breakdown (PRD §8.3) -->
     <div class="mb-6">
       <Card class="p-6">
-        <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
+        <div
+          class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+        >
           <div>
-            <h2 class="text-base font-bold text-[var(--ink)]">Payment Method Volumes &amp; Merchant Charges</h2>
-            <p class="text-xs text-[var(--muted)]">Turnover and deductions partitioned by provider.</p>
+            <h2 class="text-base font-bold text-[var(--ink)]">
+              Payment Method Volumes &amp; Merchant Charges
+            </h2>
+            <p class="text-xs text-[var(--muted)]">
+              Turnover and deductions partitioned by provider.
+            </p>
           </div>
           <span class="text-xs text-[var(--muted)]">Month: {validMonth}</span>
         </div>
@@ -468,7 +500,9 @@
                       </Chip>
                       <span>{m?.name ?? mc.methodId}</span>
                     </div>
-                    <span class="text-xs text-[var(--muted)] tabular-nums">{mc.entryCount} txns</span>
+                    <span class="text-xs text-[var(--muted)] tabular-nums"
+                      >{mc.entryCount} txns</span
+                    >
                   </div>
 
                   <div class="space-y-1.5 text-xs">
@@ -485,7 +519,9 @@
                       </span>
                     </div>
                     {#if mc.totalCustomerChargePoisha > 0n}
-                      <div class="flex justify-between text-[11px] text-blue-600 dark:text-blue-400">
+                      <div
+                        class="flex justify-between text-[11px] text-blue-600 dark:text-blue-400"
+                      >
                         <span>Customer Paid:</span>
                         <span class="tabular-nums font-semibold">
                           {formatPoishaToBdt(mc.totalCustomerChargePoisha)}
@@ -509,11 +545,14 @@
             <span class="text-lg">ℹ️</span>
             <div>
               <div class="text-sm font-bold text-blue-900 dark:text-blue-300">
-                Customer-Paid Provider Fees: {formatPoishaToBdt(aggregates.totalCustomerChargesPoisha)}
+                Customer-Paid Provider Fees: {formatPoishaToBdt(
+                  aggregates.totalCustomerChargesPoisha,
+                )}
               </div>
               <p class="text-xs text-blue-700/80 dark:text-blue-400/80 mt-1">
-                These provider charges were borne directly by customers at the point of sale. They create zero
-                merchant payable liability and are excluded from business settlement balances.
+                These provider charges were borne directly by customers at the point of sale. They
+                create zero merchant payable liability and are excluded from business settlement
+                balances.
               </p>
             </div>
           </div>
@@ -524,10 +563,16 @@
     <!-- Daily Cash Reconciliation Breakdown Table (PRD §8.3) -->
     <div class="mb-6">
       <Card class="p-6">
-        <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
+        <div
+          class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+        >
           <div>
-            <h2 class="text-base font-bold text-[var(--ink)]">Daily Cash Reconciliation Breakdown</h2>
-            <p class="text-xs text-[var(--muted)]">Daily component totals for cash drawer reconciliation.</p>
+            <h2 class="text-base font-bold text-[var(--ink)]">
+              Daily Cash Reconciliation Breakdown
+            </h2>
+            <p class="text-xs text-[var(--muted)]">
+              Daily component totals for cash drawer reconciliation.
+            </p>
           </div>
           <span class="text-xs text-[var(--muted)] font-mono">{validMonth}</span>
         </div>
@@ -535,7 +580,9 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
             <thead>
-              <tr class="text-[var(--muted)] border-b border-black/5 dark:border-white/5 uppercase tracking-wider">
+              <tr
+                class="text-[var(--muted)] border-b border-black/5 dark:border-white/5 uppercase tracking-wider"
+              >
                 <th class="pb-2">Date</th>
                 <th class="pb-2 text-center">Txns</th>
                 <th class="pb-2 text-center">Units</th>
@@ -570,12 +617,16 @@
                 </tr>
               {/each}
             </tbody>
-            <tfoot class="border-t-2 border-black/10 dark:border-white/10 font-bold text-[var(--ink)] font-mono">
+            <tfoot
+              class="border-t-2 border-black/10 dark:border-white/10 font-bold text-[var(--ink)] font-mono"
+            >
               <tr>
                 <td class="py-2 uppercase">TOTALS</td>
                 <td class="py-2 text-center tabular-nums">{aggregates.totalEntries}</td>
                 <td class="py-2 text-center tabular-nums">{aggregates.totalSubQty}</td>
-                <td class="py-2 text-right tabular-nums">{formatPoishaToBdt(aggregates.totalGrossPoisha)}</td>
+                <td class="py-2 text-right tabular-nums"
+                  >{formatPoishaToBdt(aggregates.totalGrossPoisha)}</td
+                >
                 <td class="py-2 text-right tabular-nums text-[var(--c-vat)]">
                   {formatPoishaToBdt(aggregates.totalVatPoisha)}
                 </td>
@@ -598,10 +649,14 @@
     <!-- Detailed Monthly Entry List with Fixed Totals Row (PRD §8.3, §16.3 #2) -->
     <div class="mb-6">
       <Card class="p-6">
-        <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4">
+        <div
+          class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
+        >
           <div>
             <h2 class="text-base font-bold text-[var(--ink)]">Detailed Monthly Transactions</h2>
-            <p class="text-xs text-[var(--muted)]">Full entry ledger asserting exact parity with summary cards.</p>
+            <p class="text-xs text-[var(--muted)]">
+              Full entry ledger asserting exact parity with summary cards.
+            </p>
           </div>
           <span class="text-xs text-[var(--muted)]">{activeMonthEntries.length} entries</span>
         </div>
@@ -628,9 +683,12 @@
               {#each activeMonthEntries as entry (entry.id)}
                 {@const m = methodsMap[entry.method_id]}
                 <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                  <td class="py-2 font-bold text-[var(--ink)]">{entry.entry_number ?? entry.local_id}</td>
+                  <td class="py-2 font-bold text-[var(--ink)]"
+                    >{entry.entry_number ?? entry.local_id}</td
+                  >
                   <td class="py-2 text-[var(--muted)]">{entry.entry_date}</td>
-                  <td class="py-2 font-sans font-medium text-[var(--ink)]">{entry.customer_name}</td>
+                  <td class="py-2 font-sans font-medium text-[var(--ink)]">{entry.customer_name}</td
+                  >
                   <td class="py-2 text-center tabular-nums">{entry.sub_qty}</td>
                   <td class="py-2 font-sans">
                     <Chip variant={getChipVariant(m?.code)}>
@@ -665,7 +723,9 @@
                 <td class="py-3"></td>
                 <td class="py-3 text-center tabular-nums">{aggregates.totalSubQty}</td>
                 <td class="py-3"></td>
-                <td class="py-3 text-right tabular-nums">{formatPoishaToBdt(aggregates.totalGrossPoisha)}</td>
+                <td class="py-3 text-right tabular-nums"
+                  >{formatPoishaToBdt(aggregates.totalGrossPoisha)}</td
+                >
                 <td class="py-3 text-right tabular-nums text-[var(--c-vat)]">
                   {formatPoishaToBdt(aggregates.totalVatPoisha)}
                 </td>

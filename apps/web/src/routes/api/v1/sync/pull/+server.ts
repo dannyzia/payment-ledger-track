@@ -24,11 +24,20 @@ export const GET: RequestHandler = async (event) => {
   }
 
   if (!/^\d+$/.test(sinceStr)) {
-    return new Response(JSON.stringify({ error: 'invalid_cursor', message: 'since must be a non-negative integer' }), { status: 400 });
+    return new Response(
+      JSON.stringify({ error: 'invalid_cursor', message: 'since must be a non-negative integer' }),
+      { status: 400 },
+    );
   }
 
   if (!deviceId || deviceId === '00000000-0000-0000-0000-000000000000') {
-    return new Response(JSON.stringify({ error: 'missing_device_id', message: 'Valid non-nil deviceId UUID required' }), { status: 400 });
+    return new Response(
+      JSON.stringify({
+        error: 'missing_device_id',
+        message: 'Valid non-nil deviceId UUID required',
+      }),
+      { status: 400 },
+    );
   }
 
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(deviceId)) {
@@ -64,12 +73,17 @@ export const GET: RequestHandler = async (event) => {
   const pool = getDbPool();
 
   // Check current server sequence to detect cursor ahead of server (HTTP 409)
-  const { rows: seqRows } = await pool.query('select coalesce(max(server_seq), 0) as current_seq from entries');
+  const { rows: seqRows } = await pool.query(
+    'select coalesce(max(server_seq), 0) as current_seq from entries',
+  );
   const currentSeq = BigInt(seqRows[0]?.current_seq || '0');
   const sinceBigInt = BigInt(sinceStr);
 
   if (sinceBigInt > currentSeq && currentSeq > 0n) {
-    return new Response(JSON.stringify({ error: 'cursor_past_watermark', currentSequence: currentSeq.toString() }), { status: 409 });
+    return new Response(
+      JSON.stringify({ error: 'cursor_past_watermark', currentSequence: currentSeq.toString() }),
+      { status: 409 },
+    );
   }
 
   const pullQuery = `
@@ -91,7 +105,8 @@ export const GET: RequestHandler = async (event) => {
 
   const { rows } = await pool.query(pullQuery, [sinceBigInt, caller.role, caller.userId]);
 
-  const watermark = rows.length > 0 && rows[0].watermark !== null ? rows[0].watermark.toString() : sinceStr;
+  const watermark =
+    rows.length > 0 && rows[0].watermark !== null ? rows[0].watermark.toString() : sinceStr;
   const scannedCount = rows.length > 0 ? Number(rows[0].scanned_count) : 0;
   const entries = rows.filter((r) => r.id !== null);
   const hasMore = scannedCount === 200;
@@ -125,10 +140,13 @@ export const GET: RequestHandler = async (event) => {
     const { data: monthCloses, error: mcErr } = await supabase.from('month_closes').select('*');
     if (mcErr) throw mcErr;
 
-    const { data: settings, error: sErr } = await supabase.from('app_settings').select('*').single();
+    const { data: settings, error: sErr } = await supabase
+      .from('app_settings')
+      .select('*')
+      .single();
     if (sErr) throw sErr;
 
-type RawRateProfile = {
+    type RawRateProfile = {
       id: string;
       version: number;
       status: 'draft' | 'published';
@@ -156,12 +174,18 @@ type RawRateProfile = {
     };
     let rateProfiles: MappedRateProfile[] = [];
     if (rawRateProfiles && rawRateProfiles.length > 0) {
-      maxDeliveredRateVersion = Math.max(...(rawRateProfiles as RawRateProfile[]).map((p) => p.version));
+      maxDeliveredRateVersion = Math.max(
+        ...(rawRateProfiles as RawRateProfile[]).map((p) => p.version),
+      );
 
       // Transform method_rates array into dictionary map keyed by method_id
       rateProfiles = (rawRateProfiles as RawRateProfile[]).map((p) => {
-        const methodRatesMap: Record<string, { fee_bp: number; charges_borne_by: 'business' | 'customer' }> = {};
-        const profileChargesBorneBy: 'business' | 'customer' = p.charges_borne_by === 'customer' ? 'customer' : 'business';
+        const methodRatesMap: Record<
+          string,
+          { fee_bp: number; charges_borne_by: 'business' | 'customer' }
+        > = {};
+        const profileChargesBorneBy: 'business' | 'customer' =
+          p.charges_borne_by === 'customer' ? 'customer' : 'business';
         if (Array.isArray(p.method_rates)) {
           for (const mr of p.method_rates) {
             methodRatesMap[mr.method_id] = {
@@ -193,7 +217,9 @@ type RawRateProfile = {
     responsePayload.monthCloses = monthCloses;
 
     if (caller.role === 'admin' || caller.role === 'owner') {
-      const { data: profiles, error: prErr } = await supabase.from('profiles').select('id, full_name, role, active');
+      const { data: profiles, error: prErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, active');
       if (prErr) throw prErr;
       const { data: settlements, error: setErr } = await supabase.from('settlements').select('*');
       if (setErr) throw setErr;

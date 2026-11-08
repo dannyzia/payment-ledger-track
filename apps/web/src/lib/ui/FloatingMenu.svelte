@@ -57,14 +57,18 @@
 <!-- Justification: the region is a draggable, keyboard-operable floating menu; Svelte's static rule cannot model tabindex on role="region" (see DECISIONS.md CLT-D-010) -->
 <div
   use:draggable={{ storageKey: 'clt-floating-menu-pos', positionMode, onSnap: handleSnap }}
-  class="fixed top-0 left-0 z-40 touch-none select-none md:hidden outline-none flex {isLowerHalf ? 'flex-col-reverse' : 'flex-col'}"
+  class="fixed top-0 left-0 z-40 touch-none select-none md:hidden outline-none flex {isLowerHalf
+    ? 'flex-col-reverse'
+    : 'flex-col'}"
   id="floating-action-menu"
   tabindex="0"
   role="region"
   aria-label={messages.ui.mobileRegion}
   onkeydown={handleKeydown}
 >
-  <div class="glass rounded-full p-2 flex items-center gap-2 shadow-xl border border-[var(--pearl-border)]">
+  <div
+    class="glass rounded-full p-2 flex items-center gap-2 shadow-xl border border-[var(--pearl-border)]"
+  >
     <!-- PRD §14.5: the collapsed pill shows "the primary action plus a handle".
          The grip is a 44x44 touch target that is deliberately *not* a control,
          so a press on it is never retargeted to the link beside it (CLT-R-013).
@@ -103,31 +107,54 @@
     <nav
       id="mobile-nav-panel"
       aria-label={messages.ui.mainNav}
-      class="glass rounded-2xl p-3 {isLowerHalf ? 'mb-2' : 'mt-2'} flex flex-col gap-1 shadow-2xl max-h-[70vh] overflow-y-auto"
+      class="glass rounded-2xl p-3 {isLowerHalf
+        ? 'mb-2'
+        : 'mt-2'} flex flex-col gap-1 shadow-2xl max-h-[70vh] overflow-y-auto"
     >
-      <a href="/dashboard" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+      <a
+        href="/dashboard"
+        class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+      >
         {messages.menu.dashboard}
       </a>
-      <a href="/ledger" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+      <a
+        href="/ledger"
+        class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+      >
         {messages.menu.ledger}
       </a>
       {#if role === 'admin' || role === 'owner'}
         <!-- Reports is an admin/owner capability (PRD capability table); staff must not see the link (CLT-R-031). -->
-        <a href="/reports" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+        <a
+          href="/reports"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
           {messages.menu.reports}
         </a>
-        <a href="/settlements" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+        <a
+          href="/settlements"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
           {messages.menu.settlements}
         </a>
-        <a href="/reconcile" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+        <a
+          href="/reconcile"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
           {messages.menu.reconcile}
         </a>
-        <a href="/admin" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center">
+        <a
+          href="/admin"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
           {messages.menu.admin}
         </a>
         <!-- /admin/settings is the only settings screen the app ships (PRD §13);
              the old /settings href led to a 404 (found by the E2E link sweep). -->
-        <a href="/admin/settings" class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1">
+        <a
+          href="/admin/settings"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1"
+        >
           {messages.menu.settings}
         </a>
       {/if}

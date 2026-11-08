@@ -34,7 +34,7 @@ describe('Design System WCAG AA Contrast Ratios (Dynamic Formula Verification)',
       const actualRatio = contrastRatio(token.light, BG_LIGHT);
       expect(
         actualRatio,
-        `Token ${key} (${token.light}) on ${BG_LIGHT} computed ${actualRatio.toFixed(2)}:1 must be >= 4.5`
+        `Token ${key} (${token.light}) on ${BG_LIGHT} computed ${actualRatio.toFixed(2)}:1 must be >= 4.5`,
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
@@ -44,7 +44,7 @@ describe('Design System WCAG AA Contrast Ratios (Dynamic Formula Verification)',
       const actualRatio = contrastRatio(token.light, BG_WHITE);
       expect(
         actualRatio,
-        `Token ${key} (${token.light}) on ${BG_WHITE} computed ${actualRatio.toFixed(2)}:1 must be >= 4.5`
+        `Token ${key} (${token.light}) on ${BG_WHITE} computed ${actualRatio.toFixed(2)}:1 must be >= 4.5`,
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
@@ -54,7 +54,7 @@ describe('Design System WCAG AA Contrast Ratios (Dynamic Formula Verification)',
       const actualRatio = contrastRatio(token.dark, BG_DARK);
       expect(
         actualRatio,
-        `Token ${key} (${token.dark}) on ${BG_DARK} computed ${actualRatio.toFixed(2)}:1 must be >= 4.5`
+        `Token ${key} (${token.dark}) on ${BG_DARK} computed ${actualRatio.toFixed(2)}:1 must be >= 4.5`,
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
@@ -64,13 +64,13 @@ describe('Design System WCAG AA Contrast Ratios (Dynamic Formula Verification)',
       const lightRatio = contrastRatio(token.light, token.bgLight);
       expect(
         lightRatio,
-        `Light Chip ${key}: ${token.light} on ${token.bgLight} computed ${lightRatio.toFixed(2)}:1 must be >= 4.5`
+        `Light Chip ${key}: ${token.light} on ${token.bgLight} computed ${lightRatio.toFixed(2)}:1 must be >= 4.5`,
       ).toBeGreaterThanOrEqual(4.5);
 
       const darkRatio = contrastRatio(token.dark, token.bgDark);
       expect(
         darkRatio,
-        `Dark Chip ${key}: ${token.dark} on ${token.bgDark} computed ${darkRatio.toFixed(2)}:1 must be >= 4.5`
+        `Dark Chip ${key}: ${token.dark} on ${token.bgDark} computed ${darkRatio.toFixed(2)}:1 must be >= 4.5`,
       ).toBeGreaterThanOrEqual(4.5);
     }
   });

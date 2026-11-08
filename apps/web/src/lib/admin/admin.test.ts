@@ -54,7 +54,10 @@ const staleReviewSchema = z.object({
 });
 
 const manageDeviceSchema = z.object({
-  deviceId: z.string().uuid().transform((s) => s.toLowerCase()),
+  deviceId: z
+    .string()
+    .uuid()
+    .transform((s) => s.toLowerCase()),
   action: z.enum(['revoke', 'unrevoke']),
 });
 
@@ -62,7 +65,7 @@ function validateTotalDeductions(
   vatMode: string,
   vatBp: number,
   commBp: number,
-  methodRates: { fee_bp: number }[]
+  methodRates: { fee_bp: number }[],
 ): boolean {
   const effectiveVat = vatMode === 'manual' ? 0 : vatBp;
   const maxCharge = methodRates.length > 0 ? Math.max(...methodRates.map((m) => m.fee_bp)) : 0;
@@ -130,7 +133,9 @@ describe('Admin Panel Validation & Guard Rules', () => {
       // Rejects invalid due_day
       expect(managePayableSchema.safeParse({ ...validPayable, due_day: 30 }).success).toBe(false);
       // Rejects invalid remind_days_before
-      expect(managePayableSchema.safeParse({ ...validPayable, remind_days_before: 20 }).success).toBe(false);
+      expect(
+        managePayableSchema.safeParse({ ...validPayable, remind_days_before: 20 }).success,
+      ).toBe(false);
       // Rejects empty code
       expect(managePayableSchema.safeParse({ ...validPayable, code: '' }).success).toBe(false);
     });
@@ -166,7 +171,9 @@ describe('Admin Panel Validation & Guard Rules', () => {
       expect(updateSettingsSchema.safeParse(valid).success).toBe(true);
 
       // Rejects negative tolerance
-      expect(updateSettingsSchema.safeParse({ ...valid, reconcile_tolerance_poisha: -1 }).success).toBe(false);
+      expect(
+        updateSettingsSchema.safeParse({ ...valid, reconcile_tolerance_poisha: -1 }).success,
+      ).toBe(false);
       // Rejects empty label
       expect(updateSettingsSchema.safeParse({ ...valid, net_label: '' }).success).toBe(false);
     });

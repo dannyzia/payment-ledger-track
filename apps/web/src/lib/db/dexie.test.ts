@@ -137,9 +137,15 @@ describe('Local-First Dexie Storage & Performance', () => {
 
     const outboxOps = await db.outbox.toArray();
     expect(outboxOps[0].userId).toBe('u1');
-    expect((outboxOps[0].payload as unknown as Record<string, string>).businessChargePoisha).toBe('0');
-    expect((outboxOps[0].payload as unknown as Record<string, string>).customerChargePoisha).toBe('1500');
-    expect((outboxOps[0].payload as unknown as Record<string, string>).netAfterDeductionsPoisha).toBe('58000');
+    expect((outboxOps[0].payload as unknown as Record<string, string>).businessChargePoisha).toBe(
+      '0',
+    );
+    expect((outboxOps[0].payload as unknown as Record<string, string>).customerChargePoisha).toBe(
+      '1500',
+    );
+    expect(
+      (outboxOps[0].payload as unknown as Record<string, string>).netAfterDeductionsPoisha,
+    ).toBe('58000');
   });
 
   it('marks original entry locally as superseded when created in supersede mode', async () => {

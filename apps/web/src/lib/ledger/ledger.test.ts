@@ -59,7 +59,9 @@ describe('Ledger Search & Precision Matching', () => {
     expect(matchesEntrySearch(entryOctober, normalizeEntrySearchQuery('2026'))).toBe(false);
 
     // Full formatted search matches
-    expect(matchesEntrySearch(entryOctober, normalizeEntrySearchQuery('E-202610-000042'))).toBe(true);
+    expect(matchesEntrySearch(entryOctober, normalizeEntrySearchQuery('E-202610-000042'))).toBe(
+      true,
+    );
   });
 });
 
@@ -306,11 +308,11 @@ describe('Closed-Month Action Lockout (PRD §8.4)', () => {
     await db.entries.put(entry);
 
     await expect(requestEntryVoid(entry, 'staff-1', 'Need refund')).rejects.toThrow(
-      'Month 2026-10 is closed. Voids are locked.'
+      'Month 2026-10 is closed. Voids are locked.',
     );
 
     await expect(executeEntryVoid(entry, 'admin-1', 'Admin override')).rejects.toThrow(
-      'Month 2026-10 is closed. Voids are locked.'
+      'Month 2026-10 is closed. Voids are locked.',
     );
 
     const outboxOps = await db.outbox.toArray();
@@ -343,11 +345,11 @@ describe('Entry Inactive Status & Supersede Guards (Test #32, Test #57)', () => 
     };
 
     await expect(requestEntryVoid(voidedEntry, 'staff-1', 'Void again')).rejects.toThrow(
-      'Only active entries can be requested for void'
+      'Only active entries can be requested for void',
     );
 
     await expect(executeEntryVoid(voidedEntry, 'admin-1', 'Direct void again')).rejects.toThrow(
-      'Only active entries can be voided'
+      'Only active entries can be voided',
     );
   });
 

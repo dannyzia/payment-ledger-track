@@ -70,7 +70,9 @@ export const PATCH: RequestHandler = async (event) => {
   const body = await event.request.json();
   const parsed = userManageSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const supabase = getServiceSupabase();

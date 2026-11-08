@@ -91,7 +91,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Application Settings</h1>
-      <p class="text-sm text-[var(--muted)]">Configure operational parameters, net terminology, and reconciliation tolerances.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Configure operational parameters, net terminology, and reconciliation tolerances.
+      </p>
     </div>
     <Button variant="default" onclick={saveSettings} disabled={saving || !settings.net_label}>
       {saving ? 'Saving...' : 'Save Settings'}
@@ -99,7 +101,9 @@
   </div>
 
   {#if successMessage}
-    <div class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm">
+    <div
+      class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm"
+    >
       {successMessage}
     </div>
   {/if}
@@ -113,12 +117,18 @@
   <Card class="p-6 space-y-6">
     <div class="border-b border-black/10 dark:border-white/10 pb-4">
       <h2 class="text-base font-semibold text-[var(--ink)]">Financial Terminology & Tolerances</h2>
-      <p class="text-xs text-[var(--muted)]">Operational settings editable by Administrators and Owners (PRD §4 Q2, §7.1).</p>
+      <p class="text-xs text-[var(--muted)]">
+        Operational settings editable by Administrators and Owners (PRD §4 Q2, §7.1).
+      </p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div>
-        <label for="net-label" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Net Earnings Display Label</label>
+        <label
+          for="net-label"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Net Earnings Display Label</label
+        >
         <input
           id="net-label"
           type="text"
@@ -126,11 +136,17 @@
           bind:value={settings.net_label}
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
         />
-        <p class="text-[11px] text-[var(--muted)] mt-1">Configurable terminology for merchant payout amount displayed on dashboards and reports.</p>
+        <p class="text-[11px] text-[var(--muted)] mt-1">
+          Configurable terminology for merchant payout amount displayed on dashboards and reports.
+        </p>
       </div>
 
       <div>
-        <label for="tolerance-poisha" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Reconciliation Tolerance (Poisha)</label>
+        <label
+          for="tolerance-poisha"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Reconciliation Tolerance (Poisha)</label
+        >
         <div class="flex items-center gap-2">
           <input
             id="tolerance-poisha"
@@ -143,40 +159,63 @@
             ৳{(settings.reconcile_tolerance_poisha / 100).toFixed(2)}
           </span>
         </div>
-        <p class="text-[11px] text-[var(--muted)] mt-1">Default 100 poisha (৳1.00) tolerance for automated Mode A statement matches.</p>
+        <p class="text-[11px] text-[var(--muted)] mt-1">
+          Default 100 poisha (৳1.00) tolerance for automated Mode A statement matches.
+        </p>
       </div>
     </div>
 
     <div class="border-t border-black/10 dark:border-white/10 pt-6">
       <h2 class="text-base font-semibold text-[var(--ink)] mb-1">System Environment Parameters</h2>
-      <p class="text-xs text-[var(--muted)] mb-4">Read-only operational constants enforced by database constraints (PRD §7.1).</p>
+      <p class="text-xs text-[var(--muted)] mb-4">
+        Read-only operational constants enforced by database constraints (PRD §7.1).
+      </p>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
-          <span class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Timezone</span>
+          <span
+            class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+            >Timezone</span
+          >
           <div class="flex items-center gap-2">
             <span class="font-mono text-sm text-[var(--ink)]">{settings.timezone}</span>
             <Chip variant="default">Fixed</Chip>
           </div>
-          <p class="text-[11px] text-[var(--muted)] mt-1">All business dates evaluate at Asia/Dhaka midnight.</p>
+          <p class="text-[11px] text-[var(--muted)] mt-1">
+            All business dates evaluate at Asia/Dhaka midnight.
+          </p>
         </div>
 
         <div>
-          <span class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Currency & Locale</span>
+          <span
+            class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+            >Currency & Locale</span
+          >
           <div class="flex items-center gap-2">
-            <span class="font-mono text-sm text-[var(--ink)]">{settings.currency} ({settings.locale})</span>
+            <span class="font-mono text-sm text-[var(--ink)]"
+              >{settings.currency} ({settings.locale})</span
+            >
             <Chip variant="default">BDT</Chip>
           </div>
-          <p class="text-[11px] text-[var(--muted)] mt-1">Financial calculations evaluate in integer poisha.</p>
+          <p class="text-[11px] text-[var(--muted)] mt-1">
+            Financial calculations evaluate in integer poisha.
+          </p>
         </div>
 
         <div>
-          <span class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Sync Log Retention</span>
+          <span
+            class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+            >Sync Log Retention</span
+          >
           <div class="flex items-center gap-2">
-            <span class="font-mono text-sm text-[var(--ink)]">{settings.sync_retention_days} Days</span>
+            <span class="font-mono text-sm text-[var(--ink)]"
+              >{settings.sync_retention_days} Days</span
+            >
             <Chip variant="default">PRD §9.1</Chip>
           </div>
-          <p class="text-[11px] text-[var(--muted)] mt-1">Resolved sync operations purged after 90 days via pg_cron.</p>
+          <p class="text-[11px] text-[var(--muted)] mt-1">
+            Resolved sync operations purged after 90 days via pg_cron.
+          </p>
         </div>
       </div>
     </div>

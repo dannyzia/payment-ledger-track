@@ -13,7 +13,9 @@
   import { parseBdtToPoisha } from '@clt/shared';
 
   // Form State initialized to Asia/Dhaka current date (PRD §8.1)
-  let entryDate = $state(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date()));
+  let entryDate = $state(
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date()),
+  );
   let customerName = $state('');
   let subQty = $state(1);
   let subDescription = $state('');
@@ -44,7 +46,7 @@
 
   // Historical Rate Difference Notice
   let hasRateDeviation = $derived(
-    activeProfile !== null && activeProfile.version !== latestRateVersion
+    activeProfile !== null && activeProfile.version !== latestRateVersion,
   );
 
   async function loadInitialContext() {
@@ -91,7 +93,9 @@
 
           selectedMethodId = orig.method_id;
           txnRef = orig.txn_ref ?? '';
-          notes = orig.notes ? `[Supersedes ${supersedingOriginalBadge}] ${orig.notes}` : `[Supersedes ${supersedingOriginalBadge}]`;
+          notes = orig.notes
+            ? `[Supersedes ${supersedingOriginalBadge}] ${orig.notes}`
+            : `[Supersedes ${supersedingOriginalBadge}]`;
           await updateProfileForDate();
         } else if (orig && orig.status !== 'active') {
           saveErrorMessage = 'Cannot supersede transaction that is already voided or superseded.';
@@ -199,9 +203,12 @@
       });
       return { ...res, error: '' };
     } catch (e) {
-      const msg = (e instanceof DeductionsExceedGrossError)
-        ? 'Total deductions (VAT + Commission + Provider Fee) exceed gross collected. Net cannot be negative.'
-        : (e instanceof Error ? e.message : 'Calculation error');
+      const msg =
+        e instanceof DeductionsExceedGrossError
+          ? 'Total deductions (VAT + Commission + Provider Fee) exceed gross collected. Net cannot be negative.'
+          : e instanceof Error
+            ? e.message
+            : 'Calculation error';
       return {
         grossPoisha,
         vatPoisha: 0n,
@@ -346,7 +353,9 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Record Transaction</h1>
-      <p class="text-sm text-[var(--muted)]">Local-first payment recording completes in &lt;100ms and syncs automatically.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Local-first payment recording completes in &lt;100ms and syncs automatically.
+      </p>
     </div>
     <div class="flex items-center gap-2">
       <Chip variant="default">{session.isOnline ? 'Online' : 'Offline'}</Chip>
@@ -355,37 +364,50 @@
   </div>
 
   {#if saveSuccessMessage}
-    <div class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm">
+    <div
+      class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm"
+    >
       {saveSuccessMessage}
     </div>
   {/if}
 
   {#if saveErrorMessage}
-    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm font-semibold">
+    <div
+      class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm font-semibold"
+    >
       {saveErrorMessage}
     </div>
   {/if}
 
   {#if !activeProfile && methods.length > 0}
-    <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-sm">
-      No published rate profile found effective for {entryDate}. Please verify the entry date or connect to sync published rates.
+    <div
+      class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-sm"
+    >
+      No published rate profile found effective for {entryDate}. Please verify the entry date or
+      connect to sync published rates.
     </div>
   {/if}
 
   {#if isMonthClosed}
-    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm font-semibold">
+    <div
+      class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm font-semibold"
+    >
       Selected month is closed. New entries cannot be recorded for closed calendar months.
     </div>
   {/if}
 
   {#if hasRateDeviation}
-    <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs">
+    <div
+      class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs"
+    >
       Rates for {entryDate} differ from current rates (v{activeProfile?.version} vs current v{latestRateVersion}).
     </div>
   {/if}
 
   {#if calculationError}
-    <div class="mb-6 p-4 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-semibold">
+    <div
+      class="mb-6 p-4 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-semibold"
+    >
       ⚠ {calculationError}
     </div>
   {/if}
@@ -395,16 +417,21 @@
     <div class="lg:col-span-2">
       <Card class="p-6">
         {#if supersedingOriginalId}
-          <div class="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs flex items-center justify-between">
-            <span>Superseding Entry: <strong>{supersedingOriginalBadge}</strong> (original entry will be marked superseded)</span>
+          <div
+            class="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs flex items-center justify-between"
+          >
+            <span
+              >Superseding Entry: <strong>{supersedingOriginalBadge}</strong> (original entry will be
+              marked superseded)</span
+            >
             <button
               type="button"
               class="text-xs font-semibold underline hover:opacity-80 ml-2"
               onclick={() => {
                 supersedingOriginalId = null;
                 supersedingOriginalBadge = null;
-              }}
-            >Cancel supersede</button>
+              }}>Cancel supersede</button
+            >
           </div>
         {/if}
 
@@ -413,7 +440,9 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="input-date" class="block text-xs font-semibold text-[var(--muted)] mb-1">Date (Asia/Dhaka)</label>
+              <label for="input-date" class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                >Date (Asia/Dhaka)</label
+              >
               <input
                 id="input-date"
                 type="date"
@@ -425,7 +454,10 @@
             </div>
 
             <div>
-              <label for="input-customer" class="block text-xs font-semibold text-[var(--muted)] mb-1">Customer Name</label>
+              <label
+                for="input-customer"
+                class="block text-xs font-semibold text-[var(--muted)] mb-1">Customer Name</label
+              >
               <input
                 id="input-customer"
                 type="text"
@@ -438,7 +470,9 @@
             </div>
 
             <div>
-              <label for="input-qty" class="block text-xs font-semibold text-[var(--muted)] mb-1">Sub Quantity / Sessions</label>
+              <label for="input-qty" class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                >Sub Quantity / Sessions</label
+              >
               <input
                 id="input-qty"
                 type="number"
@@ -449,7 +483,11 @@
             </div>
 
             <div>
-              <label for="input-sub-desc" class="block text-xs font-semibold text-[var(--muted)] mb-1">Item / Session Description</label>
+              <label
+                for="input-sub-desc"
+                class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                >Item / Session Description</label
+              >
               <input
                 id="input-sub-desc"
                 type="text"
@@ -461,7 +499,9 @@
           </div>
 
           <div>
-            <label for="input-gross" class="block text-xs font-semibold text-[var(--muted)] mb-1">Gross Collected (BDT)</label>
+            <label for="input-gross" class="block text-xs font-semibold text-[var(--muted)] mb-1"
+              >Gross Collected (BDT)</label
+            >
             <input
               id="input-gross"
               type="text"
@@ -480,13 +520,18 @@
           <div>
             <!-- a11y_label_has_associated_control: grouping caption for the method chip buttons below; no single form control to associate (CLT-D-013 pattern) -->
             <!-- svelte-ignore a11y_label_has_associated_control -->
-            <label class="block text-xs font-semibold text-[var(--muted)] mb-2">Payment Method</label>
+            <label class="block text-xs font-semibold text-[var(--muted)] mb-2"
+              >Payment Method</label
+            >
             <div class="flex flex-wrap gap-2">
               {#each methods as m (m.id)}
                 <button
                   type="button"
                   aria-pressed={selectedMethodId === m.id}
-                  class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId === m.id ? 'bg-[var(--ink)] text-[var(--bg)] border-transparent' : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
+                  class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId ===
+                  m.id
+                    ? 'bg-[var(--ink)] text-[var(--bg)] border-transparent'
+                    : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
                   onclick={() => {
                     selectedMethodId = m.id;
                     txnRefError = '';
@@ -526,7 +571,9 @@
           <!-- Manual VAT Input if activeProfile.vat_mode === 'manual' -->
           {#if activeProfile?.vat_mode === 'manual'}
             <div>
-              <label for="input-vat" class="block text-xs font-semibold text-[var(--muted)] mb-1">Manual VAT Collected (BDT)</label>
+              <label for="input-vat" class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                >Manual VAT Collected (BDT)</label
+              >
               <input
                 id="input-vat"
                 type="text"
@@ -538,7 +585,9 @@
           {/if}
 
           <div>
-            <label for="input-notes" class="block text-xs font-semibold text-[var(--muted)] mb-1">Notes</label>
+            <label for="input-notes" class="block text-xs font-semibold text-[var(--muted)] mb-1"
+              >Notes</label
+            >
             <textarea
               id="input-notes"
               rows="2"
@@ -553,9 +602,20 @@
             variant="default"
             type="submit"
             class="w-full py-3 text-sm font-semibold mt-2"
-            disabled={isSaving || isMonthClosed || grossPoisha <= 0n || !customerName.trim() || !selectedMethodId || !activeProfile || !!grossInputError || !!calculationError}
+            disabled={isSaving ||
+              isMonthClosed ||
+              grossPoisha <= 0n ||
+              !customerName.trim() ||
+              !selectedMethodId ||
+              !activeProfile ||
+              !!grossInputError ||
+              !!calculationError}
           >
-            {isSaving ? 'Saving...' : supersedingOriginalId ? 'Supersede & Save Entry' : 'Save Entry (<100ms)'}
+            {isSaving
+              ? 'Saving...'
+              : supersedingOriginalId
+                ? 'Supersede & Save Entry'
+                : 'Save Entry (<100ms)'}
           </Button>
         </form>
       </Card>
@@ -569,7 +629,8 @@
         commissionPoisha={calculated.commissionPoisha}
         chargePoisha={calculated.chargePoisha}
         netPoisha={calculated.netAfterDeductionsPoisha}
-        chargesBorneBy={activeProfile?.method_rates[selectedMethodId]?.charges_borne_by ?? 'business'}
+        chargesBorneBy={activeProfile?.method_rates[selectedMethodId]?.charges_borne_by ??
+          'business'}
         methodName={currentMethod?.name ?? 'Method Charge'}
         vatMode={activeProfile?.vat_mode}
         vatBp={activeProfile?.vat_bp}

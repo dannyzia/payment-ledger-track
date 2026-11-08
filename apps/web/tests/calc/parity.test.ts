@@ -26,13 +26,7 @@ function repoRoot(): string {
   return process.cwd();
 }
 
-const fixturePath = path.join(
-  repoRoot(),
-  'packages',
-  'calc',
-  'fixtures',
-  'test_fixtures.json',
-);
+const fixturePath = path.join(repoRoot(), 'packages', 'calc', 'fixtures', 'test_fixtures.json');
 
 interface PaperRow {
   grossPoisha: string;

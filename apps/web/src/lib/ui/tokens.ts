@@ -15,7 +15,7 @@ export const categoryColors: Record<string, ColorToken> = {
     dark: '#14B89A',
     bgLight: '#F1EEF6',
     bgDark: '#181C26',
-    contrastOnLight: 5.90,
+    contrastOnLight: 5.9,
     contrastOnDark: 7.52,
   },
   vat: {

@@ -9,7 +9,7 @@ import { formatPoishaForCsv } from './export-csv';
 export function formatMonthlyReportXmlSpreadsheet(
   entries: LocalEntry[],
   month: string,
-  methodsMap: Record<string, CachedPaymentMethod> = {}
+  methodsMap: Record<string, CachedPaymentMethod> = {},
 ): string {
   let sumQty = 0;
   let sumGross = 0n;
@@ -119,10 +119,13 @@ interface CapacitorWindow {
 export function exportMonthlyReportXlsx(
   entries: LocalEntry[],
   month: string,
-  methodsMap: Record<string, CachedPaymentMethod> = {}
+  methodsMap: Record<string, CachedPaymentMethod> = {},
 ): void {
   // Mobile / Capacitor platform branch (Plan 019 handoff)
-  if (typeof window !== 'undefined' && (window as unknown as CapacitorWindow).Capacitor?.isNativePlatform?.()) {
+  if (
+    typeof window !== 'undefined' &&
+    (window as unknown as CapacitorWindow).Capacitor?.isNativePlatform?.()
+  ) {
     console.info('[Export XLSX] Delegating to Capacitor Filesystem/Share plugin in Plan 019');
   }
 

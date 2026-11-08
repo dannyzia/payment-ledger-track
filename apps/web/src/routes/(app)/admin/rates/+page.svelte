@@ -51,7 +51,7 @@
 
   // Computed total deductions
   let maxMethodCharge = $derived(
-    methodRatesList.length > 0 ? Math.max(...methodRatesList.map((m) => m.fee_bp)) : 0
+    methodRatesList.length > 0 ? Math.max(...methodRatesList.map((m) => m.fee_bp)) : 0,
   );
   // Basis points must be whole numbers in 0..10000; an empty number input binds undefined.
   function isValidBp(value: unknown): value is number {
@@ -62,7 +62,7 @@
   let methodRatesInvalid = $derived(methodRatesList.some((m) => !isValidBp(m.fee_bp)));
   let ratesInvalid = $derived(vatBpInvalid || commissionBpInvalid || methodRatesInvalid);
   let totalDeductionsBp = $derived(
-    (vatMode === 'manual' ? 0 : vatBp) + commissionBp + maxMethodCharge
+    (vatMode === 'manual' ? 0 : vatBp) + commissionBp + maxMethodCharge,
   );
   let exceeds100Percent = $derived(ratesInvalid || totalDeductionsBp > 10000);
 
@@ -120,7 +120,8 @@
 
   async function saveDraft() {
     if (exceeds100Percent) {
-      errorMessage = 'Total deductions exceed 100% (10,000 basis points). Adjust rates before saving.';
+      errorMessage =
+        'Total deductions exceed 100% (10,000 basis points). Adjust rates before saving.';
       return;
     }
 
@@ -191,14 +192,24 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Rate Profiles & Rules</h1>
-      <p class="text-sm text-[var(--muted)]">Configure versioned financial deductions, VAT modes, and channel charges.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Configure versioned financial deductions, VAT modes, and channel charges.
+      </p>
     </div>
     <div class="flex gap-3">
-      <Button variant="default" onclick={saveDraft} disabled={saving || exceeds100Percent || ratesInvalid}>
+      <Button
+        variant="default"
+        onclick={saveDraft}
+        disabled={saving || exceeds100Percent || ratesInvalid}
+      >
         {saving ? 'Saving...' : 'Save Draft'}
       </Button>
       {#if draftProfile}
-        <Button variant="commission" onclick={() => (showPublishModal = true)} disabled={publishing || exceeds100Percent || ratesInvalid}>
+        <Button
+          variant="commission"
+          onclick={() => (showPublishModal = true)}
+          disabled={publishing || exceeds100Percent || ratesInvalid}
+        >
           Publish Profile
         </Button>
       {/if}
@@ -212,11 +223,17 @@
   {/if}
 
   {#if exceeds100Percent}
-    <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-sm flex items-center justify-between">
+    <div
+      class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-sm flex items-center justify-between"
+    >
       <div>
-        <span class="font-semibold">Deduction Boundary Violation:</span> Total deductions equal {(totalDeductionsBp / 100).toFixed(2)}%, which exceeds 100.00%. Entries cannot yield negative merchant net.
+        <span class="font-semibold">Deduction Boundary Violation:</span> Total deductions equal {(
+          totalDeductionsBp / 100
+        ).toFixed(2)}%, which exceeds 100.00%. Entries cannot yield negative merchant net.
       </div>
-      <Chip variant="default" class="bg-amber-500/20 text-amber-900 border border-amber-500/30">{(totalDeductionsBp / 100).toFixed(2)}%</Chip>
+      <Chip variant="default" class="bg-amber-500/20 text-amber-900 border border-amber-500/30"
+        >{(totalDeductionsBp / 100).toFixed(2)}%</Chip
+      >
     </div>
   {/if}
 
@@ -225,8 +242,12 @@
     <Card class="p-5 mb-8 border-l-4 border-l-[var(--c-commission)]">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <span class="text-xs font-semibold text-[var(--c-commission)] uppercase tracking-wider">Active Published Profile</span>
-          <h2 class="text-lg font-bold text-[var(--ink)]">Version {publishedProfile.version} (Effective: {publishedProfile.effective_from})</h2>
+          <span class="text-xs font-semibold text-[var(--c-commission)] uppercase tracking-wider"
+            >Active Published Profile</span
+          >
+          <h2 class="text-lg font-bold text-[var(--ink)]">
+            Version {publishedProfile.version} (Effective: {publishedProfile.effective_from})
+          </h2>
         </div>
         <Chip variant="commission">Published</Chip>
       </div>
@@ -234,7 +255,9 @@
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
         <div>
           <span class="text-[var(--muted)] block">VAT Mode</span>
-          <span class="font-semibold capitalize text-[var(--ink)]">{publishedProfile.vat_mode.replace('_', ' ')}</span>
+          <span class="font-semibold capitalize text-[var(--ink)]"
+            >{publishedProfile.vat_mode.replace('_', ' ')}</span
+          >
         </div>
         <div>
           <span class="text-[var(--muted)] block">VAT Rate</span>
@@ -242,11 +265,15 @@
         </div>
         <div>
           <span class="text-[var(--muted)] block">Commission</span>
-          <span class="font-semibold text-[var(--ink)]">{publishedProfile.commission_bp / 100}% ({publishedProfile.commission_base})</span>
+          <span class="font-semibold text-[var(--ink)]"
+            >{publishedProfile.commission_bp / 100}% ({publishedProfile.commission_base})</span
+          >
         </div>
         <div>
           <span class="text-[var(--muted)] block">Channels Configured</span>
-          <span class="font-semibold text-[var(--ink)]">{publishedProfile.method_rates.length} methods</span>
+          <span class="font-semibold text-[var(--ink)]"
+            >{publishedProfile.method_rates.length} methods</span
+          >
         </div>
       </div>
     </Card>
@@ -254,42 +281,63 @@
 
   <!-- Draft Profile Editor Form -->
   <Card class="p-6">
-    <div class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-4 mb-6">
+    <div
+      class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-4 mb-6"
+    >
       <div>
         <h2 class="text-lg font-semibold text-[var(--ink)]">Draft Rate Profile</h2>
-        <p class="text-xs text-[var(--muted)]">Updates take effect on or after the effective date once published.</p>
+        <p class="text-xs text-[var(--muted)]">
+          Updates take effect on or after the effective date once published.
+        </p>
       </div>
       <Chip variant="default">{draftProfile ? 'Draft in Progress' : 'New Draft'}</Chip>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
       <div>
-        <label for="effective-date" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">Effective Date (Asia/Dhaka)</label>
+        <label
+          for="effective-date"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2"
+          >Effective Date (Asia/Dhaka)</label
+        >
         <input
           id="effective-date"
           type="date"
           bind:value={effectiveFrom}
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
         />
-        <p class="text-[11px] text-[var(--muted)] mt-1">Must be today or in the future; past dates will be rejected upon publishing.</p>
+        <p class="text-[11px] text-[var(--muted)] mt-1">
+          Must be today or in the future; past dates will be rejected upon publishing.
+        </p>
       </div>
 
       <div>
-        <label for="vat-mode-select" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">VAT Calculation Mode</label>
+        <label
+          for="vat-mode-select"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2"
+          >VAT Calculation Mode</label
+        >
         <select
           id="vat-mode-select"
           bind:value={vatMode}
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
         >
           <option value="manual">Manual Entry (Staff inputs exact VAT amount)</option>
-          <option value="percent_of_gross">Percent of Gross (e.g. 5% applied directly to gross)</option>
-          <option value="percent_inclusive">Percent Inclusive (VAT included in gross amount)</option>
+          <option value="percent_of_gross"
+            >Percent of Gross (e.g. 5% applied directly to gross)</option
+          >
+          <option value="percent_inclusive">Percent Inclusive (VAT included in gross amount)</option
+          >
         </select>
       </div>
 
       {#if vatMode !== 'manual'}
         <div>
-          <label for="vat-bp-input" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">Default VAT Rate (Basis Points)</label>
+          <label
+            for="vat-bp-input"
+            class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2"
+            >Default VAT Rate (Basis Points)</label
+          >
           <div class="flex items-center gap-2">
             <input
               id="vat-bp-input"
@@ -312,7 +360,11 @@
       {/if}
 
       <div>
-        <label for="comm-bp-input" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">Default Commission Rate (Basis Points)</label>
+        <label
+          for="comm-bp-input"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2"
+          >Default Commission Rate (Basis Points)</label
+        >
         <div class="flex items-center gap-2">
           <input
             id="comm-bp-input"
@@ -334,7 +386,11 @@
       </div>
 
       <div>
-        <label for="comm-base-select" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">Commission Base</label>
+        <label
+          for="comm-base-select"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2"
+          >Commission Base</label
+        >
         <select
           id="comm-base-select"
           bind:value={commissionBase}
@@ -346,7 +402,11 @@
       </div>
 
       <div>
-        <label for="draft-note-input" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2">Draft Revision Note (Optional)</label>
+        <label
+          for="draft-note-input"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-2"
+          >Draft Revision Note (Optional)</label
+        >
         <input
           id="draft-note-input"
           type="text"
@@ -409,12 +469,20 @@
 </div>
 
 <!-- Publish Confirmation Modal -->
-<Modal bind:open={showPublishModal} title="Confirm Rate Profile Publication" onclose={() => (showPublishModal = false)}>
+<Modal
+  bind:open={showPublishModal}
+  title="Confirm Rate Profile Publication"
+  onclose={() => (showPublishModal = false)}
+>
   <div class="space-y-4">
     <p class="text-sm text-[var(--ink)]">
-      Publishing this rate profile will make it immutable and effective starting <strong class="font-mono">{effectiveFrom}</strong>.
+      Publishing this rate profile will make it immutable and effective starting <strong
+        class="font-mono">{effectiveFrom}</strong
+      >.
     </p>
-    <div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 space-y-1">
+    <div
+      class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 space-y-1"
+    >
       <p class="font-semibold">Immutability Notice:</p>
       <p>• Published profiles cannot be edited, deleted, or backdated.</p>
       <p>• Historical entries will NOT be retroactively recalculated.</p>

@@ -21,20 +21,23 @@
     ...restProps
   }: Props = $props();
 
-  const variantClass = $derived(
-    variant === 'default' ? '' : `btn--${variant}`
-  );
+  const variantClass = $derived(variant === 'default' ? '' : `btn--${variant}`);
 </script>
 
 <button
   {type}
   disabled={disabled || loading}
   aria-busy={loading ? 'true' : undefined}
-  class="glass btn-glass {variantClass} {disabled ? 'opacity-50 cursor-not-allowed' : ''} {className}"
+  class="glass btn-glass {variantClass} {disabled
+    ? 'opacity-50 cursor-not-allowed'
+    : ''} {className}"
   {...restProps}
 >
   {#if loading}
-    <span class="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" aria-hidden="true"></span>
+    <span
+      class="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"
+      aria-hidden="true"
+    ></span>
   {/if}
   {#if children}
     {@render children()}

@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import 'fake-indexeddb/auto';
 import { canonicalJsonStringify, computeJcsSha256 } from './canonical';
-import { REJECTION_MATRIX, handleOpRejection, retryRejectedOp, discardRejectedOp } from './recovery';
+import {
+  REJECTION_MATRIX,
+  handleOpRejection,
+  retryRejectedOp,
+  discardRejectedOp,
+} from './recovery';
 import { checkRateLimit } from '../server/ratelimit';
 import { db } from '$lib/db';
 
@@ -232,8 +237,12 @@ describe('Rejection Recovery Matrix (PRD §9.2.2)', () => {
 
     const discardOps = await db.outbox.where('type').equals('discard_rejected_entry').toArray();
     expect(discardOps.length).toBe(1);
-    expect((discardOps[0].payload as unknown as Record<string, unknown>).discardedOpId).toBe(failedOpId);
-    expect((discardOps[0].payload as unknown as Record<string, unknown>).reason).toBe('Audited rejection discard');
+    expect((discardOps[0].payload as unknown as Record<string, unknown>).discardedOpId).toBe(
+      failedOpId,
+    );
+    expect((discardOps[0].payload as unknown as Record<string, unknown>).reason).toBe(
+      'Audited rejection discard',
+    );
   });
 });
 
@@ -266,7 +275,11 @@ describe('Sync Batching & Multi-User Isolation (PRD §9.1, Test #62)', () => {
     }));
     await db.outbox.bulkPut(ops);
 
-    const pending = await db.outbox.where('status').equals('pending').and((op) => op.userId === 'user-batch').sortBy('clientCreatedAt');
+    const pending = await db.outbox
+      .where('status')
+      .equals('pending')
+      .and((op) => op.userId === 'user-batch')
+      .sortBy('clientCreatedAt');
     const batch = pending.slice(0, 50);
     expect(batch.length).toBe(50);
     expect(pending.length).toBe(65);
@@ -295,11 +308,19 @@ describe('Sync Batching & Multi-User Isolation (PRD §9.1, Test #62)', () => {
       },
     ]);
 
-    const userAOps = await db.outbox.where('status').equals('pending').and((op) => op.userId === 'user-A').toArray();
+    const userAOps = await db.outbox
+      .where('status')
+      .equals('pending')
+      .and((op) => op.userId === 'user-A')
+      .toArray();
     expect(userAOps.length).toBe(1);
     expect(userAOps[0].userId).toBe('user-A');
 
-    const userBOps = await db.outbox.where('status').equals('pending').and((op) => op.userId === 'user-B').toArray();
+    const userBOps = await db.outbox
+      .where('status')
+      .equals('pending')
+      .and((op) => op.userId === 'user-B')
+      .toArray();
     expect(userBOps.length).toBe(1);
     expect(userBOps[0].userId).toBe('user-B');
   });

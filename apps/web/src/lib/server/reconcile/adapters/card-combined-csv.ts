@@ -1,4 +1,9 @@
-import type { StatementAdapter, StatementLine, ParsedStatement, StatementAdapterSummary } from '$lib/reconcile/types';
+import type {
+  StatementAdapter,
+  StatementLine,
+  ParsedStatement,
+  StatementAdapterSummary,
+} from '$lib/reconcile/types';
 import { parseCsvRows, normalizeDate, parsePoisha } from './bkash-csv';
 
 export const cardCombinedCsvAdapter: StatementAdapter = {
@@ -19,8 +24,16 @@ export const cardCombinedCsvAdapter: StatementAdapter = {
     }
 
     const headerSnippet = buffer.toString('utf-8', 0, Math.min(buffer.length, 2048)).toLowerCase();
-    const hasCardPattern = headerSnippet.includes('cardtype') || headerSnippet.includes('card') || headerSnippet.includes('scheme') || headerSnippet.includes('brand');
-    const hasAuthPattern = headerSnippet.includes('authcode') || headerSnippet.includes('approval') || headerSnippet.includes('rrn') || headerSnippet.includes('batch');
+    const hasCardPattern =
+      headerSnippet.includes('cardtype') ||
+      headerSnippet.includes('card') ||
+      headerSnippet.includes('scheme') ||
+      headerSnippet.includes('brand');
+    const hasAuthPattern =
+      headerSnippet.includes('authcode') ||
+      headerSnippet.includes('approval') ||
+      headerSnippet.includes('rrn') ||
+      headerSnippet.includes('batch');
     return hasCardPattern && hasAuthPattern;
   },
 
@@ -31,12 +44,20 @@ export const cardCombinedCsvAdapter: StatementAdapter = {
       throw new Error('CSV file contains insufficient rows');
     }
 
-    const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const refIdx = header.findIndex(h => h.includes('authcode') || h.includes('approval') || h.includes('rrn') || h.includes('ref'));
-    const dateIdx = header.findIndex(h => h.includes('date') || h.includes('time'));
+    const header = rows[0].map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const refIdx = header.findIndex(
+      (h) =>
+        h.includes('authcode') || h.includes('approval') || h.includes('rrn') || h.includes('ref'),
+    );
+    const dateIdx = header.findIndex((h) => h.includes('date') || h.includes('time'));
     // Prioritize gross / txn amount, strictly excluding net amount
-    const grossIdx = header.findIndex(h => h.includes('gross') || h.includes('txnamount') || h.includes('amount'));
-    const feeIdx = header.findIndex(h => h.includes('mdr') || h.includes('fee') || h.includes('charge') || h.includes('commission'));
+    const grossIdx = header.findIndex(
+      (h) => h.includes('gross') || h.includes('txnamount') || h.includes('amount'),
+    );
+    const feeIdx = header.findIndex(
+      (h) =>
+        h.includes('mdr') || h.includes('fee') || h.includes('charge') || h.includes('commission'),
+    );
 
     if (grossIdx === -1) {
       throw new Error('Unable to identify transaction gross amount column in card statement');
@@ -50,7 +71,7 @@ export const cardCombinedCsvAdapter: StatementAdapter = {
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      if (row.length === 0 || row.every(c => c === '')) continue;
+      if (row.length === 0 || row.every((c) => c === '')) continue;
 
       const rawRef = refIdx !== -1 && row[refIdx] ? row[refIdx] : undefined;
       const ref = rawRef ? rawRef.trim().toUpperCase() : undefined;

@@ -46,10 +46,7 @@ describe('Push transport classification (CLT-R-016)', () => {
   });
 
   it('reports a dropped connection as network_offline, not a sync error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
 
     await expect(flushOutboxPush()).rejects.toThrow('network_offline');
   });
@@ -57,9 +54,9 @@ describe('Push transport classification (CLT-R-016)', () => {
   it('still reports a server-side failure as an ordinary error', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: 'internal' }), { status: 500 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ error: 'internal' }), { status: 500 })),
     );
 
     await expect(flushOutboxPush()).resolves.toEqual({
@@ -71,9 +68,11 @@ describe('Push transport classification (CLT-R-016)', () => {
   it('keeps a 401 with no refreshable session in the error path', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }),
+        ),
     );
 
     await expect(flushOutboxPush()).resolves.toEqual({

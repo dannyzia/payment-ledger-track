@@ -16,19 +16,27 @@ const reconcileSchema = z.object({
 export const POST: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   if (caller.role !== 'admin' && caller.role !== 'owner') {
-    return new Response(JSON.stringify({ error: 'unauthorized', reason: 'Admin or Owner required' }), { status: 403 });
+    return new Response(
+      JSON.stringify({ error: 'unauthorized', reason: 'Admin or Owner required' }),
+      { status: 403 },
+    );
   }
 
   let body: unknown;
   try {
     body = await event.request.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload' }), { status: 400 });
+    return new Response(
+      JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload' }),
+      { status: 400 },
+    );
   }
 
   const parsed = reconcileSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const supabase = getServiceSupabase();
@@ -37,7 +45,10 @@ export const POST: RequestHandler = async (event) => {
     p_note: parsed.data.note ?? '',
     p_actor_id: caller.userId,
   };
-  const { error: rpcError } = await supabase.rpc('reconcile_statement', rpcArgs as unknown as Database['public']['Functions']['reconcile_statement']['Args']);
+  const { error: rpcError } = await supabase.rpc(
+    'reconcile_statement',
+    rpcArgs as unknown as Database['public']['Functions']['reconcile_statement']['Args'],
+  );
 
   if (rpcError) {
     let message = rpcError.message;

@@ -24,19 +24,27 @@ const paymentSchema = z.object({
 export const POST: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   if (caller.role !== 'admin' && caller.role !== 'owner') {
-    return new Response(JSON.stringify({ error: 'unauthorized', reason: 'Admin or Owner required' }), { status: 403 });
+    return new Response(
+      JSON.stringify({ error: 'unauthorized', reason: 'Admin or Owner required' }),
+      { status: 403 },
+    );
   }
 
   let body: unknown;
   try {
     body = await event.request.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload' }), { status: 400 });
+    return new Response(
+      JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload' }),
+      { status: 400 },
+    );
   }
 
   const parsed = paymentSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const effectiveReceiptPath = parsed.data.receiptPath ?? parsed.data.receiptStoragePath ?? null;
@@ -46,8 +54,18 @@ export const POST: RequestHandler = async (event) => {
   // with a 15-digit guard because Number stays exact below 2^53 (Rule 2: never floats; the
   // the regex ^\d+$ already guarantees an integer string). CLT-D-018.
   const amountNumber = Number(parsed.data.amountPoisha);
-  if (parsed.data.amountPoisha.length > 15 || !Number.isSafeInteger(amountNumber) || amountNumber <= 0) {
-    return new Response(JSON.stringify({ error: 'invalid_amount', message: 'amountPoisha must be a positive integer poisha string' }), { status: 400 });
+  if (
+    parsed.data.amountPoisha.length > 15 ||
+    !Number.isSafeInteger(amountNumber) ||
+    amountNumber <= 0
+  ) {
+    return new Response(
+      JSON.stringify({
+        error: 'invalid_amount',
+        message: 'amountPoisha must be a positive integer poisha string',
+      }),
+      { status: 400 },
+    );
   }
 
   const supabase = getServiceSupabase();
@@ -64,11 +82,20 @@ export const POST: RequestHandler = async (event) => {
     p_reverses_id: effectiveReversesId,
     p_actor_id: caller.userId,
   };
-  const { data, error } = await supabase.rpc('record_settlement_payment', rpcArgs as unknown as Database['public']['Functions']['record_settlement_payment']['Args']);
+  const { data, error } = await supabase.rpc(
+    'record_settlement_payment',
+    rpcArgs as unknown as Database['public']['Functions']['record_settlement_payment']['Args'],
+  );
 
   if (error) {
     if (error.message?.includes('month_closed')) {
-      return new Response(JSON.stringify({ error: 'month_closed', message: 'Month is closed. Payments and reversals are locked.' }), { status: 422 });
+      return new Response(
+        JSON.stringify({
+          error: 'month_closed',
+          message: 'Month is closed. Payments and reversals are locked.',
+        }),
+        { status: 422 },
+      );
     }
     return new Response(JSON.stringify({ error: error.message }), { status: 422 });
   }
@@ -82,16 +109,21 @@ export const POST: RequestHandler = async (event) => {
 
   const { data: createdPayment } = await supabase
     .from('settlement_payments')
-    .select('id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path, note, is_reversal, reverses_payment_id, recorded_by, created_at')
+    .select(
+      'id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path, note, is_reversal, reverses_payment_id, recorded_by, created_at',
+    )
     .eq('id', data)
     .single();
 
-  return new Response(JSON.stringify({
-    success: true,
-    paymentId: data,
-    payment: createdPayment,
-    settlement: updatedSettlement,
-  }), { status: 200 });
+  return new Response(
+    JSON.stringify({
+      success: true,
+      paymentId: data,
+      payment: createdPayment,
+      settlement: updatedSettlement,
+    }),
+    { status: 200 },
+  );
 };
 
 /**
@@ -101,12 +133,21 @@ export const POST: RequestHandler = async (event) => {
 export const GET: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   if (caller.role !== 'admin' && caller.role !== 'owner') {
-    return new Response(JSON.stringify({ error: 'unauthorized', reason: 'Admin or Owner required' }), { status: 403 });
+    return new Response(
+      JSON.stringify({ error: 'unauthorized', reason: 'Admin or Owner required' }),
+      { status: 403 },
+    );
   }
 
   const settlementId = event.url.searchParams.get('settlement_id');
-  if (!settlementId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(settlementId)) {
-    return new Response(JSON.stringify({ error: 'invalid_parameter', message: 'settlement_id UUID required' }), { status: 400 });
+  if (
+    !settlementId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(settlementId)
+  ) {
+    return new Response(
+      JSON.stringify({ error: 'invalid_parameter', message: 'settlement_id UUID required' }),
+      { status: 400 },
+    );
   }
 
   const supabase = getServiceSupabase();
@@ -119,7 +160,9 @@ export const GET: RequestHandler = async (event) => {
 
   const { data: payments, error } = await supabase
     .from('settlement_payments')
-    .select('id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path, note, is_reversal, reverses_payment_id, recorded_by, created_at')
+    .select(
+      'id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path, note, is_reversal, reverses_payment_id, recorded_by, created_at',
+    )
     .eq('settlement_id', settlementId)
     .order('paid_on', { ascending: false });
 
@@ -127,5 +170,8 @@ export const GET: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
-  return new Response(JSON.stringify({ settlement: settlement ?? null, payments: payments ?? [] }), { status: 200 });
+  return new Response(
+    JSON.stringify({ settlement: settlement ?? null, payments: payments ?? [] }),
+    { status: 200 },
+  );
 };

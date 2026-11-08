@@ -20,11 +20,12 @@ export function handleClientGuard(toUrl: URL, cancel: () => void): void {
 
   const pathname = toUrl.pathname;
   const onAuthRoute = isAuthRoute(pathname);
-  const isStaffRestricted = pathname.startsWith('/reports') ||
-                            pathname.startsWith('/settlements') ||
-                            pathname.startsWith('/reconcile') ||
-                            pathname.startsWith('/months/close') ||
-                            pathname.startsWith('/admin');
+  const isStaffRestricted =
+    pathname.startsWith('/reports') ||
+    pathname.startsWith('/settlements') ||
+    pathname.startsWith('/reconcile') ||
+    pathname.startsWith('/months/close') ||
+    pathname.startsWith('/admin');
 
   // CLT-R-015: a cached profile with no Supabase session is signed out, not
   // signed in — otherwise /login bounces back to the hollow dashboard.

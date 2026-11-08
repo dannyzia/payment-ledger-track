@@ -50,10 +50,12 @@ export const messages = {
   },
   pwa: {
     staleRateBadge: 'Stale Rate',
-    staleRateTooltip: 'This entry was recorded offline under a superseded rate profile. Preserved without silent recalculation.',
+    staleRateTooltip:
+      'This entry was recorded offline under a superseded rate profile. Preserved without silent recalculation.',
     upgradeModalTitle: 'Application Update Required',
     upgradeModalHeadline: 'A new calculation engine version has been published.',
-    upgradeModalBody: 'Your offline client calculation rules differ from the server. Please reload the app to download the latest update and ensure continuous sync.',
+    upgradeModalBody:
+      'Your offline client calculation rules differ from the server. Please reload the app to download the latest update and ensure continuous sync.',
     upgradeModalButton: 'Reload Application',
     installBannerAria: 'Install Kumon Ledger Track application',
     installBannerTitle: 'Install App',

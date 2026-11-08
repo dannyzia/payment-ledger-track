@@ -110,7 +110,9 @@ export async function verifyDeploymentReadiness(cliArgs?: string[]): Promise<voi
   }
 
   if (!approvalFound) {
-    console.error(`FAILED: Missing mandatory written approval from Zia in docs/orchestration/LEDGER.md.`);
+    console.error(
+      `FAILED: Missing mandatory written approval from Zia in docs/orchestration/LEDGER.md.`,
+    );
     console.error(`Format required: ZIA-APPROVED: <release id> ${targetEnv} <date>`);
     process.exit(1);
   }

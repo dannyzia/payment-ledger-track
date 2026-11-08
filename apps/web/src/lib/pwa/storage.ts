@@ -16,7 +16,11 @@ export interface StorageStatus {
  * Safely handles environments where StorageManager throws (e.g. private browsing).
  */
 export async function initStoragePersistence(): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.persist === 'function') {
+  if (
+    typeof navigator !== 'undefined' &&
+    navigator.storage &&
+    typeof navigator.storage.persist === 'function'
+  ) {
     try {
       if (typeof navigator.storage.persisted === 'function') {
         const isPersisted = await navigator.storage.persisted();
@@ -39,11 +43,16 @@ export async function initStoragePersistence(): Promise<boolean> {
  * Safely handles environments where StorageManager estimate throws.
  */
 export async function getStorageQuota(): Promise<StorageStatus> {
-  if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function') {
+  if (
+    typeof navigator !== 'undefined' &&
+    navigator.storage &&
+    typeof navigator.storage.estimate === 'function'
+  ) {
     try {
-      const persisted = typeof navigator.storage.persisted === 'function'
-        ? await navigator.storage.persisted().catch(() => false)
-        : false;
+      const persisted =
+        typeof navigator.storage.persisted === 'function'
+          ? await navigator.storage.persisted().catch(() => false)
+          : false;
 
       const estimate = await navigator.storage.estimate();
       const quota = estimate.quota ?? 0;

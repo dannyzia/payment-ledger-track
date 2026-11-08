@@ -36,37 +36,41 @@
 
   const isPrivileged = $derived(role === 'admin' || role === 'owner');
   const method = $derived(entry ? methodsMap[entry.method_id] : undefined);
-  const methodName = $derived(method?.name ?? (entry?.method_id ? entry.method_id.substring(0, 8) : ''));
+  const methodName = $derived(
+    method?.name ?? (entry?.method_id ? entry.method_id.substring(0, 8) : ''),
+  );
   const chipVariant = $derived<ChipVariant>(
     method && ['bkash', 'visa', 'mastercard'].includes(method.code.toLowerCase())
       ? (method.code.toLowerCase() as 'bkash' | 'visa' | 'mastercard')
-      : 'default'
+      : 'default',
   );
 
   const creatorName = $derived(
-    entry ? (profilesMap[entry.created_by]?.display_name || entry.created_by) : ''
+    entry ? profilesMap[entry.created_by]?.display_name || entry.created_by : '',
   );
 
   // Chains
   const predecessorEntry = $derived(
-    entry?.supersedes_id ? allEntries.find((e) => e.id === entry.supersedes_id) : null
+    entry?.supersedes_id ? allEntries.find((e) => e.id === entry.supersedes_id) : null,
   );
   const successorEntry = $derived(
-    entry ? allEntries.find((e) => e.supersedes_id === entry.id) : null
+    entry ? allEntries.find((e) => e.supersedes_id === entry.id) : null,
   );
 
   function formatDhakaTimestamp(isoDate?: string): string {
     if (!isoDate) return 'N/A';
     try {
-      return new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Asia/Dhaka',
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }).format(new Date(isoDate)) + ' (Asia/Dhaka)';
+      return (
+        new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Dhaka',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }).format(new Date(isoDate)) + ' (Asia/Dhaka)'
+      );
     } catch {
       return isoDate;
     }
@@ -106,9 +110,13 @@
   >
     <div class="flex flex-col gap-4">
       <!-- Header -->
-      <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+      <div
+        class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10"
+      >
         <div>
-          <h2 class="text-lg font-bold text-[var(--ink)]">{entry.entry_number ?? entry.local_id}</h2>
+          <h2 class="text-lg font-bold text-[var(--ink)]">
+            {entry.entry_number ?? entry.local_id}
+          </h2>
           <span class="text-xs font-mono text-[var(--muted)]">UUID: {entry.id}</span>
         </div>
         <button
@@ -123,23 +131,33 @@
 
       <!-- Closed Month Lock Banner (PRD §8.4) -->
       {#if isMonthClosed}
-        <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2">
+        <div
+          class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-2"
+        >
           <span>🔒</span>
-          <span>Month {entry.entry_date.substring(0, 7)} is closed. Voids and supersessions are locked.</span>
+          <span
+            >Month {entry.entry_date.substring(0, 7)} is closed. Voids and supersessions are locked.</span
+          >
         </div>
       {/if}
 
       <!-- Duplicate Txn Ref Warning -->
       {#if entry.dup_txn_flag}
-        <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs flex items-center gap-2">
+        <div
+          class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs flex items-center gap-2"
+        >
           <span>⚠️</span>
-          <span><strong>Duplicate Txn Ref:</strong> This transaction reference was previously recorded.</span>
+          <span
+            ><strong>Duplicate Txn Ref:</strong> This transaction reference was previously recorded.</span
+          >
         </div>
       {/if}
 
       <!-- Stale Rates Alert (Threshold > 50,000 poisha per PRD) -->
       {#if entry.stale_rates}
-        <div class="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-700 dark:text-orange-400 text-xs flex items-center gap-2">
+        <div
+          class="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-700 dark:text-orange-400 text-xs flex items-center gap-2"
+        >
           <span>⚡</span>
           <span>
             <strong>Stale Rate Profile:</strong> Recorded offline under older rates.
@@ -194,7 +212,13 @@
         {/if}
         <div class="flex justify-between">
           <span class="text-[var(--muted)]">Status:</span>
-          <span class="capitalize font-semibold {entry.status === 'voided' ? 'text-red-500 line-through' : entry.status === 'superseded' ? 'text-amber-600' : 'text-emerald-600'}">
+          <span
+            class="capitalize font-semibold {entry.status === 'voided'
+              ? 'text-red-500 line-through'
+              : entry.status === 'superseded'
+                ? 'text-amber-600'
+                : 'text-emerald-600'}"
+          >
             {entry.status} ({entry.sync_status})
           </span>
         </div>
@@ -203,7 +227,9 @@
         <div class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1.5">
           <div class="flex justify-between">
             <span class="text-[var(--muted)]">Gross:</span>
-            <span class="font-bold tabular-nums text-[var(--ink)]">{formatPoishaToBdt(BigInt(entry.gross_poisha))}</span>
+            <span class="font-bold tabular-nums text-[var(--ink)]"
+              >{formatPoishaToBdt(BigInt(entry.gross_poisha))}</span
+            >
           </div>
           <div class="flex justify-between text-[var(--c-vat)]">
             <span>VAT Deduction:</span>
@@ -215,37 +241,65 @@
           </div>
           <div class="flex justify-between text-red-600">
             <span>Merchant Fee:</span>
-            <span class="tabular-nums">-{formatPoishaToBdt(BigInt(entry.business_charge_poisha))}</span>
+            <span class="tabular-nums"
+              >-{formatPoishaToBdt(BigInt(entry.business_charge_poisha))}</span
+            >
           </div>
           {#if entry.customer_charge_poisha && entry.customer_charge_poisha !== '0'}
             <div class="flex justify-between text-blue-600 text-xs">
               <span>Customer Fee (Customer-paid — not deducted):</span>
-              <span class="tabular-nums">{formatPoishaToBdt(BigInt(entry.customer_charge_poisha))}</span>
+              <span class="tabular-nums"
+                >{formatPoishaToBdt(BigInt(entry.customer_charge_poisha))}</span
+              >
             </div>
           {/if}
           <div class="flex justify-between font-bold text-base pt-2 border-t border-black/5">
             <span>Net Revenue:</span>
-            <span class="tabular-nums text-[var(--accent)]">{formatPoishaToBdt(BigInt(entry.net_poisha))}</span>
+            <span class="tabular-nums text-[var(--accent)]"
+              >{formatPoishaToBdt(BigInt(entry.net_poisha))}</span
+            >
           </div>
         </div>
 
         <!-- Snapshot Rates Applied (PRD §8.2) -->
         {#if entry.snapshot}
-          <div class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1 text-xs">
-            <span class="font-bold text-[var(--ink)] uppercase tracking-wider">Snapshot Rates Applied</span>
+          <div
+            class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1 text-xs"
+          >
+            <span class="font-bold text-[var(--ink)] uppercase tracking-wider"
+              >Snapshot Rates Applied</span
+            >
             <div class="grid grid-cols-2 gap-1 text-[var(--muted)]">
-              <div>Version: <span class="font-mono text-[var(--ink)]">v{entry.snapshot.version}</span></div>
-              <div>VAT: <span class="text-[var(--ink)]">{entry.snapshot.vat.mode} ({entry.snapshot.vat.bp / 100}%)</span></div>
-              <div>Commission: <span class="text-[var(--ink)]">{entry.snapshot.commission.bp / 100}% ({entry.snapshot.commission.base})</span></div>
-              <div>Method Fee: <span class="text-[var(--ink)]">{entry.snapshot.chargeBp / 100}%</span></div>
-              <div>Borne By: <span class="text-[var(--ink)] capitalize">{entry.snapshot.chargesBorneBy}</span></div>
+              <div>
+                Version: <span class="font-mono text-[var(--ink)]">v{entry.snapshot.version}</span>
+              </div>
+              <div>
+                VAT: <span class="text-[var(--ink)]"
+                  >{entry.snapshot.vat.mode} ({entry.snapshot.vat.bp / 100}%)</span
+                >
+              </div>
+              <div>
+                Commission: <span class="text-[var(--ink)]"
+                  >{entry.snapshot.commission.bp / 100}% ({entry.snapshot.commission.base})</span
+                >
+              </div>
+              <div>
+                Method Fee: <span class="text-[var(--ink)]">{entry.snapshot.chargeBp / 100}%</span>
+              </div>
+              <div>
+                Borne By: <span class="text-[var(--ink)] capitalize"
+                  >{entry.snapshot.chargesBorneBy}</span
+                >
+              </div>
               <div>Rounding: <span class="text-[var(--ink)]">{entry.snapshot.rounding}</span></div>
             </div>
           </div>
         {/if}
 
         <!-- Metadata & Timestamps -->
-        <div class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1 text-xs text-[var(--muted)]">
+        <div
+          class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1 text-xs text-[var(--muted)]"
+        >
           <div class="flex justify-between">
             <span>Creator:</span>
             <span class="font-medium text-[var(--ink)]">{creatorName}</span>
@@ -266,8 +320,12 @@
 
         <!-- Supersede History Chain -->
         {#if predecessorEntry || successorEntry}
-          <div class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1.5 text-xs">
-            <span class="font-bold text-[var(--ink)] uppercase tracking-wider">Supersede History Chain</span>
+          <div
+            class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1.5 text-xs"
+          >
+            <span class="font-bold text-[var(--ink)] uppercase tracking-wider"
+              >Supersede History Chain</span
+            >
             {#if predecessorEntry}
               <div class="flex items-center justify-between text-amber-700 dark:text-amber-400">
                 <span>Supersedes Original:</span>
@@ -280,7 +338,9 @@
                     {predecessorEntry.entry_number ?? predecessorEntry.local_id}
                   </button>
                 {:else}
-                  <span class="font-mono font-bold">{predecessorEntry.entry_number ?? predecessorEntry.local_id}</span>
+                  <span class="font-mono font-bold"
+                    >{predecessorEntry.entry_number ?? predecessorEntry.local_id}</span
+                  >
                 {/if}
               </div>
             {/if}
@@ -296,7 +356,9 @@
                     {successorEntry.entry_number ?? successorEntry.local_id}
                   </button>
                 {:else}
-                  <span class="font-mono font-bold">{successorEntry.entry_number ?? successorEntry.local_id}</span>
+                  <span class="font-mono font-bold"
+                    >{successorEntry.entry_number ?? successorEntry.local_id}</span
+                  >
                 {/if}
               </div>
             {/if}
@@ -304,8 +366,11 @@
         {/if}
 
         <!-- Audit Events Log -->
-        <div class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1 text-xs text-[var(--muted)]">
-          <span class="font-bold text-[var(--ink)] uppercase tracking-wider mb-1">Audit Events</span>
+        <div
+          class="pt-3 border-t border-black/10 dark:border-white/10 flex flex-col gap-1 text-xs text-[var(--muted)]"
+        >
+          <span class="font-bold text-[var(--ink)] uppercase tracking-wider mb-1">Audit Events</span
+          >
           <div class="flex items-start gap-2">
             <span>•</span>
             <span>Created by {creatorName} on {formatDhakaTimestamp(entry.created_at)}</span>
@@ -314,8 +379,8 @@
             <div class="flex items-start gap-2 text-amber-600">
               <span>•</span>
               <span>
-                Void requested by {profilesMap[entry.void_requested_by]?.display_name || entry.void_requested_by}:
-                "{entry.void_reason}"
+                Void requested by {profilesMap[entry.void_requested_by]?.display_name ||
+                  entry.void_requested_by}: "{entry.void_reason}"
               </span>
             </div>
           {/if}
@@ -342,11 +407,19 @@
           <!-- Admin or Owner Actions -->
           <div class="flex gap-2">
             {#if entry.void_requested_by}
-              <Button variant="default" class="flex-1 bg-red-600 hover:bg-red-700 text-white" onclick={() => onvoid(entry)}>
+              <Button
+                variant="default"
+                class="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                onclick={() => onvoid(entry)}
+              >
                 Approve Void
               </Button>
             {:else}
-              <Button variant="default" class="flex-1 text-red-600 border border-red-300" onclick={() => onvoid(entry)}>
+              <Button
+                variant="default"
+                class="flex-1 text-red-600 border border-red-300"
+                onclick={() => onvoid(entry)}
+              >
                 Void Entry
               </Button>
             {/if}
@@ -356,7 +429,11 @@
           </div>
         {:else if entry.created_by === currentUserId && !entry.void_requested_by}
           <!-- Staff Action: Can only request void on own entries per PRD §8.2 / §8.5 -->
-          <Button variant="default" class="w-full text-amber-600 border border-amber-300" onclick={() => onrequestvoid(entry)}>
+          <Button
+            variant="default"
+            class="w-full text-amber-600 border border-amber-300"
+            onclick={() => onrequestvoid(entry)}
+          >
             Request Void
           </Button>
         {:else if entry.void_requested_by}

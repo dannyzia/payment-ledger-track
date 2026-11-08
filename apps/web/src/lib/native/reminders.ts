@@ -47,7 +47,11 @@ export async function requestNotificationPermissions(): Promise<boolean> {
  * Computes reminder date aligned strictly with Plan 014:
  * Settlements for month M are due in month M+1 on dueDay (clamped to target month length).
  */
-export function computeReminderDate(settlementMonth: string, dueDay: number, remindDaysBefore: number): Date {
+export function computeReminderDate(
+  settlementMonth: string,
+  dueDay: number,
+  remindDaysBefore: number,
+): Date {
   const [settleYear, settleMonth] = settlementMonth.slice(0, 7).split('-').map(Number);
   // Probe target month (month following settlementMonth; settleMonth is 1-based, so Date.UTC(settleYear, settleMonth, 1) is next month)
   const targetProbe = new Date(Date.UTC(settleYear, settleMonth, 1));
@@ -60,7 +64,9 @@ export function computeReminderDate(settlementMonth: string, dueDay: number, rem
   return new Date(dueYear, dueMonthIndex, reminderDay, 9, 0, 0); // 9:00 AM local device time
 }
 
-export async function scheduleSettlementReminders(settlements: SettlementReminderItem[]): Promise<void> {
+export async function scheduleSettlementReminders(
+  settlements: SettlementReminderItem[],
+): Promise<void> {
   if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
 
   try {
@@ -68,11 +74,14 @@ export async function scheduleSettlementReminders(settlements: SettlementReminde
 
     const pendingList = await LocalNotifications.getPending();
     const existingIds = new Set(pendingList.notifications.map((n) => n.id));
-    const notificationsToSchedule: Parameters<typeof LocalNotifications.schedule>[0]['notifications'] = [];
+    const notificationsToSchedule: Parameters<
+      typeof LocalNotifications.schedule
+    >[0]['notifications'] = [];
 
     for (const item of settlements) {
       // Deterministic positive 31-bit integer notification ID from UUID
-      const notificationId = Math.abs(item.id.split('-').reduce((acc, part) => acc ^ parseInt(part, 16), 0)) % 100000;
+      const notificationId =
+        Math.abs(item.id.split('-').reduce((acc, part) => acc ^ parseInt(part, 16), 0)) % 100000;
 
       // Cancel reminder if already settled or zero liability
       if (item.paidPoisha >= item.expectedPoisha) {

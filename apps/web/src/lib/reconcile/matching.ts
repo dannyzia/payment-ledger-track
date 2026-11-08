@@ -3,9 +3,9 @@ import type { StatementLine } from '$lib/reconcile/types';
 export interface LedgerEntryCandidate {
   id: string;
   entry_number?: string;
-  entry_date: string;          // ISO YYYY-MM-DD
+  entry_date: string; // ISO YYYY-MM-DD
   gross_poisha: bigint;
-  liability_poisha: bigint;    // Merchant liability for covered payables (vat_poisha or business_charge_poisha)
+  liability_poisha: bigint; // Merchant liability for covered payables (vat_poisha or business_charge_poisha)
   txn_ref?: string | null;
   customer_name?: string | null;
   method_id?: string;
@@ -35,10 +35,10 @@ export interface AutoMatchExecutionResult {
  */
 export function executeAutoMatch(
   lines: StatementLine[],
-  entries: LedgerEntryCandidate[]
+  entries: LedgerEntryCandidate[],
 ): AutoMatchExecutionResult {
   // Filter eligible entries: status === 'active' AND liability_poisha > 0n (PRD §11.3 Item 5 & SQL parity)
-  const eligibleEntries = entries.filter(e => e.status === 'active' && e.liability_poisha > 0n);
+  const eligibleEntries = entries.filter((e) => e.status === 'active' && e.liability_poisha > 0n);
 
   const matchedLineIndices = new Set<number>();
   const matchedEntryIds = new Set<string>();
@@ -95,14 +95,14 @@ export function executeAutoMatch(
 
   // Pass 2: Fallback unique Date + Gross match for unreferenced lines (PRD §11.3 Rule 2)
   // Lines that collided in Pass 1 MUST NOT fall through to Pass 2
-  const candidatePass2Lines = lines.filter(l => {
+  const candidatePass2Lines = lines.filter((l) => {
     if (matchedLineIndices.has(l.lineIndex)) return false;
     const ref = l.reference?.trim().toUpperCase();
     if (ref && collidedReferences.has(ref)) return false; // Reference collided, skip Pass 2
     return !ref; // Strictly unreferenced line
   });
 
-  const candidatePass2Entries = eligibleEntries.filter(e => {
+  const candidatePass2Entries = eligibleEntries.filter((e) => {
     if (matchedEntryIds.has(e.id)) return false;
     const ref = e.txn_ref?.trim().toUpperCase();
     if (ref && collidedReferences.has(ref)) return false; // Reference collided, skip Pass 2
@@ -145,12 +145,12 @@ export function executeAutoMatch(
   }
 
   const unmatchedLineIndices = lines
-    .filter(l => !matchedLineIndices.has(l.lineIndex))
-    .map(l => l.lineIndex);
+    .filter((l) => !matchedLineIndices.has(l.lineIndex))
+    .map((l) => l.lineIndex);
 
   const unmatchedEntryIds = eligibleEntries
-    .filter(e => !matchedEntryIds.has(e.id))
-    .map(e => e.id);
+    .filter((e) => !matchedEntryIds.has(e.id))
+    .map((e) => e.id);
 
   return {
     matches,

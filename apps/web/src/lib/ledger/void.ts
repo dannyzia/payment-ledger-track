@@ -15,7 +15,7 @@ export interface VoidActionResult {
 export async function requestEntryVoid(
   entry: LocalEntry,
   userId: string,
-  reason: string
+  reason: string,
 ): Promise<VoidActionResult> {
   if (entry.status !== 'active') {
     throw new Error('Only active entries can be requested for void');
@@ -69,7 +69,7 @@ export async function requestEntryVoid(
 export async function executeEntryVoid(
   entry: LocalEntry,
   adminId: string,
-  reason: string
+  reason: string,
 ): Promise<VoidActionResult> {
   if (entry.status !== 'active') {
     throw new Error('Only active entries can be voided');

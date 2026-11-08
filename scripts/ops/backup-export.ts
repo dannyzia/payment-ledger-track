@@ -22,7 +22,11 @@ Executes daily off-Supabase database backup:
  * and a piped-but-empty stdin would leave gpg waiting forever in a headless
  * cron/CI run. spawnSync writes the passphrase to the pipe and closes it.
  */
-function runGpgWithStdinPassphrase(args: string[], passphrase: string, env: NodeJS.ProcessEnv): void {
+function runGpgWithStdinPassphrase(
+  args: string[],
+  passphrase: string,
+  env: NodeJS.ProcessEnv,
+): void {
   const result = spawnSync('gpg', args, {
     input: passphrase,
     env,

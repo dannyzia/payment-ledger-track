@@ -96,47 +96,53 @@
   let reconcileNote = $state('');
 
   // --- Derived Calculations ---
-  let unmatchedLinesCount = $derived(statementLines.filter(l => l.match_status === 'unmatched').length);
-  let matchedLinesCount = $derived(statementLines.filter(l => l.match_status === 'matched').length);
-  let acceptedLinesCount = $derived(statementLines.filter(l => l.match_status === 'accepted').length);
+  let unmatchedLinesCount = $derived(
+    statementLines.filter((l) => l.match_status === 'unmatched').length,
+  );
+  let matchedLinesCount = $derived(
+    statementLines.filter((l) => l.match_status === 'matched').length,
+  );
+  let acceptedLinesCount = $derived(
+    statementLines.filter((l) => l.match_status === 'accepted').length,
+  );
 
   let filteredStatementLines = $derived(
     lineFilter === 'all'
       ? statementLines
-      : statementLines.filter(l => l.match_status === lineFilter)
+      : statementLines.filter((l) => l.match_status === lineFilter),
   );
 
   let statementTotalFeePoisha = $derived(
-    statementLines.reduce((acc, l) => acc + BigInt(l.fee_poisha || '0'), 0n)
+    statementLines.reduce((acc, l) => acc + BigInt(l.fee_poisha || '0'), 0n),
   );
 
   let coveredEntriesTotalLiabilityPoisha = $derived(
-    coveredEntries.reduce((acc, e) => acc + BigInt(e.liability_poisha || '0'), 0n)
+    coveredEntries.reduce((acc, e) => acc + BigInt(e.liability_poisha || '0'), 0n),
   );
 
   let variancePoisha = $derived(
     statementTotalFeePoisha > coveredEntriesTotalLiabilityPoisha
       ? statementTotalFeePoisha - coveredEntriesTotalLiabilityPoisha
-      : coveredEntriesTotalLiabilityPoisha - statementTotalFeePoisha
+      : coveredEntriesTotalLiabilityPoisha - statementTotalFeePoisha,
   );
 
   let varianceWithinTolerance = $derived(variancePoisha <= tolerancePoisha);
 
   let unmatchedCoveredEntriesCount = $derived(
-    coveredEntries.filter(e => !e.is_matched && !e.has_exception).length
+    coveredEntries.filter((e) => !e.is_matched && !e.has_exception).length,
   );
 
   let canFinalizeReconciliation = $derived(
     activeStatement !== null &&
-    activeStatement.status === 'open' &&
-    statementLines.length > 0 &&
-    unmatchedLinesCount === 0 &&
-    unmatchedCoveredEntriesCount === 0 &&
-    (varianceWithinTolerance || reconcileNote.trim().length > 0)
+      activeStatement.status === 'open' &&
+      statementLines.length > 0 &&
+      unmatchedLinesCount === 0 &&
+      unmatchedCoveredEntriesCount === 0 &&
+      (varianceWithinTolerance || reconcileNote.trim().length > 0),
   );
 
   let filteredCandidates = $derived(
-    coveredEntries.filter(e => {
+    coveredEntries.filter((e) => {
       if (e.is_matched) return false;
       const q = candidateSearchQuery.trim().toLowerCase();
       if (!q) return true;
@@ -145,7 +151,7 @@
         (e.txn_ref && e.txn_ref.toLowerCase().includes(q)) ||
         (e.customer_name && e.customer_name.toLowerCase().includes(q))
       );
-    })
+    }),
   );
 
   // --- Lifecycle ---
@@ -162,7 +168,8 @@
       const requestedId = page.url.searchParams.get('statement');
       if (requestedId) await resumeStatement(requestedId);
     } catch (err: unknown) {
-      errorMessage = err instanceof Error ? err.message : 'Failed to initialize reconciliation upload';
+      errorMessage =
+        err instanceof Error ? err.message : 'Failed to initialize reconciliation upload';
     } finally {
       loading = false;
     }
@@ -170,7 +177,7 @@
 
   async function fetchPayables() {
     // PRD §8.3: payables come from the admin panel, cached locally
-    payables = (await db.payables.toArray()).filter(p => p.active);
+    payables = (await db.payables.toArray()).filter((p) => p.active);
     if (payables.length > 0 && selectedPayableIds.length === 0) {
       selectedPayableIds = [payables[0].id];
     }
@@ -208,7 +215,7 @@
       file_storage_path: stmt.file_storage_path ?? undefined,
       file_sha256: stmt.file_sha256 ?? undefined,
       statement_total_poisha: String(stmt.statement_total_poisha),
-      payable_ids: (pData || []).map(p => p.payable_id),
+      payable_ids: (pData || []).map((p) => p.payable_id),
     };
   }
 
@@ -270,7 +277,9 @@
 
       if (!res.ok) {
         const errPayload = await res.json().catch(() => ({}));
-        throw new Error(errPayload.message || errPayload.error || `Upload failed with HTTP ${res.status}`);
+        throw new Error(
+          errPayload.message || errPayload.error || `Upload failed with HTTP ${res.status}`,
+        );
       }
 
       uploadPreview = await res.json();
@@ -289,7 +298,7 @@
    */
   function buildLinePayload(): Array<Record<string, unknown>> {
     if (!uploadPreview) return [];
-    return uploadPreview.parsedLines.map(l => ({
+    return uploadPreview.parsedLines.map((l) => ({
       lineDate: l.lineDate,
       reference: l.reference,
       grossPoisha: l.grossPoisha,
@@ -410,7 +419,7 @@
         file_storage_path: stmt.file_storage_path ?? undefined,
         file_sha256: stmt.file_sha256 ?? undefined,
         statement_total_poisha: String(stmt.statement_total_poisha),
-        payable_ids: (pData || []).map(p => p.payable_id),
+        payable_ids: (pData || []).map((p) => p.payable_id),
       };
 
       await fetchStatementLines(statementId);
@@ -491,11 +500,13 @@
   async function fetchStatementLines(statementId: string) {
     const { data: lines, error: lErr } = await supabase
       .from('statement_lines')
-      .select('id, statement_id, line_date, reference, gross_poisha, fee_poisha, match_status, matched_entry_id, review_note')
+      .select(
+        'id, statement_id, line_date, reference, gross_poisha, fee_poisha, match_status, matched_entry_id, review_note',
+      )
       .eq('statement_id', statementId)
       .order('created_at');
     if (lErr) throw lErr;
-    statementLines = (lines || []).map(l => ({
+    statementLines = (lines || []).map((l) => ({
       id: l.id,
       statement_id: l.statement_id,
       line_date: l.line_date ?? undefined,
@@ -528,7 +539,8 @@
 
     const { data: entries, error: eErr } = await supabase
       .from('entries')
-      .select(`
+      .select(
+        `
         id,
         entry_number,
         entry_date,
@@ -543,7 +555,8 @@
           status,
           payable_id
         )
-      `)
+      `,
+      )
       .gte('entry_date', activeStatement.month)
       .lt('entry_date', nextMonth)
       .eq('status', 'active')
@@ -554,16 +567,20 @@
     // Map matched status against current statement lines
     const matchedEntryIds = new Set(
       statementLines
-        .filter(l => l.match_status === 'matched' && l.matched_entry_id)
-        .map(l => l.matched_entry_id as string)
+        .filter((l) => l.match_status === 'matched' && l.matched_entry_id)
+        .map((l) => l.matched_entry_id as string),
     );
 
     // Resolve covered payables from the local admin cache (id, kind, method_id)
-    const payableMap = new Map((await db.payables.toArray()).map(p => [p.id, p]));
+    const payableMap = new Map((await db.payables.toArray()).map((p) => [p.id, p]));
 
     const rows: CandidateEntry[] = [];
     for (const e of entries || []) {
-      const exceptions = ((e.entry_reconciliation_exceptions as Array<{ status: string; payable_id: string }> | null) || []);
+      const exceptions =
+        (e.entry_reconciliation_exceptions as Array<{
+          status: string;
+          payable_id: string;
+        }> | null) || [];
       for (const payableId of activeStatement.payable_ids) {
         const payable = payableMap.get(payableId);
         if (!payable) continue;
@@ -576,7 +593,7 @@
         if (liability <= 0n) continue; // Zero-liability entries are exempt (PRD §11.3)
 
         const hasApprovedException = exceptions.some(
-          ex => ex.status === 'approved' && ex.payable_id === payableId
+          (ex) => ex.status === 'approved' && ex.payable_id === payableId,
         );
 
         rows.push({
@@ -725,7 +742,8 @@
 
   async function handleConfirmException() {
     if (!selectedEntryForException) return;
-    const targetPayableId = selectedEntryForException.applicable_payable_id || activeStatement?.payable_ids[0];
+    const targetPayableId =
+      selectedEntryForException.applicable_payable_id || activeStatement?.payable_ids[0];
     if (!targetPayableId || exceptionReason.trim().length === 0) return;
     actionLoading = true;
     errorMessage = null;
@@ -751,7 +769,8 @@
       successMessage = 'Reconciliation exception approved for entry.';
       await fetchCoveredEntries();
     } catch (err: unknown) {
-      errorMessage = err instanceof Error ? err.message : 'Error approving entry reconciliation exception';
+      errorMessage =
+        err instanceof Error ? err.message : 'Error approving entry reconciliation exception';
     } finally {
       actionLoading = false;
     }
@@ -792,16 +811,21 @@
 
 <div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
   <!-- Header & Navigation -->
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-black/10 dark:border-white/10 pb-4">
+  <div
+    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-black/10 dark:border-white/10 pb-4"
+  >
     <div>
       <div class="flex items-center gap-2 text-xs text-[var(--c-muted,#6b7280)] mb-1">
         <a href="/reconcile" class="hover:underline">Reconciliation</a>
         <span>/</span>
         <span class="text-[var(--c-ink,#111827)]">Mode B Upload</span>
       </div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">File-Based Reconciliation (Mode B)</h1>
+      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
+        File-Based Reconciliation (Mode B)
+      </h1>
       <p class="text-xs text-[var(--c-muted,#6b7280)] mt-1">
-        Upload bank or gateway CSV statements, auto-match against ledger entries, and resolve discrepancies.
+        Upload bank or gateway CSV statements, auto-match against ledger entries, and resolve
+        discrepancies.
       </p>
     </div>
     <div class="flex items-center gap-2">
@@ -813,18 +837,36 @@
 
   <!-- Global Alert Banners -->
   {#if errorMessage}
-    <div role="alert" class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex items-start gap-3">
+    <div
+      role="alert"
+      class="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm flex items-start gap-3"
+    >
       <span class="font-bold">Error:</span>
       <span class="flex-1">{errorMessage}</span>
-      <button type="button" class="text-xs underline" onclick={() => { errorMessage = null; }}>Dismiss</button>
+      <button
+        type="button"
+        class="text-xs underline"
+        onclick={() => {
+          errorMessage = null;
+        }}>Dismiss</button
+      >
     </div>
   {/if}
 
   {#if successMessage}
-    <div role="status" class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm flex items-start gap-3">
+    <div
+      role="status"
+      class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-sm flex items-start gap-3"
+    >
       <span class="font-bold">Success:</span>
       <span class="flex-1">{successMessage}</span>
-      <button type="button" class="text-xs underline" onclick={() => { successMessage = null; }}>Dismiss</button>
+      <button
+        type="button"
+        class="text-xs underline"
+        onclick={() => {
+          successMessage = null;
+        }}>Dismiss</button
+      >
     </div>
   {/if}
 
@@ -833,15 +875,25 @@
   {:else if !activeStatement}
     <!-- Section: Step 1 Upload Statement File -->
     <Card class="p-5 sm:p-6 space-y-5">
-      <div class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3">
-        <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">1. Select Statement File &amp; Coverage</h2>
-        <span class="text-xs font-mono px-2 py-1 bg-black/5 dark:bg-white/10 rounded text-[var(--c-muted,#6b7280)]">Step 1 of 2</span>
+      <div
+        class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
+      >
+        <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+          1. Select Statement File &amp; Coverage
+        </h2>
+        <span
+          class="text-xs font-mono px-2 py-1 bg-black/5 dark:bg-white/10 rounded text-[var(--c-muted,#6b7280)]"
+          >Step 1 of 2</span
+        >
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <!-- Month Picker -->
         <div>
-          <label for="month-select" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+          <label
+            for="month-select"
+            class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+          >
             Statement Month
           </label>
           <input
@@ -851,12 +903,17 @@
             onchange={handleMonthChange}
             class="w-full min-h-[44px] px-3 text-sm rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
           />
-          <p class="text-[11px] text-[var(--c-muted,#6b7280)] mt-1">Normalized to {selectedMonth}</p>
+          <p class="text-[11px] text-[var(--c-muted,#6b7280)] mt-1">
+            Normalized to {selectedMonth}
+          </p>
         </div>
 
         <!-- Covered Payables Multi-Select -->
         <div>
-          <label for="payables-select" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+          <label
+            for="payables-select"
+            class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+          >
             Covered Payables
           </label>
           <select
@@ -869,24 +926,33 @@
               <option value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>
             {/each}
           </select>
-          <p class="text-[11px] text-[var(--c-muted,#6b7280)] mt-1">Hold Ctrl/Cmd to select multiple payables for combined card statements.</p>
+          <p class="text-[11px] text-[var(--c-muted,#6b7280)] mt-1">
+            Hold Ctrl/Cmd to select multiple payables for combined card statements.
+          </p>
         </div>
       </div>
 
       <!-- Existing Statement Alert -->
       {#if existingStatement && !uploadPreview}
-        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-4">
+        <div
+          class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-4"
+        >
           <div>
-            <p class="font-semibold">An existing {existingStatement.status} statement already exists for {selectedMonth}.</p>
+            <p class="font-semibold">
+              An existing {existingStatement.status} statement already exists for {selectedMonth}.
+            </p>
             {#if existingStatement.source === 'manual_total'}
               <p class="mt-0.5 opacity-80">
-                It was entered as a Mode A totals-only statement, and a Mode B file cannot replace it: the server keeps
-                manual statements totals-only (<code>manual_total_forbids_lines</code>). Supersede it with a corrected
-                Mode A total from the Reconciliation overview instead.
+                It was entered as a Mode A totals-only statement, and a Mode B file cannot replace
+                it: the server keeps manual statements totals-only (<code
+                  >manual_total_forbids_lines</code
+                >). Supersede it with a corrected Mode A total from the Reconciliation overview
+                instead.
               </p>
             {:else}
               <p class="mt-0.5 opacity-80">
-                To replace it, upload the replacement file first, then confirm supersede with the new file's parsed data.
+                To replace it, upload the replacement file first, then confirm supersede with the
+                new file's parsed data.
               </p>
             {/if}
           </div>
@@ -901,16 +967,23 @@
         onchange={handleFileSelected}
         class="hidden"
       />
-      <label for="file-upload-input" class="cursor-pointer block border-2 border-dashed border-black/15 rounded-2xl p-6 text-center space-y-2 hover:border-[var(--brand,#3b82f6)] transition-colors">
+      <label
+        for="file-upload-input"
+        class="cursor-pointer block border-2 border-dashed border-black/15 rounded-2xl p-6 text-center space-y-2 hover:border-[var(--brand,#3b82f6)] transition-colors"
+      >
         <div class="text-3xl text-[var(--c-muted,#6b7280)]">&uarr;</div>
         <div class="text-sm font-medium text-[var(--c-ink,#111827)]">
           {#if statementFile}
-            <span class="font-semibold">{statementFile.name}</span> ({(statementFile.size / 1024).toFixed(1)} KB)
+            <span class="font-semibold">{statementFile.name}</span> ({(
+              statementFile.size / 1024
+            ).toFixed(1)} KB)
           {:else}
             Click to browse or drop statement CSV file here
           {/if}
         </div>
-        <p class="text-xs text-[var(--c-muted,#6b7280)]">Supports bKash Merchant CSV and Combined Card Settlement CSV up to 10 MB</p>
+        <p class="text-xs text-[var(--c-muted,#6b7280)]">
+          Supports bKash Merchant CSV and Combined Card Settlement CSV up to 10 MB
+        </p>
       </label>
 
       <div class="flex justify-end pt-2">
@@ -929,49 +1002,74 @@
     <!-- Upload Preview Summary & Confirmation Card -->
     {#if uploadPreview}
       <Card class="p-5 sm:p-6 space-y-5">
-        <div class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3">
+        <div
+          class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
+        >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">2. Preview &amp; Confirm Ingestion</h2>
+            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+              2. Preview &amp; Confirm Ingestion
+            </h2>
             <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
-              Adapter detected: <span class="font-mono font-medium text-[var(--c-ink,#111827)]">{uploadPreview.detectedAdapter}</span>
+              Adapter detected: <span class="font-mono font-medium text-[var(--c-ink,#111827)]"
+                >{uploadPreview.detectedAdapter}</span
+              >
             </p>
           </div>
-          <span class="text-xs font-mono px-2 py-1 bg-blue-500/10 text-blue-600 rounded font-semibold">
+          <span
+            class="text-xs font-mono px-2 py-1 bg-blue-500/10 text-blue-600 rounded font-semibold"
+          >
             Preview Ready
           </span>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Total Lines</span>
-            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">{uploadPreview.linesCount}</span>
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Total Lines</span
+            >
+            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]"
+              >{uploadPreview.linesCount}</span
+            >
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Total Gross</span>
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Total Gross</span
+            >
             <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
               ৳{formatPoishaToBdt(BigInt(uploadPreview.previewSummary.totalGrossPoisha || '0'))}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Total Fee / MDR</span>
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Total Fee / MDR</span
+            >
             <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
               ৳{formatPoishaToBdt(BigInt(uploadPreview.previewSummary.totalFeePoisha || '0'))}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Date Span</span>
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Date Span</span
+            >
             <span class="text-xs font-mono text-[var(--c-ink,#111827)] mt-1 block">
-              {uploadPreview.previewSummary.minDate || '—'} to {uploadPreview.previewSummary.maxDate || '—'}
+              {uploadPreview.previewSummary.minDate || '—'} to {uploadPreview.previewSummary
+                .maxDate || '—'}
             </span>
           </div>
         </div>
 
         <!-- Sample Lines Table -->
         <div>
-          <h3 class="text-xs font-semibold text-[var(--c-muted,#6b7280)] uppercase tracking-wider mb-2">First 5 Sample Lines</h3>
+          <h3
+            class="text-xs font-semibold text-[var(--c-muted,#6b7280)] uppercase tracking-wider mb-2"
+          >
+            First 5 Sample Lines
+          </h3>
           <div class="overflow-x-auto border border-black/10 rounded-xl">
             <table class="w-full text-left text-xs">
-              <thead class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold">
+              <thead
+                class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold"
+              >
                 <tr>
                   <th class="p-2.5">Line #</th>
                   <th class="p-2.5">Date</th>
@@ -986,8 +1084,12 @@
                     <td class="p-2.5">{line.lineIndex}</td>
                     <td class="p-2.5">{line.lineDate || '—'}</td>
                     <td class="p-2.5">{line.reference || '—'}</td>
-                    <td class="p-2.5 text-right">৳{formatPoishaToBdt(BigInt(line.grossPoisha || '0'))}</td>
-                    <td class="p-2.5 text-right">৳{formatPoishaToBdt(BigInt(line.feePoisha || '0'))}</td>
+                    <td class="p-2.5 text-right"
+                      >৳{formatPoishaToBdt(BigInt(line.grossPoisha || '0'))}</td
+                    >
+                    <td class="p-2.5 text-right"
+                      >৳{formatPoishaToBdt(BigInt(line.feePoisha || '0'))}</td
+                    >
                   </tr>
                 {/each}
               </tbody>
@@ -996,20 +1098,32 @@
         </div>
 
         {#if existingStatement && existingStatement.source === 'manual_total'}
-          <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs">
-            This upload cannot replace the {existingStatement.status} Mode A statement for {selectedMonth}: a manual
-            totals-only statement forbids statement lines. Supersede it with a corrected Mode A total from the
-            Reconciliation overview, or pick another month/payable.
+          <div
+            class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs"
+          >
+            This upload cannot replace the {existingStatement.status} Mode A statement for {selectedMonth}:
+            a manual totals-only statement forbids statement lines. Supersede it with a corrected
+            Mode A total from the Reconciliation overview, or pick another month/payable.
           </div>
         {:else if existingStatement}
-          <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
-            Confirming this upload will <strong>supersede</strong> the existing {existingStatement.status} statement
-            and create the replacement from these parsed lines (single audited transaction).
+          <div
+            class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs"
+          >
+            Confirming this upload will <strong>supersede</strong> the existing {existingStatement.status}
+            statement and create the replacement from these parsed lines (single audited transaction).
           </div>
         {/if}
 
-        <div class="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
-          <Button variant="default" class="min-h-[44px]" onclick={() => { uploadPreview = null; }}>
+        <div
+          class="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10"
+        >
+          <Button
+            variant="default"
+            class="min-h-[44px]"
+            onclick={() => {
+              uploadPreview = null;
+            }}
+          >
             Discard &amp; Re-upload
           </Button>
           {#if existingStatement && existingStatement.source === 'manual_total'}
@@ -1026,7 +1140,10 @@
               variant="mastercard"
               class="min-h-[44px]"
               id="btn-supersede"
-              onclick={() => { supersedeReason = ''; supersedeModalOpen = true; }}
+              onclick={() => {
+                supersedeReason = '';
+                supersedeModalOpen = true;
+              }}
               disabled={actionLoading}
               loading={actionLoading}
             >
@@ -1054,17 +1171,36 @@
       <Card class="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
-            <span class="text-xs uppercase font-semibold tracking-wider text-[var(--c-muted,#6b7280)]">Statement Month:</span>
-            <span class="font-mono font-bold text-sm text-[var(--c-ink,#111827)]">{activeStatement.month}</span>
-            <span class="px-2 py-0.5 text-[11px] rounded font-semibold uppercase font-mono bg-blue-500/10 text-blue-600">
+            <span
+              class="text-xs uppercase font-semibold tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Statement Month:</span
+            >
+            <span class="font-mono font-bold text-sm text-[var(--c-ink,#111827)]"
+              >{activeStatement.month}</span
+            >
+            <span
+              class="px-2 py-0.5 text-[11px] rounded font-semibold uppercase font-mono bg-blue-500/10 text-blue-600"
+            >
               {activeStatement.status}
             </span>
           </div>
           <div class="text-xs text-[var(--c-muted,#6b7280)] mt-1 flex items-center gap-3">
-            <span>Lines: <strong class="text-[var(--c-ink,#111827)] font-mono">{statementLines.length}</strong></span>
-            <span>Matched: <strong class="text-emerald-600 font-mono">{matchedLinesCount}</strong></span>
-            <span>Accepted: <strong class="text-blue-600 font-mono">{acceptedLinesCount}</strong></span>
-            <span>Unmatched: <strong class="text-amber-600 font-mono">{unmatchedLinesCount}</strong></span>
+            <span
+              >Lines: <strong class="text-[var(--c-ink,#111827)] font-mono"
+                >{statementLines.length}</strong
+              ></span
+            >
+            <span
+              >Matched: <strong class="text-emerald-600 font-mono">{matchedLinesCount}</strong
+              ></span
+            >
+            <span
+              >Accepted: <strong class="text-blue-600 font-mono">{acceptedLinesCount}</strong></span
+            >
+            <span
+              >Unmatched: <strong class="text-amber-600 font-mono">{unmatchedLinesCount}</strong
+              ></span
+            >
           </div>
         </div>
 
@@ -1082,9 +1218,13 @@
 
       <!-- Section: Statement Lines Review & Matching Table -->
       <Card class="p-5 sm:p-6 space-y-4">
-        <div class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3">
+        <div
+          class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
+        >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">Statement Lines Review</h2>
+            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+              Statement Lines Review
+            </h2>
             <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
               Match each line to an active ledger entry or mark as accepted with a review note.
             </p>
@@ -1094,8 +1234,11 @@
               <button
                 type="button"
                 aria-pressed={lineFilter === f}
-                onclick={() => { lineFilter = f as 'all' | 'unmatched' | 'matched' | 'accepted'; }}
-                class="px-2.5 py-1 text-[11px] uppercase font-semibold rounded-lg min-h-[36px] {lineFilter === f
+                onclick={() => {
+                  lineFilter = f as 'all' | 'unmatched' | 'matched' | 'accepted';
+                }}
+                class="px-2.5 py-1 text-[11px] uppercase font-semibold rounded-lg min-h-[36px] {lineFilter ===
+                f
                   ? 'bg-[var(--brand,#3b82f6)] text-white'
                   : 'bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)]'}"
               >
@@ -1107,7 +1250,9 @@
 
         <div class="overflow-x-auto border border-black/10 rounded-xl">
           <table class="w-full text-left text-xs">
-            <thead class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold">
+            <thead
+              class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold"
+            >
               <tr>
                 <th class="p-2.5">Line #</th>
                 <th class="p-2.5">Date</th>
@@ -1124,15 +1269,28 @@
                   <td class="p-2.5">{idx + 1}</td>
                   <td class="p-2.5">{line.line_date || '—'}</td>
                   <td class="p-2.5 font-bold">{line.reference || '—'}</td>
-                  <td class="p-2.5 text-right font-medium">৳{formatPoishaToBdt(BigInt(line.gross_poisha || '0'))}</td>
-                  <td class="p-2.5 text-right font-medium">৳{formatPoishaToBdt(BigInt(line.fee_poisha || '0'))}</td>
+                  <td class="p-2.5 text-right font-medium"
+                    >৳{formatPoishaToBdt(BigInt(line.gross_poisha || '0'))}</td
+                  >
+                  <td class="p-2.5 text-right font-medium"
+                    >৳{formatPoishaToBdt(BigInt(line.fee_poisha || '0'))}</td
+                  >
                   <td class="p-2.5">
                     {#if line.match_status === 'matched'}
-                      <span class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-700 font-bold uppercase">Matched</span>
+                      <span
+                        class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-700 font-bold uppercase"
+                        >Matched</span
+                      >
                     {:else if line.match_status === 'accepted'}
-                      <span class="px-2 py-0.5 text-[10px] rounded bg-blue-500/10 text-blue-600 font-bold uppercase">Accepted</span>
+                      <span
+                        class="px-2 py-0.5 text-[10px] rounded bg-blue-500/10 text-blue-600 font-bold uppercase"
+                        >Accepted</span
+                      >
                     {:else}
-                      <span class="px-2 py-0.5 text-[10px] rounded bg-amber-500/10 text-amber-600 font-bold uppercase">Unmatched</span>
+                      <span
+                        class="px-2 py-0.5 text-[10px] rounded bg-amber-500/10 text-amber-600 font-bold uppercase"
+                        >Unmatched</span
+                      >
                     {/if}
                   </td>
                   <td class="p-2.5 text-right">
@@ -1168,7 +1326,11 @@
                   </td>
                 </tr>
               {:else}
-                <tr><td colspan="7" class="p-4 text-center text-[var(--c-muted,#6b7280)] font-sans">No lines for this filter.</td></tr>
+                <tr
+                  ><td colspan="7" class="p-4 text-center text-[var(--c-muted,#6b7280)] font-sans"
+                    >No lines for this filter.</td
+                  ></tr
+                >
               {/each}
             </tbody>
           </table>
@@ -1177,11 +1339,16 @@
 
       <!-- Section: Entry-Side Review Table (PRD §11.3 Item 5) -->
       <Card class="p-5 sm:p-6 space-y-4">
-        <div class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3">
+        <div
+          class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
+        >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">Covered Ledger Entries Review (PRD §11.3)</h2>
+            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+              Covered Ledger Entries Review (PRD §11.3)
+            </h2>
             <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
-              All active entries generating liability for covered payables must be matched or have approved reconciliation exceptions.
+              All active entries generating liability for covered payables must be matched or have
+              approved reconciliation exceptions.
             </p>
           </div>
           <span class="text-xs font-mono text-[var(--c-muted,#6b7280)]">
@@ -1191,7 +1358,9 @@
 
         <div class="overflow-x-auto border border-black/10 rounded-xl">
           <table class="w-full text-left text-xs">
-            <thead class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold">
+            <thead
+              class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold"
+            >
               <tr>
                 <th class="p-2.5">Entry #</th>
                 <th class="p-2.5">Date</th>
@@ -1208,15 +1377,28 @@
                   <td class="p-2.5 font-bold">{entry.entry_number}</td>
                   <td class="p-2.5">{entry.entry_date}</td>
                   <td class="p-2.5 font-sans">{entry.customer_name}</td>
-                  <td class="p-2.5 text-right">৳{formatPoishaToBdt(BigInt(entry.gross_poisha || '0'))}</td>
-                  <td class="p-2.5 text-right">৳{formatPoishaToBdt(BigInt(entry.liability_poisha || '0'))}</td>
+                  <td class="p-2.5 text-right"
+                    >৳{formatPoishaToBdt(BigInt(entry.gross_poisha || '0'))}</td
+                  >
+                  <td class="p-2.5 text-right"
+                    >৳{formatPoishaToBdt(BigInt(entry.liability_poisha || '0'))}</td
+                  >
                   <td class="p-2.5">
                     {#if entry.is_matched}
-                      <span class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-700 font-bold uppercase">Matched</span>
+                      <span
+                        class="px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-700 font-bold uppercase"
+                        >Matched</span
+                      >
                     {:else if entry.has_exception}
-                      <span class="px-2 py-0.5 text-[10px] rounded bg-blue-500/10 text-blue-600 font-bold uppercase">Exception Approved</span>
+                      <span
+                        class="px-2 py-0.5 text-[10px] rounded bg-blue-500/10 text-blue-600 font-bold uppercase"
+                        >Exception Approved</span
+                      >
                     {:else}
-                      <span class="px-2 py-0.5 text-[10px] rounded bg-red-500/10 text-red-600 font-bold uppercase">Unmatched</span>
+                      <span
+                        class="px-2 py-0.5 text-[10px] rounded bg-red-500/10 text-red-600 font-bold uppercase"
+                        >Unmatched</span
+                      >
                     {/if}
                   </td>
                   <td class="p-2.5 text-right font-sans">
@@ -1233,7 +1415,11 @@
                   </td>
                 </tr>
               {:else}
-                <tr><td colspan="7" class="p-4 text-center text-[var(--c-muted,#6b7280)] font-sans">No covered entries for the selected payables in this month.</td></tr>
+                <tr
+                  ><td colspan="7" class="p-4 text-center text-[var(--c-muted,#6b7280)] font-sans"
+                    >No covered entries for the selected payables in this month.</td
+                  ></tr
+                >
               {/each}
             </tbody>
           </table>
@@ -1243,7 +1429,9 @@
       <!-- Section: Finalize Reconciliation Card -->
       <Card class="p-5 sm:p-6 space-y-4">
         <div class="border-b border-black/10 dark:border-white/10 pb-3">
-          <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">Finalize Statement Reconciliation</h2>
+          <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+            Finalize Statement Reconciliation
+          </h2>
           <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
             Verify totals, inspect tolerance variance, and close the reconciliation.
           </p>
@@ -1251,20 +1439,30 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Statement Total Fee</span>
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Statement Total Fee</span
+            >
             <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
               ৳{formatPoishaToBdt(statementTotalFeePoisha)}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Total Entry Liability</span>
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Total Entry Liability</span
+            >
             <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
               ৳{formatPoishaToBdt(coveredEntriesTotalLiabilityPoisha)}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]">Variance</span>
-            <span class="text-lg font-bold font-mono {varianceWithinTolerance ? 'text-emerald-600' : 'text-amber-600'}">
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+              >Variance</span
+            >
+            <span
+              class="text-lg font-bold font-mono {varianceWithinTolerance
+                ? 'text-emerald-600'
+                : 'text-amber-600'}"
+            >
               ৳{formatPoishaToBdt(variancePoisha)}
               <span class="text-xs font-normal font-sans ml-1">
                 ({varianceWithinTolerance ? 'within tolerance' : 'exceeds tolerance'})
@@ -1274,14 +1472,22 @@
         </div>
 
         {#if !varianceWithinTolerance}
-          <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs">
-            <p class="font-semibold">Variance exceeds tolerance ({formatPoishaToBdt(tolerancePoisha)}).</p>
+          <div
+            class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs"
+          >
+            <p class="font-semibold">
+              Variance exceeds tolerance ({formatPoishaToBdt(tolerancePoisha)}).
+            </p>
             <p class="mt-0.5">
-              A mandatory reconciliation note is required explaining the variance before closing this statement.
+              A mandatory reconciliation note is required explaining the variance before closing
+              this statement.
             </p>
           </div>
           <div>
-            <label for="reconcile-note" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+            <label
+              for="reconcile-note"
+              class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+            >
               Reconciliation Note (Mandatory)
             </label>
             <textarea
@@ -1294,14 +1500,19 @@
           </div>
         {/if}
 
-        <div class="flex items-center justify-between pt-3 border-t border-black/10 dark:border-white/10">
+        <div
+          class="flex items-center justify-between pt-3 border-t border-black/10 dark:border-white/10"
+        >
           <div class="text-xs text-[var(--c-muted,#6b7280)] font-sans">
             {#if activeStatement.status !== 'open'}
               Statement already {activeStatement.status}.
             {:else if unmatchedLinesCount > 0}
-              <span class="text-amber-600 font-semibold">{unmatchedLinesCount} statement lines</span> still unmatched.
+              <span class="text-amber-600 font-semibold">{unmatchedLinesCount} statement lines</span
+              > still unmatched.
             {:else if unmatchedCoveredEntriesCount > 0}
-              <span class="text-amber-600 font-semibold">{unmatchedCoveredEntriesCount} covered entries</span> still unmatched.
+              <span class="text-amber-600 font-semibold"
+                >{unmatchedCoveredEntriesCount} covered entries</span
+              > still unmatched.
             {:else}
               <span class="text-emerald-600 font-semibold">All completion criteria satisfied.</span>
             {/if}
@@ -1312,7 +1523,9 @@
             class="min-h-[44px]"
             id="btn-finalize-reconcile"
             onclick={handleFinalizeReconcile}
-            disabled={!canFinalizeReconciliation || actionLoading || activeStatement.status !== 'open'}
+            disabled={!canFinalizeReconciliation ||
+              actionLoading ||
+              activeStatement.status !== 'open'}
             loading={actionLoading}
           >
             Reconcile Statement
@@ -1324,16 +1537,35 @@
 </div>
 
 <!-- Modal: Candidate Entry Picker for Line Matching -->
-<Modal bind:open={candidateModalOpen} title="Match Statement Line to Ledger Entry" onclose={() => { candidateModalOpen = false; }}>
+<Modal
+  bind:open={candidateModalOpen}
+  title="Match Statement Line to Ledger Entry"
+  onclose={() => {
+    candidateModalOpen = false;
+  }}
+>
   {#if selectedLineForMatch}
     <div class="p-1 space-y-4">
       <div class="p-3 rounded-xl text-xs">
-        <p><span class="text-[var(--c-muted,#6b7280)]">Line Reference:</span> <strong class="font-mono text-[var(--c-ink,#111827)]">{selectedLineForMatch.reference || 'None'}</strong></p>
-        <p class="mt-1"><span class="text-[var(--c-muted,#6b7280)]">Line Gross:</span> <strong class="font-mono text-[var(--c-ink,#111827)]">৳{formatPoishaToBdt(BigInt(selectedLineForMatch.gross_poisha || '0'))}</strong></p>
+        <p>
+          <span class="text-[var(--c-muted,#6b7280)]">Line Reference:</span>
+          <strong class="font-mono text-[var(--c-ink,#111827)]"
+            >{selectedLineForMatch.reference || 'None'}</strong
+          >
+        </p>
+        <p class="mt-1">
+          <span class="text-[var(--c-muted,#6b7280)]">Line Gross:</span>
+          <strong class="font-mono text-[var(--c-ink,#111827)]"
+            >৳{formatPoishaToBdt(BigInt(selectedLineForMatch.gross_poisha || '0'))}</strong
+          >
+        </p>
       </div>
 
       <div>
-        <label for="candidate-search" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+        <label
+          for="candidate-search"
+          class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+        >
           Search Candidate Entries
         </label>
         <input
@@ -1345,16 +1577,28 @@
         />
       </div>
 
-      <div class="max-h-60 overflow-y-auto border border-black/10 rounded-xl divide-y divide-black/10">
+      <div
+        class="max-h-60 overflow-y-auto border border-black/10 rounded-xl divide-y divide-black/10"
+      >
         {#if filteredCandidates.length === 0}
-          <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">No candidate entries found matching query.</div>
+          <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">
+            No candidate entries found matching query.
+          </div>
         {:else}
           {#each filteredCandidates as cand (cand.id + (cand.applicable_payable_id || ''))}
-            <div class="p-3 flex items-center justify-between hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-colors">
+            <div
+              class="p-3 flex items-center justify-between hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-colors"
+            >
               <div class="text-xs">
-                <div class="font-mono font-bold text-[var(--c-ink,#111827)]">{cand.entry_number}</div>
-                <div class="text-[var(--c-muted,#6b7280)]">{cand.entry_date} &bull; {cand.customer_name}</div>
-                <div class="font-mono text-[11px] text-[var(--brand,#3b82f6)]">৳{formatPoishaToBdt(BigInt(cand.gross_poisha || '0'))}</div>
+                <div class="font-mono font-bold text-[var(--c-ink,#111827)]">
+                  {cand.entry_number}
+                </div>
+                <div class="text-[var(--c-muted,#6b7280)]">
+                  {cand.entry_date} &bull; {cand.customer_name}
+                </div>
+                <div class="font-mono text-[11px] text-[var(--brand,#3b82f6)]">
+                  ৳{formatPoishaToBdt(BigInt(cand.gross_poisha || '0'))}
+                </div>
               </div>
               <Button
                 variant="commission"
@@ -1370,7 +1614,13 @@
       </div>
 
       <div class="flex justify-end pt-2">
-        <Button variant="default" class="min-h-[44px]" onclick={() => { candidateModalOpen = false; }}>
+        <Button
+          variant="default"
+          class="min-h-[44px]"
+          onclick={() => {
+            candidateModalOpen = false;
+          }}
+        >
           Cancel
         </Button>
       </div>
@@ -1379,13 +1629,23 @@
 </Modal>
 
 <!-- Modal: Unmatch Reason (Eliminating browser prompt) -->
-<Modal bind:open={unmatchModalOpen} title="Unmatch Statement Line" onclose={() => { unmatchModalOpen = false; }}>
+<Modal
+  bind:open={unmatchModalOpen}
+  title="Unmatch Statement Line"
+  onclose={() => {
+    unmatchModalOpen = false;
+  }}
+>
   <div class="p-1 space-y-4">
     <p class="text-xs text-[var(--c-muted,#6b7280)]">
-      Unmatching this statement line will sever its link to the ledger entry and revert the statement status to open.
+      Unmatching this statement line will sever its link to the ledger entry and revert the
+      statement status to open.
     </p>
     <div>
-      <label for="unmatch-reason-input" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+      <label
+        for="unmatch-reason-input"
+        class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+      >
         Reason for Unmatching (Mandatory)
       </label>
       <input
@@ -1397,7 +1657,13 @@
       />
     </div>
     <div class="flex justify-end gap-2 pt-2">
-      <Button variant="default" class="min-h-[44px]" onclick={() => { unmatchModalOpen = false; }}>
+      <Button
+        variant="default"
+        class="min-h-[44px]"
+        onclick={() => {
+          unmatchModalOpen = false;
+        }}
+      >
         Cancel
       </Button>
       <Button
@@ -1415,13 +1681,23 @@
 </Modal>
 
 <!-- Modal: Accept Unmatched Line Review Note -->
-<Modal bind:open={acceptModalOpen} title="Accept Unmatched Statement Line" onclose={() => { acceptModalOpen = false; }}>
+<Modal
+  bind:open={acceptModalOpen}
+  title="Accept Unmatched Statement Line"
+  onclose={() => {
+    acceptModalOpen = false;
+  }}
+>
   <div class="p-1 space-y-4">
     <p class="text-xs text-[var(--c-muted,#6b7280)]">
-      Accepting an unmatched statement line logs the line into the audit trail as recognized without a corresponding ledger entry (e.g. gateway annual charge, fee adjustment).
+      Accepting an unmatched statement line logs the line into the audit trail as recognized without
+      a corresponding ledger entry (e.g. gateway annual charge, fee adjustment).
     </p>
     <div>
-      <label for="accept-note-input" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+      <label
+        for="accept-note-input"
+        class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+      >
         Review Note (Mandatory)
       </label>
       <textarea
@@ -1433,7 +1709,13 @@
       ></textarea>
     </div>
     <div class="flex justify-end gap-2 pt-2">
-      <Button variant="default" class="min-h-[44px]" onclick={() => { acceptModalOpen = false; }}>
+      <Button
+        variant="default"
+        class="min-h-[44px]"
+        onclick={() => {
+          acceptModalOpen = false;
+        }}
+      >
         Cancel
       </Button>
       <Button
@@ -1451,15 +1733,31 @@
 </Modal>
 
 <!-- Modal: Approve Entry Exception -->
-<Modal bind:open={exceptionModalOpen} title="Approve Reconciliation Exception" onclose={() => { exceptionModalOpen = false; }}>
+<Modal
+  bind:open={exceptionModalOpen}
+  title="Approve Reconciliation Exception"
+  onclose={() => {
+    exceptionModalOpen = false;
+  }}
+>
   {#if selectedEntryForException}
     <div class="p-1 space-y-4">
       <div class="p-3 rounded-xl text-xs font-mono">
-        <p><span class="text-[var(--c-muted,#6b7280)]">Entry:</span> <strong>{selectedEntryForException.entry_number}</strong></p>
-        <p class="mt-1"><span class="text-[var(--c-muted,#6b7280)]">Gross:</span> ৳{formatPoishaToBdt(BigInt(selectedEntryForException.gross_poisha || '0'))}</p>
+        <p>
+          <span class="text-[var(--c-muted,#6b7280)]">Entry:</span>
+          <strong>{selectedEntryForException.entry_number}</strong>
+        </p>
+        <p class="mt-1">
+          <span class="text-[var(--c-muted,#6b7280)]">Gross:</span> ৳{formatPoishaToBdt(
+            BigInt(selectedEntryForException.gross_poisha || '0'),
+          )}
+        </p>
       </div>
       <div>
-        <label for="exception-reason-input" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+        <label
+          for="exception-reason-input"
+          class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+        >
           Exception Reason (Mandatory)
         </label>
         <textarea
@@ -1471,7 +1769,13 @@
         ></textarea>
       </div>
       <div class="flex justify-end gap-2 pt-2">
-        <Button variant="default" class="min-h-[44px]" onclick={() => { exceptionModalOpen = false; }}>
+        <Button
+          variant="default"
+          class="min-h-[44px]"
+          onclick={() => {
+            exceptionModalOpen = false;
+          }}
+        >
           Cancel
         </Button>
         <Button
@@ -1490,13 +1794,23 @@
 </Modal>
 
 <!-- Modal: Supersede Statement -->
-<Modal bind:open={supersedeModalOpen} title="Supersede Existing Statement" onclose={() => { supersedeModalOpen = false; }}>
+<Modal
+  bind:open={supersedeModalOpen}
+  title="Supersede Existing Statement"
+  onclose={() => {
+    supersedeModalOpen = false;
+  }}
+>
   <div class="p-1 space-y-4">
     <p class="text-xs text-[var(--c-muted,#6b7280)]">
-      Superseding archives the current statement in the audit log and creates the replacement statement from the uploaded preview's parsed lines (single audited transaction).
+      Superseding archives the current statement in the audit log and creates the replacement
+      statement from the uploaded preview's parsed lines (single audited transaction).
     </p>
     <div>
-      <label for="supersede-reason-input" class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1">
+      <label
+        for="supersede-reason-input"
+        class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+      >
         Reason for Superseding (Mandatory)
       </label>
       <input
@@ -1508,7 +1822,13 @@
       />
     </div>
     <div class="flex justify-end gap-2 pt-2">
-      <Button variant="default" class="min-h-[44px]" onclick={() => { supersedeModalOpen = false; }}>
+      <Button
+        variant="default"
+        class="min-h-[44px]"
+        onclick={() => {
+          supersedeModalOpen = false;
+        }}
+      >
         Cancel
       </Button>
       <Button

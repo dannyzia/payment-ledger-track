@@ -18,7 +18,9 @@ export const POST: RequestHandler = async (event) => {
   const body = await event.request.json();
   const parsed = inviteUserSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const { email, role, fullName } = parsed.data;
@@ -40,14 +42,14 @@ export const POST: RequestHandler = async (event) => {
     if (rpcErr.message.includes('409') || rpcErr.message.includes('user_already_exists')) {
       return new Response(
         JSON.stringify({ error: 'user_already_exists', message: 'User is already active.' }),
-        { status: 409, headers: { 'Content-Type': 'application/json' } }
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
       );
     }
     if (rpcErr.message.includes('403')) {
-      return new Response(
-        JSON.stringify({ error: 'unauthorized', message: rpcErr.message }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'unauthorized', message: rpcErr.message }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
     return new Response(JSON.stringify({ error: rpcErr.message }), {
       status: 422,
@@ -57,22 +59,27 @@ export const POST: RequestHandler = async (event) => {
 
   // Provision Supabase Auth User with raw_app_meta_data claims sync (PRD §3, §7.3, Hard Rule 7)
   const redirectTo = `${event.url.origin}/callback`;
-  const { data: authData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email.toLowerCase(), {
-    data: { full_name: fullName },
-    redirectTo,
-  });
+  const { data: authData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(
+    email.toLowerCase(),
+    {
+      data: { full_name: fullName },
+      redirectTo,
+    },
+  );
 
   if (inviteErr) {
     // If user already exists in auth.users (reactivation flow), synchronize metadata directly
     const { data: existingUser } = await supabase.auth.admin.listUsers();
-    const matched = existingUser?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    const matched = existingUser?.users?.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase(),
+    );
     if (matched) {
       await supabase.auth.admin.updateUserById(matched.id, {
         app_metadata: { role, full_name: fullName },
       });
       return new Response(
         JSON.stringify({ success: true, userId: matched.id, reactivated: true }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     }
 
@@ -88,8 +95,8 @@ export const POST: RequestHandler = async (event) => {
     });
   }
 
-  return new Response(
-    JSON.stringify({ success: true, userId: authData.user?.id }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } }
-  );
+  return new Response(JSON.stringify({ success: true, userId: authData.user?.id }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 };

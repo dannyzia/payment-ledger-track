@@ -52,15 +52,21 @@
 <div class="void-modal-wrapper">
   <Modal
     bind:open
-    title={isApproval ? 'Approve Void Request' : isAdmin ? 'Confirm Direct Void' : 'Request Transaction Void'}
+    title={isApproval
+      ? 'Approve Void Request'
+      : isAdmin
+        ? 'Confirm Direct Void'
+        : 'Request Transaction Void'}
     {onclose}
   >
     <form onsubmit={handleSubmit} class="flex flex-col gap-4">
       <p class="text-xs text-[var(--muted)] leading-relaxed">
         {#if isApproval}
-          Staff has requested this entry to be voided. Confirming will mark it as voided and exclude it from reports.
+          Staff has requested this entry to be voided. Confirming will mark it as voided and exclude
+          it from reports.
         {:else if isAdmin}
-          Directly voiding this transaction will exclude it from reports and mark it as voided. Entries are never hard-deleted.
+          Directly voiding this transaction will exclude it from reports and mark it as voided.
+          Entries are never hard-deleted.
         {:else}
           Staff void requests require Administrator approval before taking effect.
         {/if}
@@ -83,7 +89,13 @@
       <div class="flex justify-end gap-3 mt-2">
         <Button variant="default" type="button" onclick={onclose}>Cancel</Button>
         <Button variant="default" type="submit" disabled={!reason.trim() || isSubmitting}>
-          {isSubmitting ? 'Submitting...' : isApproval ? 'Approve Void' : isAdmin ? 'Confirm Void' : 'Submit Request'}
+          {isSubmitting
+            ? 'Submitting...'
+            : isApproval
+              ? 'Approve Void'
+              : isAdmin
+                ? 'Confirm Void'
+                : 'Submit Request'}
         </Button>
       </div>
     </form>

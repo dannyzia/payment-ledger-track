@@ -13,7 +13,9 @@ export type AllowedMimeType = (typeof ALLOWED_RECEIPT_MIME_TYPES)[number];
  * Inspects leading binary bytes to determine true file MIME type and extension,
  * defeating MIME-type spoofing attacks (e.g. executable disguised as .png or .pdf).
  */
-export function detectMagicBytes(buffer: Uint8Array): { mime: AllowedMimeType; ext: string } | null {
+export function detectMagicBytes(
+  buffer: Uint8Array,
+): { mime: AllowedMimeType; ext: string } | null {
   if (buffer.length < 4) return null;
 
   // PNG: 89 50 4E 47
@@ -66,7 +68,11 @@ export function validateReceiptUpload(size: number, mimeType: string): Validatio
     return { valid: false, error: 'File size exceeds maximum 5 MB limit', statusCode: 413 };
   }
   if (!ALLOWED_RECEIPT_MIME_TYPES.includes(mimeType as AllowedMimeType)) {
-    return { valid: false, error: 'Unsupported media type. Allowed: JPEG, PNG, WebP, PDF', statusCode: 415 };
+    return {
+      valid: false,
+      error: 'Unsupported media type. Allowed: JPEG, PNG, WebP, PDF',
+      statusCode: 415,
+    };
   }
   return { valid: true };
 }

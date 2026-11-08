@@ -24,8 +24,11 @@ interface GateEvidenceReport {
   gates: Record<string, GateResult>;
 }
 
-const milestoneArg = process.argv.find((a) => a.startsWith('--milestone='))?.split('=')[1] ||
-                     (process.argv.includes('--milestone') ? process.argv[process.argv.indexOf('--milestone') + 1] : 'M2');
+const milestoneArg =
+  process.argv.find((a) => a.startsWith('--milestone='))?.split('=')[1] ||
+  (process.argv.includes('--milestone')
+    ? process.argv[process.argv.indexOf('--milestone') + 1]
+    : 'M2');
 
 function runCmd(cmd: string, cwd: string = process.cwd()): { success: boolean; output: string } {
   try {
@@ -89,7 +92,8 @@ async function verifyGates(): Promise<void> {
     };
   }
 
-  const allSatisfied = gate1.success && gate2Success && gate3.success && gate4Success && gate5Result.satisfied;
+  const allSatisfied =
+    gate1.success && gate2Success && gate3.success && gate4Success && gate5Result.satisfied;
 
   const report: GateEvidenceReport = {
     milestone: milestoneArg,

@@ -29,7 +29,10 @@
         goto('/dashboard');
       }
     } catch (err: unknown) {
-      errorMessage = err instanceof Error ? err.message || 'Invalid email or password.' : 'Invalid email or password.';
+      errorMessage =
+        err instanceof Error
+          ? err.message || 'Invalid email or password.'
+          : 'Invalid email or password.';
     } finally {
       loading = false;
     }
@@ -40,11 +43,16 @@
   <div class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
     <div class="text-center mb-6">
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Kumon Ledger Track</h1>
-      <p class="text-xs text-[var(--muted)] mt-1">Invitation-only payment ledger. Sign in to continue.</p>
+      <p class="text-xs text-[var(--muted)] mt-1">
+        Invitation-only payment ledger. Sign in to continue.
+      </p>
     </div>
 
     {#if errorMessage}
-      <div role="alert" class="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs font-medium">
+      <div
+        role="alert"
+        class="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs font-medium"
+      >
         {errorMessage}
       </div>
     {/if}

@@ -29,10 +29,14 @@ const getDhakaToday = () =>
 export function formatOrdinalDay(day: number): string {
   if (day >= 11 && day <= 13) return `${day}th`;
   switch (day % 10) {
-    case 1: return `${day}st`;
-    case 2: return `${day}nd`;
-    case 3: return `${day}rd`;
-    default: return `${day}th`;
+    case 1:
+      return `${day}st`;
+    case 2:
+      return `${day}nd`;
+    case 3:
+      return `${day}rd`;
+    default:
+      return `${day}th`;
   }
 }
 
@@ -45,7 +49,7 @@ export function computeSettlementReminder(
   settlementMonth: string, // YYYY-MM or YYYY-MM-01
   dueDay: number,
   remindDaysBefore: number = 3,
-  currentDateStr?: string
+  currentDateStr?: string,
 ): ReminderStatus {
   const todayStr = currentDateStr ?? getDhakaToday();
   const [curYear, curMonth, curDay] = todayStr.split('-').map(Number);

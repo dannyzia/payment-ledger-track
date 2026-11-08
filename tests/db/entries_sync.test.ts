@@ -159,10 +159,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query(
-      'SELECT rpc_push_sync_op($1, $2, $3, $4) as result',
-      [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(pushPayload)]
-    );
+    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+      DEVICE_ID,
+      STAFF_ID,
+      'staff',
+      JSON.stringify(pushPayload),
+    ]);
 
     const result = res.rows[0].result;
     expect(result.results[0].status).toBe('rejected');
@@ -171,7 +173,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Assert audit log captures calc mismatch
     const auditRes = await pool.query(
       "SELECT count(*) FROM audit_log WHERE action = 'sync.calc_mismatch' AND target_id = $1",
-      [opId]
+      [opId],
     );
     expect(parseInt(auditRes.rows[0].count)).toBeGreaterThan(0);
   });
@@ -246,7 +248,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       // Verify sequence monotonicity without gaps
       const seqRes = await pool.query(
         'SELECT server_seq, id FROM entries WHERE id IN ($1, $2) ORDER BY server_seq ASC',
-        [entryId1, entryId2]
+        [entryId1, entryId2],
       );
 
       const seqs = seqRes.rows.map((r) => BigInt(r.server_seq));
@@ -295,7 +297,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       methodId: METHOD_CASH_ID,
       grossPoisha: '100000',
       vatPoisha: '0',
-          vatInputPoisha: '0',
+      vatInputPoisha: '0',
       commissionPoisha: '42000',
       chargePoisha: '0',
       businessChargePoisha: '0',
@@ -311,8 +313,16 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     try {
       const results = await Promise.allSettled([
-        c1.query('SELECT rpc_supersede_entry($1, $2, $3) as res', [origId, JSON.stringify(makeReplacement(rep1Id)), ADMIN_ID]),
-        c2.query('SELECT rpc_supersede_entry($1, $2, $3) as res', [origId, JSON.stringify(makeReplacement(rep2Id)), ADMIN_ID]),
+        c1.query('SELECT rpc_supersede_entry($1, $2, $3) as res', [
+          origId,
+          JSON.stringify(makeReplacement(rep1Id)),
+          ADMIN_ID,
+        ]),
+        c2.query('SELECT rpc_supersede_entry($1, $2, $3) as res', [
+          origId,
+          JSON.stringify(makeReplacement(rep2Id)),
+          ADMIN_ID,
+        ]),
       ]);
 
       const fulfilled = results.filter((r) => r.status === 'fulfilled');
@@ -331,7 +341,9 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
   it('Test #14: Rate Profile Draft-Publish Immutability Lock (PRD §7.1, §16.2 Test #14)', async () => {
     // UPDATE on published profile must be rejected
     await expect(
-      pool.query(`UPDATE rate_profiles SET commission_bp = 5000 WHERE id = '${RATE_PROFILE_V1_ID}'`)
+      pool.query(
+        `UPDATE rate_profiles SET commission_bp = 5000 WHERE id = '${RATE_PROFILE_V1_ID}'`,
+      ),
     ).rejects.toThrow('published_rate_profile_immutable');
 
     // Method rate insertion into published profile must be rejected
@@ -339,20 +351,23 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       pool.query(`
        INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
         VALUES ('${RATE_PROFILE_V1_ID}', '${METHOD_BKASH_ID}', 200)
-      `)
+      `),
     ).rejects.toThrow('method_rates_published_profile_immutable');
   });
 
   it('Test #15 & #44: Atomic Ownership Transfer & Demote-Before-Promote Order (PRD §7.3, §16.2 Test #15, #44)', async () => {
     // Attempt transfer to non-admin staff member must be rejected
     await expect(
-      pool.query('SELECT transfer_ownership($1, $2)', [STAFF_ID, OWNER_ID])
+      pool.query('SELECT transfer_ownership($1, $2)', [STAFF_ID, OWNER_ID]),
     ).rejects.toThrow('target_user_must_be_admin');
 
     // Transfer ownership to Admin
     await pool.query('SELECT transfer_ownership($1, $2)', [ADMIN_ID, OWNER_ID]);
 
-    const res = await pool.query('SELECT id, role, active FROM profiles WHERE id in ($1, $2)', [OWNER_ID, ADMIN_ID]);
+    const res = await pool.query('SELECT id, role, active FROM profiles WHERE id in ($1, $2)', [
+      OWNER_ID,
+      ADMIN_ID,
+    ]);
     const roles = Object.fromEntries(res.rows.map((r) => [r.id, r.role]));
 
     expect(roles[ADMIN_ID]).toBe('owner');
@@ -382,13 +397,17 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query(
-      'SELECT rpc_push_sync_op($1, $2, $3, $4) as result',
-      [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(discardOp)]
-    );
+    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+      DEVICE_ID,
+      STAFF_ID,
+      'staff',
+      JSON.stringify(discardOp),
+    ]);
     expect(res.rows[0].result.results[0].status).toBe('ok');
 
-    const opRes = await pool.query('SELECT resolution_status FROM sync_ops WHERE op_id = $1', [rejectedOpId]);
+    const opRes = await pool.query('SELECT resolution_status FROM sync_ops WHERE op_id = $1', [
+      rejectedOpId,
+    ]);
     expect(opRes.rows[0].resolution_status).toBe('discarded');
   });
 
@@ -457,10 +476,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query(
-      'SELECT rpc_push_sync_op($1, $2, $3, $4) as result',
-      [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(batch)]
-    );
+    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+      DEVICE_ID,
+      STAFF_ID,
+      'staff',
+      JSON.stringify(batch),
+    ]);
 
     const results = res.rows[0].result.results;
     expect(results[0].status).toBe('ok');
@@ -586,8 +607,18 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     try {
       const [res1, res2] = await Promise.all([
-        c1.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op1)]),
-        c2.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op2)]),
+        c1.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+          DEVICE_ID,
+          STAFF_ID,
+          'staff',
+          JSON.stringify(op1),
+        ]),
+        c2.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+          DEVICE_ID,
+          STAFF_ID,
+          'staff',
+          JSON.stringify(op2),
+        ]),
       ]);
 
       expect(res1.rows[0].result.results[0].status).toBe('ok');
@@ -635,7 +666,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       methodId: METHOD_CASH_ID,
       grossPoisha: '100000',
       vatPoisha: '0',
-          vatInputPoisha: '0',
+      vatInputPoisha: '0',
       commissionPoisha: '42000',
       chargePoisha: '0',
       businessChargePoisha: '0',
@@ -647,11 +678,19 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     });
 
     // First supersede succeeds
-    await pool.query('SELECT rpc_supersede_entry($1, $2, $3)', [entryId, JSON.stringify(replacement(rep1Id)), ADMIN_ID]);
+    await pool.query('SELECT rpc_supersede_entry($1, $2, $3)', [
+      entryId,
+      JSON.stringify(replacement(rep1Id)),
+      ADMIN_ID,
+    ]);
 
     // Second supersede against already superseded entry must be rejected
     await expect(
-      pool.query('SELECT rpc_supersede_entry($1, $2, $3)', [entryId, JSON.stringify(replacement(rep2Id)), ADMIN_ID])
+      pool.query('SELECT rpc_supersede_entry($1, $2, $3)', [
+        entryId,
+        JSON.stringify(replacement(rep2Id)),
+        ADMIN_ID,
+      ]),
     ).rejects.toThrow('cannot_supersede_non_active');
   });
 
@@ -669,7 +708,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     // 1500 (VAT) + 4500 (Comm) + 4500 (bKash) = 10500 bp = 105% > 100%
     await expect(
-      pool.query('SELECT publish_rate_profile($1, $2)', [excessiveProfileId, ADMIN_ID])
+      pool.query('SELECT publish_rate_profile($1, $2)', [excessiveProfileId, ADMIN_ID]),
     ).rejects.toThrow('deductions_exceed_100_percent');
 
     // 2. Anti-Cherry-Picking: client knows newer profile v2 but submits older profile v1
@@ -722,10 +761,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query(
-      'SELECT rpc_push_sync_op($1, $2, $3, $4) as result',
-      [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(cherryPickOp)]
-    );
+    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+      DEVICE_ID,
+      STAFF_ID,
+      'staff',
+      JSON.stringify(cherryPickOp),
+    ]);
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('rate_profile_date_mismatch');
   });
@@ -768,10 +809,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query(
-      'SELECT rpc_push_sync_op($1, $2, $3, $4) as result',
-      [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op)]
-    );
+    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+      DEVICE_ID,
+      STAFF_ID,
+      'staff',
+      JSON.stringify(op),
+    ]);
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('upgrade_required');
   });
@@ -805,15 +848,16 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     `);
 
     // Admin approves stale review
-    const approveRes = await pool.query(
-      'SELECT admin_review_stale_entry($1, $2, $3) as res',
-      [entryId, 'approved', ADMIN_ID]
-    );
+    const approveRes = await pool.query('SELECT admin_review_stale_entry($1, $2, $3) as res', [
+      entryId,
+      'approved',
+      ADMIN_ID,
+    ]);
     expect(approveRes.rows[0].res.status).toBe('approved');
 
     const entryRes = await pool.query(
       'SELECT stale_review_status, stale_reviewed_by FROM entries WHERE id = $1',
-      [entryId]
+      [entryId],
     );
     expect(entryRes.rows[0].stale_review_status).toBe('approved');
     expect(entryRes.rows[0].stale_reviewed_by).toBe(ADMIN_ID);
@@ -821,7 +865,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Verify audit log
     const auditRes = await pool.query(
       "SELECT count(*) FROM audit_log WHERE action = 'entry.stale_review_approve' AND target_id = $1",
-      [entryId]
+      [entryId],
     );
     expect(parseInt(auditRes.rows[0].count)).toBeGreaterThan(0);
   });
@@ -842,7 +886,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     // Verify admin_invite_user blocks inviting an owner
     await expect(
-      pool.query('SELECT admin_invite_user($1, $2, $3, $4)', ['newowner@cosmo.local', 'owner', 'New Owner', OWNER_ID])
+      pool.query('SELECT admin_invite_user($1, $2, $3, $4)', [
+        'newowner@cosmo.local',
+        'owner',
+        'New Owner',
+        OWNER_ID,
+      ]),
     ).rejects.toThrow('cannot_invite_owner');
   });
 
@@ -882,10 +931,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query(
-      'SELECT rpc_push_sync_op($1, $2, $3, $4) as result',
-      [DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op)]
-    );
+    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
+      DEVICE_ID,
+      STAFF_ID,
+      'staff',
+      JSON.stringify(op),
+    ]);
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('missing_rate_watermark');
   });
@@ -991,7 +1042,7 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Verify tamper audit event was logged
     const auditRes = await pool.query(
       "SELECT count(*) FROM audit_log WHERE action = 'security.tamper_detected' AND target_id = $1",
-      [opId]
+      [opId],
     );
     expect(parseInt(auditRes.rows[0].count)).toBeGreaterThan(0);
   });
@@ -1058,11 +1109,21 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     // Another Admin cannot reactivate an Admin account
     await expect(
-      pool.query('SELECT admin_invite_user($1, $2, $3, $4)', ['deactadmin@cosmo.local', 'admin', 'Deactivated Admin', ADMIN_ID])
+      pool.query('SELECT admin_invite_user($1, $2, $3, $4)', [
+        'deactadmin@cosmo.local',
+        'admin',
+        'Deactivated Admin',
+        ADMIN_ID,
+      ]),
     ).rejects.toThrow('unauthorized');
 
     // Owner can reactivate the Admin account
-    await pool.query('SELECT admin_invite_user($1, $2, $3, $4)', ['deactadmin@cosmo.local', 'admin', 'Reactivated Admin', OWNER_ID]);
+    await pool.query('SELECT admin_invite_user($1, $2, $3, $4)', [
+      'deactadmin@cosmo.local',
+      'admin',
+      'Reactivated Admin',
+      OWNER_ID,
+    ]);
 
     const res = await pool.query('SELECT active, role FROM profiles WHERE id = $1', [deactAdminId]);
     expect(res.rows[0].active).toBe(true);

@@ -19,7 +19,10 @@ export function resolveApiUrl(path: string): string {
  * `PUBLIC_API_BASE`, then attaches the Supabase bearer session, and the
  * mandatory `X-Device-Id` identity header (PRD §9.1, Hard Rule 9).
  */
-export async function apiFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+export async function apiFetch(
+  input: string | URL | Request,
+  init?: RequestInit,
+): Promise<Response> {
   let url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
   if (url.startsWith('/api/v1/')) {
@@ -36,7 +39,9 @@ export async function apiFetch(input: string | URL | Request, init?: RequestInit
   // Attach bearer token if authenticated
   if (!headers.has('Authorization')) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session?.access_token) {
         headers.set('Authorization', `Bearer ${session.access_token}`);
       }

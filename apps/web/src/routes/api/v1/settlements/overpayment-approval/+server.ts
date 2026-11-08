@@ -11,19 +11,30 @@ const approvalSchema = z.object({
 export const POST: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   if (caller.role !== 'owner') {
-    return new Response(JSON.stringify({ error: 'unauthorized', reason: 'Owner role required to authorize overpayments' }), { status: 403 });
+    return new Response(
+      JSON.stringify({
+        error: 'unauthorized',
+        reason: 'Owner role required to authorize overpayments',
+      }),
+      { status: 403 },
+    );
   }
 
   let body: unknown;
   try {
     body = await event.request.json();
   } catch {
-    return new Response(JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload' }), { status: 400 });
+    return new Response(
+      JSON.stringify({ error: 'invalid_json', message: 'Malformed JSON payload' }),
+      { status: 400 },
+    );
   }
 
   const parsed = approvalSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const supabase = getServiceSupabase();

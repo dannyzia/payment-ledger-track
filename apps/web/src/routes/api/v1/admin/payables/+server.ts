@@ -30,10 +30,12 @@ export const GET: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
-  const payables = (data || []).map((row: { payment_methods?: { name: string | null } | null }) => ({
-    ...row,
-    method_name: row.payment_methods?.name ?? null,
-  }));
+  const payables = (data || []).map(
+    (row: { payment_methods?: { name: string | null } | null }) => ({
+      ...row,
+      method_name: row.payment_methods?.name ?? null,
+    }),
+  );
 
   return new Response(JSON.stringify({ payables }), {
     status: 200,
@@ -50,7 +52,9 @@ export const POST: RequestHandler = async (event) => {
   const body = await event.request.json();
   const parsed = managePayableSchema.safeParse(body);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), { status: 400 });
+    return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
+      status: 400,
+    });
   }
 
   const action = parsed.data.id ? 'update' : 'create';
@@ -61,7 +65,7 @@ export const POST: RequestHandler = async (event) => {
     p_action: action,
     p_id: parsed.data.id ?? NULL_TEXT,
     p_kind: parsed.data.kind,
-    p_method_id: parsed.data.kind === 'vat' ? NULL_TEXT : parsed.data.method_id ?? NULL_TEXT,
+    p_method_id: parsed.data.kind === 'vat' ? NULL_TEXT : (parsed.data.method_id ?? NULL_TEXT),
     p_code: parsed.data.code,
     p_name: parsed.data.name,
     p_due_day: parsed.data.due_day,

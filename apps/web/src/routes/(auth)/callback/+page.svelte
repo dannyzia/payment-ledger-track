@@ -43,13 +43,18 @@
         });
       }
     } catch (err: unknown) {
-      errorMessage = err instanceof Error ? err.message || 'Invitation verification failed or link expired.' : 'Invitation verification failed or link expired.';
+      errorMessage =
+        err instanceof Error
+          ? err.message || 'Invitation verification failed or link expired.'
+          : 'Invitation verification failed or link expired.';
     }
   });
 </script>
 
 <div class="min-h-screen flex items-center justify-center p-6 bg-[var(--bg)]">
-  <div class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] text-center">
+  <div
+    class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] text-center"
+  >
     {#if errorMessage}
       <div role="alert" class="p-3 mb-4 rounded-xl bg-red-500/10 text-red-700 text-xs font-medium">
         {errorMessage}

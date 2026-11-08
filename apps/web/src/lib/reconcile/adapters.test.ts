@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'crypto';
-import { bkashCsvAdapter, parseCsvRows, parsePoisha, normalizeDate } from '$lib/server/reconcile/adapters/bkash-csv';
+import {
+  bkashCsvAdapter,
+  parseCsvRows,
+  parsePoisha,
+  normalizeDate,
+} from '$lib/server/reconcile/adapters/bkash-csv';
 import { cardCombinedCsvAdapter } from '$lib/server/reconcile/adapters/card-combined-csv';
 import { executeAutoMatch, type LedgerEntryCandidate } from '$lib/reconcile/matching';
 import type { StatementLine } from '$lib/reconcile/types';
@@ -22,7 +27,7 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
     expect(parsed.lines).toHaveLength(2);
     expect(parsed.lines[0].reference).toBe('TRX987654');
     expect(parsed.lines[0].grossPoisha).toBe(12500000n); // 1,25,000.00 * 100
-    expect(parsed.lines[0].feePoisha).toBe(25000n);      // 250.00 * 100
+    expect(parsed.lines[0].feePoisha).toBe(25000n); // 250.00 * 100
     expect(parsed.summary.totalGrossPoisha).toBe(12550050n);
   });
 
@@ -59,10 +64,10 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
   it('safely handles jagged CSV rows and empty trailing lines', async () => {
     const csvContent = [
       'TrxID,Date,Amount,Fee,Customer',
-      'TRX101,2026-03-01,100.00',          // Jagged row: missing Fee and Customer
+      'TRX101,2026-03-01,100.00', // Jagged row: missing Fee and Customer
       'TRX102,2026-03-02,200.00,5.00,User',
-      '',                                   // Empty trailing line
-      '   ',                                // Whitespace line
+      '', // Empty trailing line
+      '   ', // Whitespace line
     ].join('\n');
     const buffer = Buffer.from(csvContent, 'utf-8');
 
@@ -104,19 +109,21 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
     const parsed = await cardCombinedCsvAdapter.parse(buffer);
     expect(parsed.lines).toHaveLength(1);
     expect(parsed.lines[0].grossPoisha).toBe(100000n); // Gross, not net
-    expect(parsed.lines[0].feePoisha).toBe(3500n);     // MDR fee, not (gross - net)
+    expect(parsed.lines[0].feePoisha).toBe(3500n); // MDR fee, not (gross - net)
   });
 
   it('throws a descriptive error when amount column is missing', async () => {
     const buffer = Buffer.from('TrxID,Date,Customer\nTRX1,2026-03-01,01700000000\n', 'utf-8');
     await expect(bkashCsvAdapter.parse(buffer)).rejects.toThrow(
-      'Unable to identify transaction amount column in bKash statement'
+      'Unable to identify transaction amount column in bKash statement',
     );
   });
 
   it('rejects a header-only CSV with insufficient rows', async () => {
     const buffer = Buffer.from('TrxID,Amount,Fee\n', 'utf-8');
-    await expect(bkashCsvAdapter.parse(buffer)).rejects.toThrow('CSV file contains insufficient rows');
+    await expect(bkashCsvAdapter.parse(buffer)).rejects.toThrow(
+      'CSV file contains insufficient rows',
+    );
   });
 
   it('computes 64-character SHA-256 hex digest for statement verification', () => {
@@ -141,7 +148,14 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 1, reference: 'TXN100', grossPoisha: 10000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'entry-1', entry_date: '2026-03-01', gross_poisha: 10000n, liability_poisha: 115n, txn_ref: 'TXN100', status: 'active' },
+      {
+        id: 'entry-1',
+        entry_date: '2026-03-01',
+        gross_poisha: 10000n,
+        liability_poisha: 115n,
+        txn_ref: 'TXN100',
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -156,8 +170,22 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 1, reference: 'COLLIDE_REF', date: '2026-03-01', grossPoisha: 10000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'entry-1', entry_date: '2026-03-01', gross_poisha: 10000n, liability_poisha: 115n, txn_ref: 'COLLIDE_REF', status: 'active' },
-      { id: 'entry-2', entry_date: '2026-03-01', gross_poisha: 10000n, liability_poisha: 115n, txn_ref: 'COLLIDE_REF', status: 'active' },
+      {
+        id: 'entry-1',
+        entry_date: '2026-03-01',
+        gross_poisha: 10000n,
+        liability_poisha: 115n,
+        txn_ref: 'COLLIDE_REF',
+        status: 'active',
+      },
+      {
+        id: 'entry-2',
+        entry_date: '2026-03-01',
+        gross_poisha: 10000n,
+        liability_poisha: 115n,
+        txn_ref: 'COLLIDE_REF',
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -173,7 +201,14 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 2, reference: 'DUP', grossPoisha: 20000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'entry-1', entry_date: '2026-03-01', gross_poisha: 10000n, liability_poisha: 115n, txn_ref: 'DUP', status: 'active' },
+      {
+        id: 'entry-1',
+        entry_date: '2026-03-01',
+        gross_poisha: 10000n,
+        liability_poisha: 115n,
+        txn_ref: 'DUP',
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -188,7 +223,14 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 1, reference: undefined, date: '2026-03-05', grossPoisha: 250000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'entry-unref', entry_date: '2026-03-05', gross_poisha: 250000n, liability_poisha: 2875n, txn_ref: null, status: 'active' },
+      {
+        id: 'entry-unref',
+        entry_date: '2026-03-05',
+        gross_poisha: 250000n,
+        liability_poisha: 2875n,
+        txn_ref: null,
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -204,7 +246,14 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 2, date: '2026-03-05', grossPoisha: 30000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'e1', entry_date: '2026-03-05', gross_poisha: 30000n, liability_poisha: 345n, txn_ref: null, status: 'active' },
+      {
+        id: 'e1',
+        entry_date: '2026-03-05',
+        gross_poisha: 30000n,
+        liability_poisha: 345n,
+        txn_ref: null,
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -217,7 +266,14 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 1, reference: 'TXN_ZERO', grossPoisha: 50000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'entry-zero', entry_date: '2026-03-05', gross_poisha: 50000n, liability_poisha: 0n, txn_ref: 'TXN_ZERO', status: 'active' },
+      {
+        id: 'entry-zero',
+        entry_date: '2026-03-05',
+        gross_poisha: 50000n,
+        liability_poisha: 0n,
+        txn_ref: 'TXN_ZERO',
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -232,8 +288,22 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 1, reference: 'TXN_VOID', grossPoisha: 12000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'entry-voided', entry_date: '2026-03-05', gross_poisha: 12000n, liability_poisha: 138n, txn_ref: 'TXN_VOID', status: 'voided' },
-      { id: 'entry-superseded', entry_date: '2026-03-05', gross_poisha: 12000n, liability_poisha: 138n, txn_ref: 'TXN_VOID', status: 'superseded' },
+      {
+        id: 'entry-voided',
+        entry_date: '2026-03-05',
+        gross_poisha: 12000n,
+        liability_poisha: 138n,
+        txn_ref: 'TXN_VOID',
+        status: 'voided',
+      },
+      {
+        id: 'entry-superseded',
+        entry_date: '2026-03-05',
+        gross_poisha: 12000n,
+        liability_poisha: 138n,
+        txn_ref: 'TXN_VOID',
+        status: 'superseded',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);
@@ -250,7 +320,14 @@ describe('Reconciliation Mode B Statement Adapters & Matching Engine', () => {
       { lineIndex: 2, date: '2026-03-05', grossPoisha: 40000n, raw: {} },
     ];
     const entries: LedgerEntryCandidate[] = [
-      { id: 'e1', entry_date: '2026-03-05', gross_poisha: 40000n, liability_poisha: 460n, txn_ref: 'TXN_ONLY', status: 'active' },
+      {
+        id: 'e1',
+        entry_date: '2026-03-05',
+        gross_poisha: 40000n,
+        liability_poisha: 460n,
+        txn_ref: 'TXN_ONLY',
+        status: 'active',
+      },
     ];
 
     const result = executeAutoMatch(lines, entries);

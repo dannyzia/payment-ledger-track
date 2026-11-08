@@ -48,16 +48,18 @@
   let statementTotalPoisha = $derived(parsedStatementTotal.poisha);
   let amountValidationError = $derived(parsedStatementTotal.error);
 
-  let variancePoisha = $derived(statementTotalPoisha !== null ? statementTotalPoisha - expectedPoisha : 0n);
+  let variancePoisha = $derived(
+    statementTotalPoisha !== null ? statementTotalPoisha - expectedPoisha : 0n,
+  );
 
   let meetsTolerance = $derived(
     statementTotalPoisha !== null &&
-    isVarianceWithinTolerance(variancePoisha, tolerancePoisha, note.trim().length > 0)
+      isVarianceWithinTolerance(variancePoisha, tolerancePoisha, note.trim().length > 0),
   );
 
   async function loadInitialData() {
     const activePayables = await db.payables.toArray();
-    payables = activePayables.map(p => ({
+    payables = activePayables.map((p) => ({
       id: p.id,
       name: p.name,
       code: p.code ?? '',
@@ -83,13 +85,10 @@
     }
 
     const monthDate = `${selectedMonth}-01`;
-    const settlements = await db.settlements
-      .where('month')
-      .equals(monthDate)
-      .toArray();
+    const settlements = await db.settlements.where('month').equals(monthDate).toArray();
 
     const sum = settlements
-      .filter(s => targetPayableIds.includes(s.payable_id))
+      .filter((s) => targetPayableIds.includes(s.payable_id))
       .reduce((acc, s) => acc + BigInt(s.expected_poisha || '0'), 0n);
 
     expectedPoisha = sum;
@@ -123,7 +122,7 @@
       const createRes = await fetch('/api/v1/reconcile/statements', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -143,7 +142,7 @@
         // translate it so the user knows the fix rather than seeing the raw token.
         if (raw.includes('payable_already_covered_by_active_statement')) {
           throw new Error(
-            `${month} already has an active statement for ${selectedOption}. Supersede it from the Reconciliation overview, or pick another payable.`
+            `${month} already has an active statement for ${selectedOption}. Supersede it from the Reconciliation overview, or pick another payable.`,
           );
         }
         throw new Error(raw || 'Failed to create statement.');
@@ -170,7 +169,7 @@
       const reconcileRes = await fetch('/api/v1/reconcile/statements/reconcile', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -181,7 +180,11 @@
 
       if (!reconcileRes.ok) {
         const err = await reconcileRes.json().catch(() => ({}));
-        throw new Error(err.message || err.error || 'Statement created but reconciliation failed. Review under Statement Overview.');
+        throw new Error(
+          err.message ||
+            err.error ||
+            'Statement created but reconciliation failed. Review under Statement Overview.',
+        );
       }
 
       // Mark statement reconciled in Dexie cache
@@ -200,16 +203,25 @@
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied</h2>
-      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">Reconciliation is restricted strictly to Administrators and Owners.</p>
+      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">
+        Reconciliation is restricted strictly to Administrators and Owners.
+      </p>
       <Button variant="default" onclick={() => goto('/dashboard')}>Return to Dashboard</Button>
     </Card>
   </div>
 {:else}
   <div class="max-w-2xl mx-auto p-6 w-full">
     <div class="mb-6">
-      <Button variant="default" class="text-xs mb-3 min-h-[36px]" onclick={() => goto('/reconcile')}>‹ Back to Overview</Button>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">Mode A Manual Statement Reconciliation</h1>
-      <p class="text-sm text-[var(--c-muted,#6b7280)]">Totals-only reconciliation comparing total vendor invoice to internal liabilities (PRD §11.2).</p>
+      <Button variant="default" class="text-xs mb-3 min-h-[36px]" onclick={() => goto('/reconcile')}
+        >‹ Back to Overview</Button
+      >
+      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
+        Mode A Manual Statement Reconciliation
+      </h1>
+      <p class="text-sm text-[var(--c-muted,#6b7280)]">
+        Totals-only reconciliation comparing total vendor invoice to internal liabilities (PRD
+        §11.2).
+      </p>
     </div>
 
     {#if errorMessage}
@@ -221,7 +233,11 @@
     <Card class="p-6">
       <form onsubmit={handleSubmit} class="flex flex-col gap-4">
         <div>
-          <label for="recon-month" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Reconciliation Month</label>
+          <label
+            for="recon-month"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Reconciliation Month</label
+          >
           <input
             id="recon-month"
             type="month"
@@ -232,7 +248,11 @@
         </div>
 
         <div>
-          <label for="recon-payable" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Target Payable Scope</label>
+          <label
+            for="recon-payable"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Target Payable Scope</label
+          >
           <select
             id="recon-payable"
             bind:value={selectedOption}
@@ -246,7 +266,11 @@
         </div>
 
         <div>
-          <label for="recon-total-bdt" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Statement Total Amount (BDT)</label>
+          <label
+            for="recon-total-bdt"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Statement Total Amount (BDT)</label
+          >
           <input
             id="recon-total-bdt"
             type="text"
@@ -274,19 +298,27 @@
           </div>
           <div>
             <div class="text-xs text-[var(--c-muted,#6b7280)]">Tolerance</div>
-            <div class="font-bold">±{formatPoishaToBdt(tolerancePoisha)} ({tolerancePoisha.toString()} poisha)</div>
+            <div class="font-bold">
+              ±{formatPoishaToBdt(tolerancePoisha)} ({tolerancePoisha.toString()} poisha)
+            </div>
           </div>
         </div>
 
         {#if statementTotalPoisha !== null && !meetsTolerance}
           <div class="p-3 rounded-xl bg-amber-500/10 text-amber-800 text-xs font-medium">
-            Net variance exceeds ±{tolerancePoisha.toString()} poisha tolerance. An explanatory justification note is required to complete reconciliation.
+            Net variance exceeds ±{tolerancePoisha.toString()} poisha tolerance. An explanatory justification
+            note is required to complete reconciliation.
           </div>
         {/if}
 
         <div>
-          <label for="rec-note" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
-            Explanatory Note {!meetsTolerance ? '(Mandatory for variance > tolerance)' : '(Optional)'}
+          <label
+            for="rec-note"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+          >
+            Explanatory Note {!meetsTolerance
+              ? '(Mandatory for variance > tolerance)'
+              : '(Optional)'}
           </label>
           <textarea
             id="rec-note"
@@ -298,13 +330,17 @@
         </div>
 
         <div class="mt-2 flex justify-end gap-3">
-          <Button variant="default" class="min-h-[44px]" onclick={() => goto('/reconcile')}>Cancel</Button>
+          <Button variant="default" class="min-h-[44px]" onclick={() => goto('/reconcile')}
+            >Cancel</Button
+          >
           <Button
             id="btn-save"
             variant="commission"
             type="submit"
             class="min-h-[44px]"
-            disabled={!meetsTolerance || statementTotalPoisha === null || targetPayableIds.length === 0}
+            disabled={!meetsTolerance ||
+              statementTotalPoisha === null ||
+              targetPayableIds.length === 0}
             loading={isSubmitting}
           >
             Reconcile Statement

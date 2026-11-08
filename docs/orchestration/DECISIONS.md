@@ -46,6 +46,29 @@ Still open before this can be answered: the roster table in `ORCHESTRATOR.md`
 §5 is `<fill>` for every role. `LEDGER.md`, `RISKS.md` and this file now exist,
 so the "ledger created" criterion is met.
 
+### CLT-D-030 — Multi-Center Row-Level Multi-Tenancy Architecture (V1 Baseline)
+
+```
+Status: CONFIRMED
+Date: 2026-11-08
+Decided by: Zia (chat, following EGM brainstorming and approved design specification)
+Options: Multi-tenant row-level partitioning in single PostgreSQL database (V1 baseline);
+         Database-per-center instance isolation;
+         Defer multi-tenancy to V2 (post-launch)
+Outcome: Row-level multi-tenancy in single shared PostgreSQL database for V1 launch baseline
+Scope: Architectural overhaul across database schema, advisory locks, client storage, server
+       mediation, Super-Admin governance, and test harnesses.
+       Technical specification: docs/designs/multi_center_row_level_multitenancy.md
+Key parameters:
+  - Centers: Independent franchises, distinct bank and bKash merchant accounts, dedicated staff.
+  - Tenancy boundary: center_id on all core tables; composite foreign keys.
+  - Concurrency: 64-bit injective coordinate advisory locks using (class << 16) | center_number.
+  - Numbering: E-{CENTER_CODE}-YYYYMM-XXXXXX backed by per-center atomic counters.
+  - Client storage: Scoped per center (KumonLedger_{center_id}) with sync_ops preserved on logout.
+  - Super-Admin: BRAC Kumon Head Office Platform Super-Admin ("God Mode") with global audit.
+  - Migrations: Clean declarative baseline rewrite of migrations 001–006.
+```
+
 ### CLT-D-029 — Display name is "Kumon Ledger Track"
 
 ```

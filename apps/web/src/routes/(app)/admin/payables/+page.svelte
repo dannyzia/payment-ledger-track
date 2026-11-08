@@ -93,7 +93,8 @@
 
   async function savePayable() {
     if (invalidDueDay) {
-      errorMessage = 'Due day must be between 1 and 28 to avoid calendar inconsistencies across February.';
+      errorMessage =
+        'Due day must be between 1 and 28 to avoid calendar inconsistencies across February.';
       return;
     }
     if (invalidRemindDays) {
@@ -141,8 +142,12 @@
 <div class="p-6 max-w-5xl mx-auto w-full">
   <div class="flex items-center justify-between mb-6">
     <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Payables & Settlement Schedule</h1>
-      <p class="text-sm text-[var(--muted)]">Configure recipient settlement accounts, authorities, and recurring due dates (1–28).</p>
+      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">
+        Payables & Settlement Schedule
+      </h1>
+      <p class="text-sm text-[var(--muted)]">
+        Configure recipient settlement accounts, authorities, and recurring due dates (1–28).
+      </p>
     </div>
     <Button variant="default" onclick={openCreateModal}>Add Payable</Button>
   </div>
@@ -155,7 +160,9 @@
 
   <Card class="p-0 overflow-hidden">
     <table class="w-full text-left text-sm">
-      <thead class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs">
+      <thead
+        class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+      >
         <tr>
           <th class="py-3 px-4 font-semibold">Category</th>
           <th class="py-3 px-4 font-semibold">Payable Code</th>
@@ -175,7 +182,9 @@
             </td>
             <td class="py-3 px-4 font-mono text-xs font-medium text-[var(--ink)]">{p.code}</td>
             <td class="py-3 px-4 text-xs text-[var(--muted)]">{p.name}</td>
-            <td class="py-3 px-4 font-mono text-xs">Day {p.due_day} of month (Remind: {p.remind_days_before}d)</td>
+            <td class="py-3 px-4 font-mono text-xs"
+              >Day {p.due_day} of month (Remind: {p.remind_days_before}d)</td
+            >
             <td class="py-3 px-4">
               <Chip variant={p.active ? 'commission' : 'default'}>
                 {p.active ? 'Active' : 'Inactive'}
@@ -201,10 +210,18 @@
 </div>
 
 <!-- Modal -->
-<Modal bind:open={showModal} title={isEditing ? 'Edit Payable' : 'Add Monthly Payable'} onclose={() => (showModal = false)}>
+<Modal
+  bind:open={showModal}
+  title={isEditing ? 'Edit Payable' : 'Add Monthly Payable'}
+  onclose={() => (showModal = false)}
+>
   <div class="space-y-4">
     <div>
-      <label for="payable-kind-select" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Payable Type</label>
+      <label
+        for="payable-kind-select"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Payable Type</label
+      >
       <select
         id="payable-kind-select"
         bind:value={payableKind}
@@ -218,7 +235,11 @@
 
     {#if payableKind === 'method_charge'}
       <div>
-        <label for="payable-method-select" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Associated Channel</label>
+        <label
+          for="payable-method-select"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Associated Channel</label
+        >
         <select
           id="payable-method-select"
           bind:value={payableMethodId}
@@ -233,7 +254,11 @@
     {/if}
 
     <div>
-      <label for="payable-code" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Payable Code (Immutable)</label>
+      <label
+        for="payable-code"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Payable Code (Immutable)</label
+      >
       <input
         id="payable-code"
         type="text"
@@ -245,7 +270,11 @@
     </div>
 
     <div>
-      <label for="payable-name" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Payable Description / Account Name</label>
+      <label
+        for="payable-name"
+        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >Payable Description / Account Name</label
+      >
       <input
         id="payable-name"
         type="text"
@@ -257,7 +286,11 @@
 
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label for="due-day" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Monthly Due Day (1–28)</label>
+        <label
+          for="due-day"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Monthly Due Day (1–28)</label
+        >
         <input
           id="due-day"
           type="number"
@@ -269,7 +302,11 @@
         <p class="text-[11px] text-[var(--muted)] mt-1">1–28 per PRD §8.6.</p>
       </div>
       <div>
-        <label for="remind-days" class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1">Remind Days (0–14)</label>
+        <label
+          for="remind-days"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Remind Days (0–14)</label
+        >
         <input
           id="remind-days"
           type="number"
@@ -284,14 +321,22 @@
 
     <div class="pt-2">
       <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" bind:checked={payableActive} class="rounded border-black/20 text-black" />
+        <input
+          type="checkbox"
+          bind:checked={payableActive}
+          class="rounded border-black/20 text-black"
+        />
         <span class="text-sm font-medium text-[var(--ink)]">Active Payable</span>
       </label>
     </div>
 
     <div class="flex justify-end gap-3 pt-4">
       <Button variant="default" onclick={() => (showModal = false)}>Cancel</Button>
-      <Button variant="default" onclick={savePayable} disabled={saving || invalidDueDay || invalidRemindDays || !payableName || !payableCode}>
+      <Button
+        variant="default"
+        onclick={savePayable}
+        disabled={saving || invalidDueDay || invalidRemindDays || !payableName || !payableCode}
+      >
         {saving ? 'Saving...' : 'Save Payable'}
       </Button>
     </div>

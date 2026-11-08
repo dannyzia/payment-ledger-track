@@ -23,7 +23,10 @@ export async function getCallerContext(event: RequestEvent): Promise<CallerConte
   }
 
   const supabase = getServiceSupabase();
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser(token);
 
   if (authError || !user) {
     throw error(401, 'unauthorized: invalid or expired token');

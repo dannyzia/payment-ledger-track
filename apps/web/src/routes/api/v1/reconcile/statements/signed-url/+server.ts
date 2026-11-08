@@ -24,7 +24,10 @@ export const GET: RequestHandler = async (event) => {
     .createSignedUrl(path, 900);
 
   if (signedErr || !data?.signedUrl) {
-    throw error(500, `signed_url_generation_failed: ${signedErr?.message || 'Unknown storage error'}`);
+    throw error(
+      500,
+      `signed_url_generation_failed: ${signedErr?.message || 'Unknown storage error'}`,
+    );
   }
 
   return json({

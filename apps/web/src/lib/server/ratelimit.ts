@@ -23,7 +23,11 @@ if (typeof setInterval !== 'undefined') {
  * Enforces PRD §9.1 limit: Maximum 60 requests per minute per device/IP.
  * Returns { allowed: boolean, retryAfter: number }.
  */
-export function checkRateLimit(key: string, limit = 60, windowMs = 60000): { allowed: boolean; retryAfter: number } {
+export function checkRateLimit(
+  key: string,
+  limit = 60,
+  windowMs = 60000,
+): { allowed: boolean; retryAfter: number } {
   const now = Date.now();
   const windowStart = now - windowMs;
 

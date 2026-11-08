@@ -6,7 +6,9 @@ import { supabase } from '$lib/supabase/client';
  * Authorization: Bearer <access_token> header to all API requests.
  */
 export async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   const token = session?.access_token;
   const headers = new Headers(init?.headers || {});
 

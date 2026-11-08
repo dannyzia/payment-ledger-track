@@ -1,4 +1,9 @@
-import type { StatementAdapter, StatementLine, ParsedStatement, StatementAdapterSummary } from '$lib/reconcile/types';
+import type {
+  StatementAdapter,
+  StatementLine,
+  ParsedStatement,
+  StatementAdapterSummary,
+} from '$lib/reconcile/types';
 
 export function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
@@ -25,7 +30,7 @@ export function parseCsvRows(text: string): string[][] {
         i++; // skip LF
       }
       currentRow.push(currentField.trim());
-      if (currentRow.some(f => f.length > 0)) {
+      if (currentRow.some((f) => f.length > 0)) {
         rows.push(currentRow);
       }
       currentRow = [];
@@ -37,7 +42,7 @@ export function parseCsvRows(text: string): string[][] {
 
   if (currentField.length > 0 || currentRow.length > 0) {
     currentRow.push(currentField.trim());
-    if (currentRow.some(f => f.length > 0)) {
+    if (currentRow.some((f) => f.length > 0)) {
       rows.push(currentRow);
     }
   }
@@ -120,8 +125,14 @@ export const bkashCsvAdapter: StatementAdapter = {
     }
 
     const headerSnippet = buffer.toString('utf-8', 0, Math.min(buffer.length, 2048)).toLowerCase();
-    const hasTrxId = headerSnippet.includes('trxid') || headerSnippet.includes('txnid') || headerSnippet.includes('transaction id');
-    const hasBkashOrFee = headerSnippet.includes('bkash') || headerSnippet.includes('fee') || headerSnippet.includes('service fee');
+    const hasTrxId =
+      headerSnippet.includes('trxid') ||
+      headerSnippet.includes('txnid') ||
+      headerSnippet.includes('transaction id');
+    const hasBkashOrFee =
+      headerSnippet.includes('bkash') ||
+      headerSnippet.includes('fee') ||
+      headerSnippet.includes('service fee');
     return hasTrxId && hasBkashOrFee;
   },
 
@@ -132,11 +143,15 @@ export const bkashCsvAdapter: StatementAdapter = {
       throw new Error('CSV file contains insufficient rows');
     }
 
-    const header = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-    const trxIdx = header.findIndex(h => h.includes('trxid') || h.includes('txnid') || h.includes('reference'));
-    const dateIdx = header.findIndex(h => h.includes('date') || h.includes('time'));
-    const grossIdx = header.findIndex(h => h.includes('gross') || h.includes('amount') || h.includes('credit'));
-    const feeIdx = header.findIndex(h => h.includes('fee') || h.includes('charge'));
+    const header = rows[0].map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const trxIdx = header.findIndex(
+      (h) => h.includes('trxid') || h.includes('txnid') || h.includes('reference'),
+    );
+    const dateIdx = header.findIndex((h) => h.includes('date') || h.includes('time'));
+    const grossIdx = header.findIndex(
+      (h) => h.includes('gross') || h.includes('amount') || h.includes('credit'),
+    );
+    const feeIdx = header.findIndex((h) => h.includes('fee') || h.includes('charge'));
 
     if (grossIdx === -1) {
       throw new Error('Unable to identify transaction amount column in bKash statement');
@@ -150,7 +165,7 @@ export const bkashCsvAdapter: StatementAdapter = {
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
-      if (row.length === 0 || row.every(c => c === '')) continue;
+      if (row.length === 0 || row.every((c) => c === '')) continue;
 
       const rawRef = trxIdx !== -1 && row[trxIdx] ? row[trxIdx] : undefined;
       const ref = rawRef ? rawRef.trim().toUpperCase() : undefined;

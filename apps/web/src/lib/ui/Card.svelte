@@ -12,7 +12,13 @@
     children?: Snippet;
   }
 
-  let { variant = 'solid', subtle = false, class: className = '', children, ...restProps }: Props = $props();
+  let {
+    variant = 'solid',
+    subtle = false,
+    class: className = '',
+    children,
+    ...restProps
+  }: Props = $props();
 
   const variantClass = $derived.by(() => {
     if (subtle) return 'glass-subtle';

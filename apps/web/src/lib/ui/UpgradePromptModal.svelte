@@ -52,8 +52,18 @@
   <Modal bind:open title={messages.pwa.upgradeModalTitle} onclose={() => {}}>
     <div class="space-y-4">
       <div class="flex items-center gap-3 text-amber-600 dark:text-amber-400">
-        <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        <svg
+          class="w-6 h-6 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
         </svg>
         <p class="text-sm font-medium">
           {messages.pwa.upgradeModalHeadline}
@@ -63,7 +73,12 @@
         {messages.pwa.upgradeModalBody}
       </p>
       <div class="flex justify-end pt-2">
-        <Button id="btn-upgrade-reload" variant="commission" loading={updating} onclick={handleReload}>
+        <Button
+          id="btn-upgrade-reload"
+          variant="commission"
+          loading={updating}
+          onclick={handleReload}
+        >
           {messages.pwa.upgradeModalButton}
         </Button>
       </div>

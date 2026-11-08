@@ -59,7 +59,7 @@ describe('Capacitor Native Utilities & Graceful Fallbacks', () => {
       const reminderDate = computeReminderDate(settlementMonth, dueDay, remindDaysBefore);
       expect(reminderDate.getFullYear()).toBe(2026);
       expect(reminderDate.getMonth()).toBe(3); // April (0-indexed: 3)
-      expect(reminderDate.getDate()).toBe(12);  // 15 - 3 = 12th
+      expect(reminderDate.getDate()).toBe(12); // 15 - 3 = 12th
       expect(reminderDate.getHours()).toBe(9);
       expect(reminderDate.getMinutes()).toBe(0);
     });

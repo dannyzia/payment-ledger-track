@@ -19,7 +19,7 @@
   let errorMessage = $state<string | null>(null);
 
   const surplusPoisha = $derived(
-    BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha)
+    BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha),
   );
 
   $effect(() => {
@@ -77,10 +77,19 @@
   }
 </script>
 
-<Modal bind:open title="Owner Overpayment Approval" onclose={() => { open = false; onclose(); }}>
+<Modal
+  bind:open
+  title="Owner Overpayment Approval"
+  onclose={() => {
+    open = false;
+    onclose();
+  }}
+>
   <div class="overpayment-modal">
     {#if errorMessage}
-      <div class="p-3 mb-4 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium">
+      <div
+        class="p-3 mb-4 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium"
+      >
         {errorMessage}
       </div>
     {/if}
@@ -93,8 +102,8 @@
         +{formatPoishaToBdt(surplusPoisha)}
       </div>
       <p class="text-[11px] text-purple-700/80 dark:text-purple-300/80 mt-1">
-        This approval binds strictly to this exact surplus amount. If expected liabilities or payments change,
-        this approval automatically invalidates (PRD §8.4, F68).
+        This approval binds strictly to this exact surplus amount. If expected liabilities or
+        payments change, this approval automatically invalidates (PRD §8.4, F68).
       </p>
     </div>
 
@@ -114,10 +123,22 @@
       </div>
 
       <div class="flex justify-end gap-2 pt-2">
-        <Button variant="default" onclick={() => { open = false; onclose(); }} disabled={isSubmitting}>
+        <Button
+          variant="default"
+          onclick={() => {
+            open = false;
+            onclose();
+          }}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
-        <Button id="btn-approve-overpayment" variant="commission" type="submit" disabled={isSubmitting}>
+        <Button
+          id="btn-approve-overpayment"
+          variant="commission"
+          type="submit"
+          disabled={isSubmitting}
+        >
           {isSubmitting ? 'Approving...' : 'Authorize Surplus'}
         </Button>
       </div>

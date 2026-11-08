@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest';
 import fc from 'fast-check';
 import { calculateEntry, mulBp } from '../src/index.js';
 import { InvalidCalcInputError, DeductionsExceedGrossError } from '../src/errors.js';
-import type { RateSnapshot, VatMode, CommissionBase, ChargesBorneBy, CalcInput } from '../src/types.js';
+import type {
+  RateSnapshot,
+  VatMode,
+  CommissionBase,
+  ChargesBorneBy,
+  CalcInput,
+} from '../src/types.js';
 
 /**
  * PRD §16.1 calculation invariant property tests (Plan 020 spec 6.1).
@@ -44,8 +50,7 @@ describe('PRD §16.1 Calculation Invariant Property Tests (100,000 Runs)', () =>
 
             // Manual VAT mode requires the customer-input poisha (PRD §6.3, F20);
             // an explicit 0 input drives the same conservation identity.
-            const vatInputPoisha: bigint | undefined =
-              vatMode === 'manual' ? 0n : undefined;
+            const vatInputPoisha: bigint | undefined = vatMode === 'manual' ? 0n : undefined;
 
             const result = calculateEntry({ grossPoisha, snapshot, vatInputPoisha });
 
@@ -56,7 +61,9 @@ describe('PRD §16.1 Calculation Invariant Property Tests (100,000 Runs)', () =>
               result.netAfterDeductionsPoisha;
 
             expect(sumDeductionsAndNet).toBe(grossPoisha);
-            expect(result.businessChargePoisha + result.customerChargePoisha).toBe(result.chargePoisha);
+            expect(result.businessChargePoisha + result.customerChargePoisha).toBe(
+              result.chargePoisha,
+            );
             expect(result.vatPoisha >= 0n).toBe(true);
             expect(result.commissionPoisha >= 0n).toBe(true);
             expect(result.businessChargePoisha >= 0n).toBe(true);
@@ -101,7 +108,9 @@ describe('PRD §16.1 Calculation Invariant Property Tests (100,000 Runs)', () =>
 
               const result = calculateEntry({ grossPoisha, snapshot });
 
-              expect(result.businessChargePoisha + result.customerChargePoisha).toBe(result.chargePoisha);
+              expect(result.businessChargePoisha + result.customerChargePoisha).toBe(
+                result.chargePoisha,
+              );
               if (borneBy === 'customer') {
                 expect(result.businessChargePoisha).toBe(0n);
                 expect(result.customerChargePoisha).toBe(result.chargePoisha);

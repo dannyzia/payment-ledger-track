@@ -16,11 +16,8 @@ if (typeof window !== 'undefined') {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     // Check native platform at request time to prevent bridge initialization races
     if (rawBase && Capacitor.isNativePlatform()) {
-      const rawUrl = typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+      const rawUrl =
+        typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
       try {
         const parsed = new URL(rawUrl, window.location.origin);

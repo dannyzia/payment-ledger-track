@@ -1,6 +1,12 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { db, type LocalEntry, type CachedPaymentMethod, type CachedMonthClose, type CachedProfile } from '$lib/db';
+  import {
+    db,
+    type LocalEntry,
+    type CachedPaymentMethod,
+    type CachedMonthClose,
+    type CachedProfile,
+  } from '$lib/db';
   import { groupEntriesByDay } from '$lib/ledger/grouping';
   import { normalizeEntrySearchQuery, matchesEntrySearch } from '$lib/ledger/search';
   import { requestEntryVoid, executeEntryVoid } from '$lib/ledger/void';
@@ -122,7 +128,7 @@
 
   // Selected entry re-derived dynamically from allEntries
   const selectedEntry = $derived(
-    selectedEntryId ? allEntries.find((e) => e.id === selectedEntryId) ?? null : null
+    selectedEntryId ? (allEntries.find((e) => e.id === selectedEntryId) ?? null) : null,
   );
 
   const isSelectedEntryMonthClosed = $derived.by(() => {
@@ -214,12 +220,16 @@
       </div>
       <Button
         variant="default"
-        onclick={() => { filterDrawerOpen = true; }}
+        onclick={() => {
+          filterDrawerOpen = true;
+        }}
         class="relative min-w-[44px]"
       >
         Filters
         {#if activeFilterCount > 0}
-          <span class="ml-1.5 px-1.5 py-0.5 rounded-full bg-[var(--accent)] text-white text-[10px] font-bold">
+          <span
+            class="ml-1.5 px-1.5 py-0.5 rounded-full bg-[var(--accent)] text-white text-[10px] font-bold"
+          >
             {activeFilterCount}
           </span>
         {/if}
@@ -230,19 +240,27 @@
   <!-- Day Groups -->
   <div class="flex flex-col gap-6">
     {#if dayGroups.length === 0}
-      <div class="p-12 text-center text-sm text-[var(--muted)] glass rounded-2xl border border-black/5">
+      <div
+        class="p-12 text-center text-sm text-[var(--muted)] glass rounded-2xl border border-black/5"
+      >
         No transactions found matching criteria.
       </div>
     {:else}
       {#each dayGroups as day (day.date)}
         <section aria-labelledby={`day-${day.date}`} class="day-group flex flex-col gap-3">
-          <div class="flex items-center justify-between px-2 text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">
+          <div
+            class="flex items-center justify-between px-2 text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
+          >
             <h2 id={`day-${day.date}`}>{day.date}</h2>
             <div class="flex items-center gap-3 tabular-nums">
               <span>Units: {day.totalSubQty}</span>
               <span>Gross: {formatPoishaToBdt(day.totalGrossPoisha)}</span>
-              <span class="text-red-600 dark:text-red-400">Deductions: -{formatPoishaToBdt(day.totalDeductionsPoisha)}</span>
-              <span class="text-[var(--accent)] font-semibold">Net: {formatPoishaToBdt(day.totalNetPoisha)}</span>
+              <span class="text-red-600 dark:text-red-400"
+                >Deductions: -{formatPoishaToBdt(day.totalDeductionsPoisha)}</span
+              >
+              <span class="text-[var(--accent)] font-semibold"
+                >Net: {formatPoishaToBdt(day.totalNetPoisha)}</span
+              >
             </div>
           </div>
           <div class="flex flex-col gap-2">
@@ -250,7 +268,9 @@
               <LedgerRow
                 {entry}
                 {methodsMap}
-                onselect={(e) => { selectedEntryId = e.id; }}
+                onselect={(e) => {
+                  selectedEntryId = e.id;
+                }}
               />
             {/each}
           </div>
@@ -266,8 +286,12 @@
     methods={paymentMethods}
     {profiles}
     isAdmin={isPrivileged}
-    onclose={() => { filterDrawerOpen = false; }}
-    onapply={(f) => { filters = f; }}
+    onclose={() => {
+      filterDrawerOpen = false;
+    }}
+    onapply={(f) => {
+      filters = f;
+    }}
     onreset={() => {
       filters = { status: 'all', flagDuplicateTxn: false, flagStaleRates: false };
     }}
@@ -281,10 +305,18 @@
     {methodsMap}
     {profilesMap}
     isMonthClosed={isSelectedEntryMonthClosed}
-    onclose={() => { selectedEntryId = null; }}
-    onselectentry={(e) => { selectedEntryId = e.id; }}
-    onrequestvoid={() => { voidModalOpen = true; }}
-    onvoid={() => { voidModalOpen = true; }}
+    onclose={() => {
+      selectedEntryId = null;
+    }}
+    onselectentry={(e) => {
+      selectedEntryId = e.id;
+    }}
+    onrequestvoid={() => {
+      voidModalOpen = true;
+    }}
+    onvoid={() => {
+      voidModalOpen = true;
+    }}
   />
 
   <VoidRequestModal
@@ -292,7 +324,9 @@
     isAdmin={isPrivileged}
     isApproval={Boolean(selectedEntry?.void_requested_by)}
     existingReason={selectedEntry?.void_reason}
-    onclose={() => { voidModalOpen = false; }}
+    onclose={() => {
+      voidModalOpen = false;
+    }}
     onsubmit={handleConfirmVoid}
   />
 </div>

@@ -113,8 +113,12 @@ describe('Receipt Upload Magic-Byte Validation & Security (PRD §8.4, §13, Test
   });
 
   it('validates receipt storage path and blocks path traversal attempts', () => {
-    expect(validateReceiptPath('receipts/2026-10/4f9b8c2a-1e3d-4c5b-8a7e-9f0a1b2c3d4e.png')).toBe(true);
-    expect(validateReceiptPath('receipts/2026-10/4f9b8c2a-1e3d-4c5b-8a7e-9f0a1b2c3d4e.pdf')).toBe(true);
+    expect(validateReceiptPath('receipts/2026-10/4f9b8c2a-1e3d-4c5b-8a7e-9f0a1b2c3d4e.png')).toBe(
+      true,
+    );
+    expect(validateReceiptPath('receipts/2026-10/4f9b8c2a-1e3d-4c5b-8a7e-9f0a1b2c3d4e.pdf')).toBe(
+      true,
+    );
 
     // Path traversal attacks
     expect(validateReceiptPath('../receipts/2026-10/file.png')).toBe(false);
@@ -127,13 +131,13 @@ describe('Receipt Upload Magic-Byte Validation & Security (PRD §8.4, §13, Test
 describe('Settlement Payment Error Messages', () => {
   it('translates Postgres raise-exception codes into sentences', () => {
     expect(describePaymentError({ error: '422 future_payment_date' })).toBe(
-      "The payment date can't be in the future. Pick today or an earlier date."
+      "The payment date can't be in the future. Pick today or an earlier date.",
     );
     expect(describePaymentError({ error: '422 payment_predates_settlement_month' })).toBe(
-      "The payment date can't be earlier than the month this settlement belongs to."
+      "The payment date can't be earlier than the month this settlement belongs to.",
     );
     expect(describePaymentError({ error: 'reversals_exceed_original_amount' })).toBe(
-      'The reversal is larger than what remains of the original payment.'
+      'The reversal is larger than what remains of the original payment.',
     );
   });
 
@@ -142,16 +146,16 @@ describe('Settlement Payment Error Messages', () => {
       describePaymentError({
         error: 'month_closed',
         message: 'Month is closed. Payments and reversals are locked.',
-      })
+      }),
     ).toBe('This month is closed. Payments and reversals are locked.');
     expect(describePaymentError({ error: 'permission denied for table settlements' })).toBe(
-      'permission denied for table settlements'
+      'permission denied for table settlements',
     );
   });
 
   it('falls back to a sentence plus the code for an unknown token', () => {
     expect(describePaymentError({ error: '422 some_new_guard' })).toBe(
-      'Could not record the payment. Please try again. (some_new_guard)'
+      'Could not record the payment. Please try again. (some_new_guard)',
     );
     expect(describePaymentError({})).toBe('Could not record the payment. Please try again.');
   });

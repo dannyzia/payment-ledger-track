@@ -13,9 +13,12 @@ const { Pool } = pg;
 export async function bootstrap(): Promise<void> {
   const supabaseUrl = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const ownerEmail = process.env.BOOTSTRAP_OWNER_EMAIL || (process.env.NODE_ENV === 'production' ? '' : 'owner@cosmoledger.local');
+  const ownerEmail =
+    process.env.BOOTSTRAP_OWNER_EMAIL ||
+    (process.env.NODE_ENV === 'production' ? '' : 'owner@cosmoledger.local');
   const ownerPassword = process.env.BOOTSTRAP_OWNER_PASSWORD;
-  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  const databaseUrl =
+    process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
   if (!supabaseServiceKey) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to execute bootstrap script');
@@ -41,7 +44,7 @@ export async function bootstrap(): Promise<void> {
     // Pre-Transaction Auth Phase (Prevents holding DB locks across network I/O)
     // -------------------------------------------------------------------------
     const { rows: existingOwners } = await client.query(
-      "SELECT id, role FROM profiles WHERE role = 'owner' AND active = true LIMIT 1"
+      "SELECT id, role FROM profiles WHERE role = 'owner' AND active = true LIMIT 1",
     );
     const activeOwnerExists = existingOwners.length > 0;
 
@@ -59,7 +62,7 @@ export async function bootstrap(): Promise<void> {
       }
 
       const existingUser = userList.users.find(
-        (u) => u.email?.toLowerCase() === ownerEmail.toLowerCase()
+        (u) => u.email?.toLowerCase() === ownerEmail.toLowerCase(),
       );
 
       if (existingUser) {
@@ -87,7 +90,7 @@ export async function bootstrap(): Promise<void> {
       // Guard against creating a new owner if an active owner already exists in PostgreSQL
       if (activeOwnerExists) {
         throw new Error(
-          `Cannot create new owner auth user: active owner already exists with profile ID ${existingOwners[0].id}`
+          `Cannot create new owner auth user: active owner already exists with profile ID ${existingOwners[0].id}`,
         );
       }
 
@@ -117,19 +120,17 @@ export async function bootstrap(): Promise<void> {
     // Verify comprehensive baseline state before certifying existing baseline verified
     // -------------------------------------------------------------------------
     const { rows: bootstrapAudit } = await client.query(
-      "SELECT 1 FROM audit_log WHERE action = 'system.bootstrap' LIMIT 1"
+      "SELECT 1 FROM audit_log WHERE action = 'system.bootstrap' LIMIT 1",
     );
     const { rows: publishedProfile } = await client.query(
-      "SELECT id FROM rate_profiles WHERE version = 1 AND status = 'published' LIMIT 1"
+      "SELECT id FROM rate_profiles WHERE version = 1 AND status = 'published' LIMIT 1",
     );
     const { rows: activeOwner } = await client.query(
-      "SELECT 1 FROM profiles WHERE role = 'owner' AND active = true LIMIT 1"
+      "SELECT 1 FROM profiles WHERE role = 'owner' AND active = true LIMIT 1",
     );
-    const { rows: payablesCount } = await client.query(
-      "SELECT count(*) as count FROM payables"
-    );
+    const { rows: payablesCount } = await client.query('SELECT count(*) as count FROM payables');
     const { rows: methodsCount } = await client.query(
-      "SELECT count(*) as count FROM payment_methods WHERE active = true"
+      'SELECT count(*) as count FROM payment_methods WHERE active = true',
     );
 
     if (
@@ -140,7 +141,9 @@ export async function bootstrap(): Promise<void> {
       parseInt(methodsCount[0].count, 10) >= 5
     ) {
       await client.query('COMMIT');
-      process.stdout.write('Database already bootstrapped. Existing baseline verified.\nBootstrap completed successfully.\n');
+      process.stdout.write(
+        'Database already bootstrapped. Existing baseline verified.\nBootstrap completed successfully.\n',
+      );
       return;
     }
 
@@ -153,13 +156,16 @@ export async function bootstrap(): Promise<void> {
     // DIFFERENT active owner, which cannot legitimately reach this point.
     // -------------------------------------------------------------------------
     const usurpRight = !activeOwnerExists || existingOwners[0].id === ownerUserId;
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO profiles (id, full_name, role, active)
       VALUES ($1, 'Primary Owner', 'owner', true)
       ON CONFLICT (id) DO UPDATE
         SET full_name = 'Primary Owner',
             role = CASE WHEN $2::boolean THEN 'owner'::user_role ELSE profiles.role END;
-    `, [ownerUserId, usurpRight]);
+    `,
+      [ownerUserId, usurpRight],
+    );
 
     // -------------------------------------------------------------------------
     // Step 3 [PLAN-DERIVED]: Seed Canonical Payment Methods (PRD §7.4 Step 3)
@@ -208,7 +214,8 @@ export async function bootstrap(): Promise<void> {
 
       if (!alreadyPublished) {
         // Enforce canonical baseline configuration on pre-existing draft
-        await client.query(`
+        await client.query(
+          `
           UPDATE rate_profiles SET
             effective_from = '2026-01-01',
             vat_mode = 'manual',
@@ -218,10 +225,13 @@ export async function bootstrap(): Promise<void> {
             charges_borne_by = 'business',
             note = 'Initial system rate profile v1 (seeded via M0 bootstrap; effective 2026-01-01)'
           WHERE id = $1;
-        `, [profileId]);
+        `,
+          [profileId],
+        );
       }
     } else {
-      const insertProfile = await client.query(`
+      const insertProfile = await client.query(
+        `
         INSERT INTO rate_profiles (
           id, version, status, effective_from, vat_mode, vat_bp,
           commission_base, commission_bp, charges_borne_by, note, created_by
@@ -231,7 +241,9 @@ export async function bootstrap(): Promise<void> {
           'Initial system rate profile v1 (seeded via M0 bootstrap; effective 2026-01-01)',
           $1
         ) RETURNING id;
-      `, [ownerUserId]);
+      `,
+        [ownerUserId],
+      );
       profileId = insertProfile.rows[0].id;
     }
 
@@ -239,7 +251,8 @@ export async function bootstrap(): Promise<void> {
     // Step 6 [PLAN-DERIVED]: Seed method_rates for Profile v1 & Publish (PRD §7.4 Step 6)
     // -------------------------------------------------------------------------
     if (!alreadyPublished) {
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
         SELECT $1::uuid, m.id,
           CASE m.code
@@ -250,14 +263,19 @@ export async function bootstrap(): Promise<void> {
           END
         FROM payment_methods m
         ON CONFLICT (rate_profile_id, method_id) DO UPDATE SET charge_bp = EXCLUDED.charge_bp;
-      `, [profileId]);
+      `,
+        [profileId],
+      );
 
       // Direct update to published under service_role (Bootstrap Exemption CLT-D-002)
-      await client.query(`
+      await client.query(
+        `
         UPDATE rate_profiles
         SET status = 'published', published_at = now()
         WHERE id = $1;
-      `, [profileId]);
+      `,
+        [profileId],
+      );
 
       // Activate payment methods now that Profile v1 is published and covers all 5 methods
       await client.query(`
@@ -284,16 +302,18 @@ export async function bootstrap(): Promise<void> {
     `);
 
     // Typed parameter $2::uuid resolves PostgreSQL 42P18 type inference error
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO audit_log (actor, action, target_table, target_id, after)
       VALUES ($1::uuid, 'system.bootstrap', 'system', 'bootstrap', jsonb_build_object('status', 'completed', 'profile_id', $2::uuid));
-    `, [ownerUserId, profileId]);
+    `,
+      [ownerUserId, profileId],
+    );
 
     await client.query('COMMIT');
 
     // Explicit success announcement for runner CLI and Plan 008 precondition verification
     process.stdout.write('Bootstrap completed successfully.\n');
-
   } catch (err) {
     try {
       await client.query('ROLLBACK');

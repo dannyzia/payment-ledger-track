@@ -37,7 +37,9 @@
   const idPrefix = $derived(isReversal ? 'reversal-' : '');
 
   let amountBdt = $state('');
-  let paidOn = $state(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date()));
+  let paidOn = $state(
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(new Date()),
+  );
   let reference = $state('');
   let note = $state('');
   let receiptFile = $state<File | null>(null);
@@ -88,7 +90,7 @@
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({})) as { message?: string; error?: string };
+      const err = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
       throw new Error(err.message || err.error || 'Receipt upload failed');
     }
 
@@ -127,7 +129,8 @@
 
       // Reversal limit verification: cannot reverse more than remaining balance
       if (isReversal) {
-        const maxAllowed = maxReversiblePoisha ?? (reversesPayment ? BigInt(reversesPayment.amount_poisha) : 0n);
+        const maxAllowed =
+          maxReversiblePoisha ?? (reversesPayment ? BigInt(reversesPayment.amount_poisha) : 0n);
         if (parsedPoisha > maxAllowed) {
           errorMessage = `Reversal amount cannot exceed remaining reversible balance (${formatPoishaToBdt(maxAllowed)})`;
           isSubmitting = false;
@@ -139,7 +142,8 @@
       if (isMonthClosed) {
         const remainingLiability = BigInt(expectedPoisha ?? '0') - BigInt(paidPoisha ?? '0');
         if (remainingLiability <= 0n) {
-          errorMessage = 'Month is closed and liability is fully settled. No additional payments allowed.';
+          errorMessage =
+            'Month is closed and liability is fully settled. No additional payments allowed.';
           isSubmitting = false;
           return;
         }
@@ -217,23 +221,39 @@
   }
 </script>
 
-<Modal bind:open title={isReversal ? 'Record Payment Reversal' : 'Record Settlement Payment'} onclose={() => { open = false; onclose(); }}>
+<Modal
+  bind:open
+  title={isReversal ? 'Record Payment Reversal' : 'Record Settlement Payment'}
+  onclose={() => {
+    open = false;
+    onclose();
+  }}
+>
   <div class="record-payment-modal">
     {#if isMonthClosed}
-      <div class="p-3 mb-4 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold">
-        🔒 Month is closed. {isReversal ? 'Reversals are permanently locked.' : 'Only payments settling remaining liability are permitted.'}
+      <div
+        class="p-3 mb-4 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold"
+      >
+        🔒 Month is closed. {isReversal
+          ? 'Reversals are permanently locked.'
+          : 'Only payments settling remaining liability are permitted.'}
       </div>
     {/if}
 
     {#if errorMessage}
-      <div class="p-3 mb-4 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium">
+      <div
+        class="p-3 mb-4 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium"
+      >
         {errorMessage}
       </div>
     {/if}
 
     <form onsubmit={handleSubmit} class="space-y-4">
       <div>
-        <label for={`${idPrefix}pay-amount`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label
+          for={`${idPrefix}pay-amount`}
+          class="block text-xs font-semibold text-[var(--muted)] mb-1"
+        >
           Amount (BDT)
         </label>
         <input
@@ -247,12 +267,19 @@
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-bold text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-60"
         />
         {#if isReversal && reversesPayment}
-          <p class="text-[10px] text-[var(--muted)] mt-1">Reversal up to remaining balance: {formatPoishaToBdt(maxReversiblePoisha ?? BigInt(reversesPayment.amount_poisha))}.</p>
+          <p class="text-[10px] text-[var(--muted)] mt-1">
+            Reversal up to remaining balance: {formatPoishaToBdt(
+              maxReversiblePoisha ?? BigInt(reversesPayment.amount_poisha),
+            )}.
+          </p>
         {/if}
       </div>
 
       <div>
-        <label for={`${idPrefix}pay-date`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label
+          for={`${idPrefix}pay-date`}
+          class="block text-xs font-semibold text-[var(--muted)] mb-1"
+        >
           Payment Date
         </label>
         <input
@@ -266,7 +293,10 @@
       </div>
 
       <div>
-        <label for={`${idPrefix}pay-ref`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label
+          for={`${idPrefix}pay-ref`}
+          class="block text-xs font-semibold text-[var(--muted)] mb-1"
+        >
           Transaction Reference / Bank Slip #
         </label>
         <input
@@ -281,7 +311,10 @@
 
       {#if !isReversal}
         <div>
-          <label for={`${idPrefix}pay-file`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
+          <label
+            for={`${idPrefix}pay-file`}
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          >
             Receipt Image or PDF (Max 5 MB)
           </label>
           <input
@@ -296,7 +329,10 @@
       {/if}
 
       <div>
-        <label for={`${idPrefix}pay-note`} class="block text-xs font-semibold text-[var(--muted)] mb-1">
+        <label
+          for={`${idPrefix}pay-note`}
+          class="block text-xs font-semibold text-[var(--muted)] mb-1"
+        >
           {isReversal ? 'Mandatory Reversal Reason *' : 'Notes'}
         </label>
         <textarea
@@ -305,16 +341,30 @@
           required={isReversal}
           disabled={isMonthClosed && isReversal}
           bind:value={note}
-          placeholder={isReversal ? 'Provide reason for reversing this payment (mandatory audit trail)' : 'Optional notes regarding settlement'}
+          placeholder={isReversal
+            ? 'Provide reason for reversing this payment (mandatory audit trail)'
+            : 'Optional notes regarding settlement'}
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-xs text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
         ></textarea>
       </div>
 
       <div class="flex justify-end gap-2 pt-2">
-        <Button variant="default" onclick={() => { open = false; onclose(); }} disabled={isSubmitting}>
+        <Button
+          variant="default"
+          onclick={() => {
+            open = false;
+            onclose();
+          }}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
-        <Button id={`${idPrefix}btn-submit`} variant="commission" type="submit" disabled={isSubmitting || (isMonthClosed && isReversal)}>
+        <Button
+          id={`${idPrefix}btn-submit`}
+          variant="commission"
+          type="submit"
+          disabled={isSubmitting || (isMonthClosed && isReversal)}
+        >
           {isSubmitting ? 'Recording...' : isReversal ? 'Confirm Reversal' : 'Record Payment'}
         </Button>
       </div>

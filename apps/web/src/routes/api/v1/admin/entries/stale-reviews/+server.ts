@@ -13,7 +13,9 @@ export const GET: RequestHandler = async (event) => {
   // Query entries table (PRD §7.1: columns gross_poisha, vat_poisha, net_poisha; version is derived from snapshot)
   const { data, error } = await supabase
     .from('entries')
-    .select('id, entry_number, entry_date, gross_poisha, vat_poisha, net_poisha, device_id, snapshot, created_at')
+    .select(
+      'id, entry_number, entry_date, gross_poisha, vat_poisha, net_poisha, device_id, snapshot, created_at',
+    )
     .eq('stale_rates', true)
     .eq('stale_review_status', 'flagged')
     .order('created_at', { ascending: false });
@@ -26,16 +28,16 @@ export const GET: RequestHandler = async (event) => {
     // snapshot is Json-typed; hoist the version field (PRD §7.3: snapshot JSONB stores gw version)
     const snap = row.snapshot as unknown as { version?: string | number } | null;
     return {
-    id: row.id,
-    entry_number: row.entry_number,
-    entry_date: row.entry_date,
-    gross_amount: String(row.gross_poisha),
-    vat_amount: String(row.vat_poisha),
-    net_amount: String(row.net_poisha),
-    device_id: row.device_id,
-    rate_profile_version: snap?.version ?? 1,
-    created_at: row.created_at,
-  };
+      id: row.id,
+      entry_number: row.entry_number,
+      entry_date: row.entry_date,
+      gross_amount: String(row.gross_poisha),
+      vat_amount: String(row.vat_poisha),
+      net_amount: String(row.net_poisha),
+      device_id: row.device_id,
+      rate_profile_version: snap?.version ?? 1,
+      created_at: row.created_at,
+    };
   });
 
   return new Response(JSON.stringify({ entries }), {

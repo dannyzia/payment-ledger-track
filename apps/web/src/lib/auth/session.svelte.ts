@@ -44,7 +44,10 @@ export class SessionStore {
       supabase.auth.onAuthStateChange(async (event, sbSession) => {
         if (event === 'SIGNED_OUT') {
           this.clearLocalSession();
-        } else if (sbSession && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
+        } else if (
+          sbSession &&
+          (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')
+        ) {
           await this.syncFromSupabaseSession(sbSession);
         }
       });
@@ -128,7 +131,8 @@ export class SessionStore {
 
     const userId = sbSession.user.id;
     const email = sbSession.user.email ?? '';
-    const initialRole = ((sbSession.user.app_metadata?.role ?? 'staff') as UserSessionProfile['role']);
+    const initialRole = (sbSession.user.app_metadata?.role ??
+      'staff') as UserSessionProfile['role'];
 
     this.setLocalSession({
       id: userId,
@@ -158,7 +162,11 @@ export class SessionStore {
 
       if (res.status === 401 || res.status === 403) {
         const data = await res.json().catch(() => ({}));
-        if (data.error === 'user_deactivated' || data.message === 'user_deactivated' || res.status === 401) {
+        if (
+          data.error === 'user_deactivated' ||
+          data.message === 'user_deactivated' ||
+          res.status === 401
+        ) {
           await this.signOut();
           return;
         }

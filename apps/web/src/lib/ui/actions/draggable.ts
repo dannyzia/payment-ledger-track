@@ -27,11 +27,10 @@ export function snapToEdge(
   x: number,
   y: number,
   menuDim: { width: number; height: number },
-  viewport: { width: number; height: number }
+  viewport: { width: number; height: number },
 ): { x: number; y: number } {
-  const snapX = x + menuDim.width / 2 < viewport.width / 2
-    ? 24
-    : viewport.width - menuDim.width - 24;
+  const snapX =
+    x + menuDim.width / 2 < viewport.width / 2 ? 24 : viewport.width - menuDim.width - 24;
 
   const clampY = Math.max(12, Math.min(viewport.height - menuDim.height - 24, y));
   return { x: snapX, y: clampY };
@@ -40,7 +39,7 @@ export function snapToEdge(
 export function getPinnedPosition(
   mode: 'bottom' | 'left' | 'right',
   menuDim: { width: number; height: number },
-  viewport: { width: number; height: number }
+  viewport: { width: number; height: number },
 ): { x: number; y: number } {
   const y = Math.max(12, viewport.height - menuDim.height - 24);
   if (mode === 'bottom') {
@@ -56,7 +55,7 @@ export function calculateAvoidance(
   currentPos: { x: number; y: number },
   menuDim: { width: number; height: number },
   forbiddenRects: Rect[],
-  viewport: { width: number; height: number }
+  viewport: { width: number; height: number },
 ): { x: number; y: number } {
   const menuRect: Rect = {
     left: currentPos.x,
@@ -72,14 +71,24 @@ export function calculateAvoidance(
 
   // Check right margin dodge
   const rightDodgeX = viewport.width - menuDim.width - 24;
-  const rightRect: Rect = { left: rightDodgeX, top: currentPos.y, right: rightDodgeX + menuDim.width, bottom: currentPos.y + menuDim.height };
+  const rightRect: Rect = {
+    left: rightDodgeX,
+    top: currentPos.y,
+    right: rightDodgeX + menuDim.width,
+    bottom: currentPos.y + menuDim.height,
+  };
   if (!forbiddenRects.some((r) => isOverlapping(rightRect, r))) {
     return { x: rightDodgeX, y: currentPos.y };
   }
 
   // Check left margin dodge
   const leftDodgeX = 24;
-  const leftRect: Rect = { left: leftDodgeX, top: currentPos.y, right: leftDodgeX + menuDim.width, bottom: currentPos.y + menuDim.height };
+  const leftRect: Rect = {
+    left: leftDodgeX,
+    top: currentPos.y,
+    right: leftDodgeX + menuDim.width,
+    bottom: currentPos.y + menuDim.height,
+  };
   if (!forbiddenRects.some((r) => isOverlapping(leftRect, r))) {
     return { x: leftDodgeX, y: currentPos.y };
   }
@@ -177,8 +186,8 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     try {
       return Boolean(
         options.storageKey &&
-          typeof localStorage !== 'undefined' &&
-          localStorage.getItem(options.storageKey),
+        typeof localStorage !== 'undefined' &&
+        localStorage.getItem(options.storageKey),
       );
     } catch {
       return false;
@@ -217,7 +226,12 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     // The docked position sits in the bottom-right corner, which is exactly where
     // page-level primary actions live (#btn-save and friends). Dodge at rest too,
     // not only after a drag, or the pill swallows taps on the button underneath it.
-    const safe = calculateAvoidance({ x: currentX, y: currentY }, menuDim, getForbiddenRects(), viewport);
+    const safe = calculateAvoidance(
+      { x: currentX, y: currentY },
+      menuDim,
+      getForbiddenRects(),
+      viewport,
+    );
     currentX = Math.max(12, Math.min(viewport.width - menuDim.width - 12, safe.x));
     currentY = Math.max(12, Math.min(viewport.height - menuDim.height - 12, safe.y));
 
@@ -244,9 +258,7 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
     }, 150);
   };
   const bodyObserver =
-    typeof MutationObserver !== 'undefined'
-      ? new MutationObserver(() => scheduleSettle())
-      : null;
+    typeof MutationObserver !== 'undefined' ? new MutationObserver(() => scheduleSettle()) : null;
   if (bodyObserver && typeof document !== 'undefined') {
     bodyObserver.observe(document.body, { childList: true, subtree: true });
   }
@@ -338,7 +350,10 @@ export function draggable(node: HTMLElement, initialOptions: DragOptions = {}) {
 
   function onPointerMove(e: PointerEvent) {
     if (!hasOrigin) return;
-    if (!hasMovedPastThreshold && (Math.hypot(e.clientX - originClientX, e.clientY - originClientY) > DRAG_THRESHOLD)) {
+    if (
+      !hasMovedPastThreshold &&
+      Math.hypot(e.clientX - originClientX, e.clientY - originClientY) > DRAG_THRESHOLD
+    ) {
       hasMovedPastThreshold = true;
       isDragging = true;
       node.style.transition = 'none';

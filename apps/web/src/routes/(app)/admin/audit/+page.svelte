@@ -68,7 +68,9 @@
   <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Audit Log Viewer</h1>
-      <p class="text-sm text-[var(--muted)]">Chronological, append-only record of all financial mutations and administrative actions.</p>
+      <p class="text-sm text-[var(--muted)]">
+        Chronological, append-only record of all financial mutations and administrative actions.
+      </p>
     </div>
     <div class="flex items-center gap-2">
       <Button variant="default" onclick={resetFilters}>Reset</Button>
@@ -80,7 +82,10 @@
   <Card class="p-4 mb-6">
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
       <div>
-        <label for="audit-filter-table" class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Table</label>
+        <label
+          for="audit-filter-table"
+          class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Table</label
+        >
         <input
           id="audit-filter-table"
           type="text"
@@ -91,7 +96,10 @@
       </div>
 
       <div>
-        <label for="audit-filter-action" class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Action</label>
+        <label
+          for="audit-filter-action"
+          class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Action</label
+        >
         <input
           id="audit-filter-action"
           type="text"
@@ -102,7 +110,10 @@
       </div>
 
       <div>
-        <label for="audit-filter-actor" class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Actor UUID</label>
+        <label
+          for="audit-filter-actor"
+          class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Actor UUID</label
+        >
         <input
           id="audit-filter-actor"
           type="text"
@@ -113,7 +124,10 @@
       </div>
 
       <div>
-        <label for="audit-filter-start" class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Start Date</label>
+        <label
+          for="audit-filter-start"
+          class="block text-[11px] font-semibold text-[var(--muted)] mb-1">Start Date</label
+        >
         <input
           id="audit-filter-start"
           type="date"
@@ -123,7 +137,10 @@
       </div>
 
       <div>
-        <label for="audit-filter-end" class="block text-[11px] font-semibold text-[var(--muted)] mb-1">End Date</label>
+        <label
+          for="audit-filter-end"
+          class="block text-[11px] font-semibold text-[var(--muted)] mb-1">End Date</label
+        >
         <input
           id="audit-filter-end"
           type="date"
@@ -155,12 +172,18 @@
         <tbody class="divide-y divide-black/5 dark:divide-white/5 font-mono">
           {#each events as ev (ev.id)}
             <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-              <td class="py-2.5 px-3 text-[var(--muted)] whitespace-nowrap">{new Date(ev.at).toLocaleString()}</td>
+              <td class="py-2.5 px-3 text-[var(--muted)] whitespace-nowrap"
+                >{new Date(ev.at).toLocaleString()}</td
+              >
               <td class="py-2.5 px-3">
                 <Chip variant="default">{ev.action}</Chip>
               </td>
-              <td class="py-2.5 px-3 text-[var(--muted)]">{ev.target_table}:{ev.target_id?.slice(0, 8)}...</td>
-              <td class="py-2.5 px-3 text-[var(--muted)]">{ev.actor ? ev.actor.slice(0, 8) + '...' : 'system'}</td>
+              <td class="py-2.5 px-3 text-[var(--muted)]"
+                >{ev.target_table}:{ev.target_id?.slice(0, 8)}...</td
+              >
+              <td class="py-2.5 px-3 text-[var(--muted)]"
+                >{ev.actor ? ev.actor.slice(0, 8) + '...' : 'system'}</td
+              >
               <td class="py-2.5 px-3 text-[var(--muted)] truncate max-w-xs">
                 {ev.after ? JSON.stringify(ev.after) : ev.before ? JSON.stringify(ev.before) : '-'}
               </td>
@@ -168,7 +191,9 @@
           {/each}
           {#if events.length === 0 && !loading && !errorMessage}
             <tr>
-              <td colspan="5" class="py-8 text-center text-[var(--muted)] font-sans">No audit events match filters.</td>
+              <td colspan="5" class="py-8 text-center text-[var(--muted)] font-sans"
+                >No audit events match filters.</td
+              >
             </tr>
           {/if}
         </tbody>

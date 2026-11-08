@@ -30,18 +30,20 @@
   async function loadStats() {
     loading = true;
     try {
-      const [methodsRes, usersRes, devicesRes, staleRes, ratesRes, anomaliesRes] = await Promise.all([
-        authFetch('/api/v1/admin/methods'),
-        authFetch('/api/v1/admin/users'),
-        authFetch('/api/v1/admin/devices'),
-        authFetch('/api/v1/admin/entries/stale-reviews'),
-        authFetch('/api/v1/admin/rates/draft'),
-        authFetch('/api/v1/admin/entries/stale-anomalies'),
-      ]);
+      const [methodsRes, usersRes, devicesRes, staleRes, ratesRes, anomaliesRes] =
+        await Promise.all([
+          authFetch('/api/v1/admin/methods'),
+          authFetch('/api/v1/admin/users'),
+          authFetch('/api/v1/admin/devices'),
+          authFetch('/api/v1/admin/entries/stale-reviews'),
+          authFetch('/api/v1/admin/rates/draft'),
+          authFetch('/api/v1/admin/entries/stale-anomalies'),
+        ]);
 
       if (methodsRes.ok) {
         const data = await methodsRes.json();
-        stats.activeMethods = data.methods?.filter((m: { active: boolean }) => m.active).length ?? 0;
+        stats.activeMethods =
+          data.methods?.filter((m: { active: boolean }) => m.active).length ?? 0;
       }
       if (usersRes.ok) {
         const data = await usersRes.json();
@@ -62,7 +64,9 @@
       if (anomaliesRes.ok) {
         const data = await anomaliesRes.json();
         // Burst detection: count devices with >= 5 stale ops in last hour (PRD §7, Test #65)
-        stats.anomalyBursts = (data.anomalies || []).filter((a: { stale_ops_last_hour?: number }) => (a.stale_ops_last_hour ?? 0) >= 5).length;
+        stats.anomalyBursts = (data.anomalies || []).filter(
+          (a: { stale_ops_last_hour?: number }) => (a.stale_ops_last_hour ?? 0) >= 5,
+        ).length;
       }
     } catch (e) {
       // Every figure below is server-only, so a failed load must say so rather than
@@ -80,7 +84,9 @@
 <div class="p-6 max-w-6xl mx-auto w-full">
   <div class="mb-8">
     <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Admin Hub</h1>
-    <p class="text-sm text-[var(--muted)]">Manage business configuration, rates, devices, and operational parameters.</p>
+    <p class="text-sm text-[var(--muted)]">
+      Manage business configuration, rates, devices, and operational parameters.
+    </p>
   </div>
 
   {#if errorMessage}
@@ -90,13 +96,22 @@
   {/if}
 
   {#if stats.anomalyBursts > 0}
-    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm flex items-center justify-between">
+    <div
+      class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm flex items-center justify-between"
+    >
       <div class="flex items-center gap-2">
         <span class="font-bold">Security Alert (Test #65):</span>
-        <span>{stats.anomalyBursts} device(s) exhibiting abnormal stale-rate submission bursts (&ge; 5 in 1 hour). Inspect device registry.</span>
+        <span
+          >{stats.anomalyBursts} device(s) exhibiting abnormal stale-rate submission bursts (&ge; 5 in
+          1 hour). Inspect device registry.</span
+        >
       </div>
       <a href="/admin/devices">
-        <Button variant="default" class="text-xs py-1 px-3 border-red-500/30 text-red-700 hover:bg-red-500/10">Inspect Devices</Button>
+        <Button
+          variant="default"
+          class="text-xs py-1 px-3 border-red-500/30 text-red-700 hover:bg-red-500/10"
+          >Inspect Devices</Button
+        >
       </a>
     </div>
   {/if}
@@ -110,7 +125,8 @@
           <Chip variant="commission">v{stats.publishedRateVersion} Active</Chip>
         </div>
         <p class="text-xs text-[var(--muted)] mb-4">
-          Configure VAT calculation mode, default rates, commission percentages, and payment method charges.
+          Configure VAT calculation mode, default rates, commission percentages, and payment method
+          charges.
         </p>
       </div>
       <a href="/admin/rates" class="w-full">
@@ -126,7 +142,8 @@
           <Chip variant="default">{stats.activeMethods} active</Chip>
         </div>
         <p class="text-xs text-[var(--muted)] mb-4">
-          Enable or disable payment channels (bKash, Nagad, Visa, Mastercard) and enforce reference requirements.
+          Enable or disable payment channels (bKash, Nagad, Visa, Mastercard) and enforce reference
+          requirements.
         </p>
       </div>
       <a href="/admin/methods" class="w-full">
@@ -158,7 +175,8 @@
           <Chip variant="default">{stats.teamMembers} members</Chip>
         </div>
         <p class="text-xs text-[var(--muted)] mb-4">
-          Invite staff and finance administrators, update roles, manage permissions, and transfer store ownership.
+          Invite staff and finance administrators, update roles, manage permissions, and transfer
+          store ownership.
         </p>
       </div>
       <a href="/admin/users" class="w-full">
@@ -174,7 +192,8 @@
           <Chip variant="default">{stats.registeredDevices} devices</Chip>
         </div>
         <p class="text-xs text-[var(--muted)] mb-4">
-          Monitor physical counter devices, view last sync timestamps, and execute instant revocation killswitches.
+          Monitor physical counter devices, view last sync timestamps, and execute instant
+          revocation killswitches.
         </p>
       </div>
       <a href="/admin/devices" class="w-full">
@@ -187,12 +206,18 @@
       <div>
         <div class="flex items-center justify-between mb-3">
           <h2 class="font-semibold text-base text-[var(--ink)]">Stale Rate Reviews</h2>
-          <Chip variant="default" class={stats.pendingStaleReviews > 0 ? 'bg-amber-500/10 text-amber-800 border border-amber-500/20' : ''}>
+          <Chip
+            variant="default"
+            class={stats.pendingStaleReviews > 0
+              ? 'bg-amber-500/10 text-amber-800 border border-amber-500/20'
+              : ''}
+          >
             {stats.pendingStaleReviews} pending
           </Chip>
         </div>
         <p class="text-xs text-[var(--muted)] mb-4">
-          Audit and approve high-value offline entries (&gt;৳50,000) created under superseded rate profiles.
+          Audit and approve high-value offline entries (&gt;৳50,000) created under superseded rate
+          profiles.
         </p>
       </div>
       <a href="/admin/stale-reviews" class="w-full">
@@ -224,7 +249,8 @@
           <Chip variant="default">Append-Only</Chip>
         </div>
         <p class="text-xs text-[var(--muted)] mb-4">
-          Inspect chronological audit trails for all mutations, settlements, rate adjustments, and admin logins.
+          Inspect chronological audit trails for all mutations, settlements, rate adjustments, and
+          admin logins.
         </p>
       </div>
       <a href="/admin/audit" class="w-full">

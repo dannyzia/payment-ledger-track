@@ -39,7 +39,8 @@ export interface LocalEntry {
 export interface LocalOutboxOp {
   opId: string;
   userId: string; // Required for multi-user outbox partitioning (Plan 011, Test #62)
-  type: 'create_entry' | 'request_void' | 'void_entry' | 'supersede_entry' | 'discard_rejected_entry';
+  type:
+    'create_entry' | 'request_void' | 'void_entry' | 'supersede_entry' | 'discard_rejected_entry';
   payload: Record<string, unknown>;
   clientCreatedAt: string;
   payloadHash?: string | undefined;

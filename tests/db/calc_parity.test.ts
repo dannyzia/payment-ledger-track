@@ -7,7 +7,10 @@ const { Pool } = pg;
 
 // Portable JSON fixture loading compatible with NodeNext and bundler resolutions
 const fixtures = JSON.parse(
-  fs.readFileSync(new URL('../../packages/calc/fixtures/test_fixtures.json', import.meta.url), 'utf8')
+  fs.readFileSync(
+    new URL('../../packages/calc/fixtures/test_fixtures.json', import.meta.url),
+    'utf8',
+  ),
 );
 
 describe('Database SQL Arithmetic Backstop Parity Tests (PRD §6.5, §7.3)', () => {
@@ -66,7 +69,13 @@ describe('Database SQL Arithmetic Backstop Parity Tests (PRD §6.5, §7.3)', () 
            $1::bigint + mul_bp($2::bigint, $3::int)
              + (CASE WHEN $4 = 'business' THEN mul_bp($2::bigint, $5::int) ELSE 0 END)
            <= $2::bigint AS valid`,
-        [testCase.vatInputPoisha, testCase.grossPoisha, testCase.commissionBp, testCase.chargesBorneBy, testCase.chargeBp]
+        [
+          testCase.vatInputPoisha,
+          testCase.grossPoisha,
+          testCase.commissionBp,
+          testCase.chargesBorneBy,
+          testCase.chargeBp,
+        ],
       );
       expect(res.rows[0].valid).toBe(false);
     }
@@ -83,7 +92,13 @@ describe('Database SQL Arithmetic Backstop Parity Tests (PRD §6.5, §7.3)', () 
 
     const res = await pool.query(
       'SELECT ($1::bigint + $2::bigint + $3::bigint + $4::bigint = $5::bigint) as conserved',
-      [vatOverride.toString(), commOverride.toString(), bizCharge.toString(), net.toString(), gross.toString()]
+      [
+        vatOverride.toString(),
+        commOverride.toString(),
+        bizCharge.toString(),
+        net.toString(),
+        gross.toString(),
+      ],
     );
     expect(res.rows[0].conserved).toBe(true);
   });

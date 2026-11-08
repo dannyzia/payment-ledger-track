@@ -82,7 +82,7 @@ export function formatOrdinalDay(day: number): string {
 export function computeStaffPersonalMetrics(
   entries: LocalEntry[],
   userId: string,
-  nowDate: Date = new Date()
+  nowDate: Date = new Date(),
 ): StaffPersonalMetrics {
   const todayStr = getAsiaDhakaDateString(nowDate);
   const mtdPrefix = todayStr.substring(0, 7);
@@ -121,7 +121,7 @@ export function computeStaffPersonalMetrics(
 export function computeOverallShopMetrics(
   entries: LocalEntry[],
   todayStr: string,
-  mtdPrefix: string
+  mtdPrefix: string,
 ): OverallShopMetrics {
   let todayGross = 0n;
   let todayCount = 0;
@@ -157,7 +157,7 @@ export function computeShopMethodCollections(
   entries: LocalEntry[],
   methods: CachedPaymentMethod[],
   todayStr: string,
-  mtdPrefix: string
+  mtdPrefix: string,
 ): MethodCollectionSummary[] {
   const methodMap = new Map<string, MethodCollectionSummary>();
 
@@ -212,7 +212,7 @@ export function filterHighValueStaleEntries(entries: LocalEntry[]): LocalEntry[]
       e.status === 'active' &&
       e.stale_rates === true &&
       (e.stale_review_status === undefined || e.stale_review_status === 'flagged') &&
-      BigInt(e.gross_poisha) > 5000000n
+      BigInt(e.gross_poisha) > 5000000n,
   );
 }
 
@@ -261,7 +261,7 @@ export function computeExecutiveDeltas(
   currentNet: bigint,
   priorGross: bigint,
   priorCommission: bigint,
-  priorNet: bigint
+  priorNet: bigint,
 ): ExecutiveDeltas {
   return {
     grossDeltaPoisha: currentGross - priorGross,

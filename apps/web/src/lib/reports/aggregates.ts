@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { LocalEntry, CachedPaymentMethod } from '$lib/db';
 
-export const MonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Invalid month format. Expected YYYY-MM');
+export const MonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Invalid month format. Expected YYYY-MM');
 
 export interface MethodChargeSummary {
   methodId: string;
@@ -60,13 +62,14 @@ export interface MonthOverMonthDelta {
 export function computeMonthlyAggregates(
   entries: LocalEntry[],
   monthPrefix: string,
-  methodsMap: Record<string, CachedPaymentMethod> = {}
+  methodsMap: Record<string, CachedPaymentMethod> = {},
 ): MonthlyReportData {
   MonthSchema.parse(monthPrefix);
 
   // Filter strictly for active entries in target month, excluding rejected sync ops (PRD §8.3, §10)
   const activeEntries = entries.filter(
-    (e) => e.status === 'active' && e.sync_status !== 'rejected' && e.entry_date.startsWith(monthPrefix)
+    (e) =>
+      e.status === 'active' && e.sync_status !== 'rejected' && e.entry_date.startsWith(monthPrefix),
   );
 
   let gross = 0n;
@@ -80,8 +83,23 @@ export function computeMonthlyAggregates(
   let pendingCount = 0;
   let vatCount = 0;
 
-  const methodMap = new Map<string, { count: number; gross: bigint; business: bigint; customer: bigint; charge: bigint }>();
-  const dailyMap = new Map<string, { count: number; subQty: number; gross: bigint; vat: bigint; comm: bigint; biz: bigint; cust: bigint; net: bigint }>();
+  const methodMap = new Map<
+    string,
+    { count: number; gross: bigint; business: bigint; customer: bigint; charge: bigint }
+  >();
+  const dailyMap = new Map<
+    string,
+    {
+      count: number;
+      subQty: number;
+      gross: bigint;
+      vat: bigint;
+      comm: bigint;
+      biz: bigint;
+      cust: bigint;
+      net: bigint;
+    }
+  >();
 
   for (const e of activeEntries) {
     if (e.sync_status === 'pending') {
@@ -109,7 +127,13 @@ export function computeMonthlyAggregates(
     subQty += e.sub_qty;
 
     // Method breakdown (Volume & Charges)
-    const m = methodMap.get(e.method_id) ?? { count: 0, gross: 0n, business: 0n, customer: 0n, charge: 0n };
+    const m = methodMap.get(e.method_id) ?? {
+      count: 0,
+      gross: 0n,
+      business: 0n,
+      customer: 0n,
+      charge: 0n,
+    };
     m.count += 1;
     m.gross += entryGross;
     m.business += entryBizCharge;
@@ -118,7 +142,16 @@ export function computeMonthlyAggregates(
     methodMap.set(e.method_id, m);
 
     // Daily breakdown for cash reconciliation
-    const d = dailyMap.get(e.entry_date) ?? { count: 0, subQty: 0, gross: 0n, vat: 0n, comm: 0n, biz: 0n, cust: 0n, net: 0n };
+    const d = dailyMap.get(e.entry_date) ?? {
+      count: 0,
+      subQty: 0,
+      gross: 0n,
+      vat: 0n,
+      comm: 0n,
+      biz: 0n,
+      cust: 0n,
+      net: 0n,
+    };
     d.count += 1;
     d.subQty += e.sub_qty;
     d.gross += entryGross;
@@ -130,18 +163,20 @@ export function computeMonthlyAggregates(
     dailyMap.set(e.entry_date, d);
   }
 
-  const methodCharges: MethodChargeSummary[] = Array.from(methodMap.entries()).map(([id, stats]) => {
-    const cachedMethod = methodsMap[id];
-    return {
-      methodId: id,
-      methodCode: cachedMethod?.code ?? id,
-      entryCount: stats.count,
-      totalGrossPoisha: stats.gross,
-      totalBusinessChargePoisha: stats.business,
-      totalCustomerChargePoisha: stats.customer,
-      totalChargePoisha: stats.charge,
-    };
-  });
+  const methodCharges: MethodChargeSummary[] = Array.from(methodMap.entries()).map(
+    ([id, stats]) => {
+      const cachedMethod = methodsMap[id];
+      return {
+        methodId: id,
+        methodCode: cachedMethod?.code ?? id,
+        entryCount: stats.count,
+        totalGrossPoisha: stats.gross,
+        totalBusinessChargePoisha: stats.business,
+        totalCustomerChargePoisha: stats.customer,
+        totalChargePoisha: stats.charge,
+      };
+    },
+  );
 
   const dailyBreakdowns: DailyBreakdown[] = Array.from(dailyMap.entries())
     .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
@@ -180,7 +215,7 @@ export function computeMonthlyAggregates(
  */
 export function computeMonthOverMonthDelta(
   current: MonthlyReportData,
-  prior: MonthlyReportData
+  prior: MonthlyReportData,
 ): MonthOverMonthDelta {
   const calcPct = (curr: bigint, prev: bigint): number | null => {
     if (prev === 0n) return null;

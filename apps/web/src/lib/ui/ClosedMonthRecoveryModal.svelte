@@ -41,7 +41,9 @@
   let isSubmitting = $state(false);
   let errorMessage = $state('');
 
-  let currentDestinationVatMode = $state<'manual' | 'percent_of_gross' | 'percent_inclusive' | undefined>(undefined);
+  let currentDestinationVatMode = $state<
+    'manual' | 'percent_of_gross' | 'percent_inclusive' | undefined
+  >(undefined);
 
   // Dynamically resolve destination date rate profile to determine whether manual VAT input is required (PRD §6.3, F20);
   // reading destinationVatMode inside the effect keeps it reactive (captures-initial-prop warning fix)
@@ -58,7 +60,9 @@
   });
 
   const originalMonth = $derived(originalDate ? originalDate.substring(0, 7) : currentDhakaMonth());
-  const destinationMonth = $derived(reassignDate ? reassignDate.substring(0, 7) : currentDhakaMonth());
+  const destinationMonth = $derived(
+    reassignDate ? reassignDate.substring(0, 7) : currentDhakaMonth(),
+  );
   const vatInputRequired = $derived(currentDestinationVatMode === 'manual');
 
   async function handleReassignSubmit(e: SubmitEvent) {
@@ -126,11 +130,22 @@
     {#if mode === 'choose'}
       <div class="flex flex-col gap-4 text-sm">
         <p class="text-xs text-[var(--c-muted,#6b7280)]">
-          This transaction originally dated <span class="font-bold text-[var(--c-ink,#111827)]">{originalDate}</span> (Gross: {formatPoishaToBdt(BigInt(grossPoisha || '0'))}, Entry ID: <span class="font-mono">{entryId}</span>) was recorded offline, but the calendar month was closed before sync (PRD §8.4). Choose an audited resolution:
+          This transaction originally dated <span class="font-bold text-[var(--c-ink,#111827)]"
+            >{originalDate}</span
+          >
+          (Gross: {formatPoishaToBdt(BigInt(grossPoisha || '0'))}, Entry ID:
+          <span class="font-mono">{entryId}</span>) was recorded offline, but the calendar month was
+          closed before sync (PRD §8.4). Choose an audited resolution:
         </p>
 
         <div class="flex flex-col gap-2">
-          <Button variant="default" class="w-full justify-start py-3 min-h-[44px]" onclick={() => { mode = 'reassign'; }}>
+          <Button
+            variant="default"
+            class="w-full justify-start py-3 min-h-[44px]"
+            onclick={() => {
+              mode = 'reassign';
+            }}
+          >
             1. Reassign to Open Month (1st of open month)
           </Button>
 
@@ -138,7 +153,9 @@
             variant="default"
             class="w-full justify-start py-3 min-h-[44px]"
             disabled={session.user?.role !== 'owner'}
-            onclick={() => { mode = 'reopen'; }}
+            onclick={() => {
+              mode = 'reopen';
+            }}
           >
             2. Reopen Month {originalMonth} (Owner Only)
             {#if session.user?.role !== 'owner'}
@@ -146,7 +163,13 @@
             {/if}
           </Button>
 
-          <Button variant="default" class="w-full justify-start py-3 min-h-[44px]" onclick={() => { mode = 'discard'; }}>
+          <Button
+            variant="default"
+            class="w-full justify-start py-3 min-h-[44px]"
+            onclick={() => {
+              mode = 'discard';
+            }}
+          >
             3. Discard Entry with Audited Reason
           </Button>
         </div>
@@ -154,11 +177,16 @@
     {:else if mode === 'reassign'}
       <form onsubmit={handleReassignSubmit} class="flex flex-col gap-4">
         <div class="p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800">
-          Warning: Reassigning this transaction shifts VAT and merchant liability from the closed month ({originalMonth}) to destination month ({destinationMonth}).
+          Warning: Reassigning this transaction shifts VAT and merchant liability from the closed
+          month ({originalMonth}) to destination month ({destinationMonth}).
         </div>
 
         <div>
-          <label for="reassign-date" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Destination Open Month Date</label>
+          <label
+            for="reassign-date"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Destination Open Month Date</label
+          >
           <input
             id="reassign-date"
             type="date"
@@ -170,10 +198,15 @@
 
         {#if vatInputRequired}
           <div class="p-3 rounded-xl bg-blue-500/10 text-xs text-blue-800">
-            Notice: Destination rate profile uses Manual VAT mode. Please re-enter the VAT amount to satisfy mode exclusivity.
+            Notice: Destination rate profile uses Manual VAT mode. Please re-enter the VAT amount to
+            satisfy mode exclusivity.
           </div>
           <div>
-            <label for="manual-vat-bdt" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Manual VAT Input (BDT)</label>
+            <label
+              for="manual-vat-bdt"
+              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              >Manual VAT Input (BDT)</label
+            >
             <input
               id="manual-vat-bdt"
               type="text"
@@ -187,7 +220,11 @@
         {/if}
 
         <div>
-          <label for="reassign-reason" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Mandatory Reassign Reason</label>
+          <label
+            for="reassign-reason"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Mandatory Reassign Reason</label
+          >
           <textarea
             id="reassign-reason"
             required
@@ -199,8 +236,19 @@
         </div>
 
         <div class="flex justify-end gap-3">
-          <Button variant="default" onclick={() => { mode = 'choose'; }}>Back</Button>
-          <Button id="btn-save" variant="commission" type="submit" loading={isSubmitting} disabled={!reassignReason.trim()}>
+          <Button
+            variant="default"
+            onclick={() => {
+              mode = 'choose';
+            }}>Back</Button
+          >
+          <Button
+            id="btn-save"
+            variant="commission"
+            type="submit"
+            loading={isSubmitting}
+            disabled={!reassignReason.trim()}
+          >
             Confirm Reassignment
           </Button>
         </div>
@@ -208,11 +256,17 @@
     {:else if mode === 'reopen'}
       <form onsubmit={handleReopenSubmit} class="flex flex-col gap-4">
         <div class="p-3 rounded-xl bg-amber-500/10 text-xs text-amber-800">
-          Warning: Reopening month {originalMonth} unfreezes financial entries, un-reconciles all reconciled statements for that month (flipping them back to open), and re-queues this operation to sync immediately.
+          Warning: Reopening month {originalMonth} unfreezes financial entries, un-reconciles all reconciled
+          statements for that month (flipping them back to open), and re-queues this operation to sync
+          immediately.
         </div>
 
         <div>
-          <label for="reopen-reason" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Mandatory Month Reopen Reason</label>
+          <label
+            for="reopen-reason"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Mandatory Month Reopen Reason</label
+          >
           <textarea
             id="reopen-reason"
             required
@@ -224,8 +278,19 @@
         </div>
 
         <div class="flex justify-end gap-3">
-          <Button variant="default" onclick={() => { mode = 'choose'; }}>Back</Button>
-          <Button id="btn-save" variant="mastercard" type="submit" loading={isSubmitting} disabled={!reopenReason.trim()}>
+          <Button
+            variant="default"
+            onclick={() => {
+              mode = 'choose';
+            }}>Back</Button
+          >
+          <Button
+            id="btn-save"
+            variant="mastercard"
+            type="submit"
+            loading={isSubmitting}
+            disabled={!reopenReason.trim()}
+          >
             Confirm Reopen Month
           </Button>
         </div>
@@ -233,11 +298,16 @@
     {:else if mode === 'discard'}
       <form onsubmit={handleDiscardSubmit} class="flex flex-col gap-4">
         <div class="p-3 rounded-xl bg-red-500/10 text-xs text-red-800">
-          Caution: Discarding permanently drops this transaction from synchronization after recording an audited discard operation in the outbox.
+          Caution: Discarding permanently drops this transaction from synchronization after
+          recording an audited discard operation in the outbox.
         </div>
 
         <div>
-          <label for="discard-reason" class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Mandatory Discard Reason</label>
+          <label
+            for="discard-reason"
+            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            >Mandatory Discard Reason</label
+          >
           <textarea
             id="discard-reason"
             required
@@ -249,8 +319,19 @@
         </div>
 
         <div class="flex justify-end gap-3">
-          <Button variant="default" onclick={() => { mode = 'choose'; }}>Back</Button>
-          <Button id="btn-save" variant="mastercard" type="submit" loading={isSubmitting} disabled={!discardReason.trim()}>
+          <Button
+            variant="default"
+            onclick={() => {
+              mode = 'choose';
+            }}>Back</Button
+          >
+          <Button
+            id="btn-save"
+            variant="mastercard"
+            type="submit"
+            loading={isSubmitting}
+            disabled={!discardReason.trim()}
+          >
             Confirm Discard
           </Button>
         </div>

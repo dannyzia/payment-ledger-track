@@ -74,7 +74,9 @@
     class="filter-drawer fixed inset-y-0 right-0 z-50 max-w-sm w-full glass bg-white/95 dark:bg-stone-900/95 p-6 shadow-2xl flex flex-col justify-between border-l border-black/10 dark:border-white/10"
   >
     <div class="flex flex-col gap-5 overflow-y-auto">
-      <div class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+      <div
+        class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10"
+      >
         <h2 class="text-lg font-bold text-[var(--ink)]">Filter Transactions</h2>
         <button
           type="button"
@@ -88,7 +90,9 @@
 
       <!-- Date Range -->
       <div class="flex flex-col gap-2">
-        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Date Range</span>
+        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
+          >Date Range</span
+        >
         <div class="grid grid-cols-2 gap-2">
           <div>
             <span class="text-[11px] text-[var(--muted)] block mb-1">From</span>
@@ -111,7 +115,9 @@
 
       <!-- Payment Method -->
       <div class="flex flex-col gap-2">
-        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Payment Method</span>
+        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
+          >Payment Method</span
+        >
         <select
           bind:value={draft.methodId}
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-xs"
@@ -126,7 +132,9 @@
       <!-- Creator Staff Dropdown (Admin/Owner only per PRD §8.5) -->
       {#if isAdmin}
         <div class="flex flex-col gap-2">
-          <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Creator Staff</span>
+          <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
+            >Creator Staff</span
+          >
           <select
             bind:value={draft.createdBy}
             class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-xs"
@@ -141,7 +149,9 @@
 
       <!-- Status -->
       <div class="flex flex-col gap-2">
-        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Status</span>
+        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
+          >Status</span
+        >
         <select
           bind:value={draft.status}
           class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-xs"
@@ -157,20 +167,31 @@
 
       <!-- Flags -->
       <div class="flex flex-col gap-2">
-        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Flags</span>
+        <span class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Flags</span
+        >
         <label class="flex items-center gap-2 text-xs text-[var(--ink)] cursor-pointer">
-          <input type="checkbox" bind:checked={draft.flagDuplicateTxn} class="rounded border-gray-300" />
+          <input
+            type="checkbox"
+            bind:checked={draft.flagDuplicateTxn}
+            class="rounded border-gray-300"
+          />
           <span>Duplicate Txn Ref Flagged</span>
         </label>
         <label class="flex items-center gap-2 text-xs text-[var(--ink)] cursor-pointer">
-          <input type="checkbox" bind:checked={draft.flagStaleRates} class="rounded border-gray-300" />
+          <input
+            type="checkbox"
+            bind:checked={draft.flagStaleRates}
+            class="rounded border-gray-300"
+          />
           <span>Stale Rate Profile (Offline)</span>
         </label>
       </div>
     </div>
 
     <!-- Actions -->
-    <div class="flex items-center justify-between pt-4 border-t border-black/10 dark:border-white/10 gap-3">
+    <div
+      class="flex items-center justify-between pt-4 border-t border-black/10 dark:border-white/10 gap-3"
+    >
       <Button variant="default" onclick={handleReset}>Reset</Button>
       <Button variant="default" onclick={handleApply}>Apply Filters</Button>
     </div>

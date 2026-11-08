@@ -25,9 +25,7 @@ export function canonicalJsonStringify(obj: unknown): string {
     .filter((key) => rec[key] !== undefined)
     .sort();
 
-  const entries = keys.map(
-    (key) => `${JSON.stringify(key)}:${canonicalJsonStringify(rec[key])}`
-  );
+  const entries = keys.map((key) => `${JSON.stringify(key)}:${canonicalJsonStringify(rec[key])}`);
   return `{${entries.join(',')}}`;
 }
 

@@ -10,7 +10,8 @@ let serviceClient: ReturnType<typeof createClient<Database>> | null = null;
 export function getServiceSupabase() {
   if (serviceClient) return serviceClient;
 
-  const url = process.env.PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+  const url =
+    process.env.PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!serviceKey) {
