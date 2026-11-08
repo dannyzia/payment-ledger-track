@@ -64,10 +64,10 @@
 
 ## 4. Environment changes made by the run
 
-- Created two credentialled accounts through the Supabase admin API so role shells could be tested at all: `staff.sweep@cosmoledger.local` (role staff) and `admin.sweep@cosmoledger.local` (role admin). Both remain in the database; delete them if they should not persist.
-- Created entry `E-202611-000226` (`SWEEP-SAVE-2`, ৳2,500.00, bKash, ref `SWEEP-0002`) to test capture, ledger search and void. It is `active` server-side; the void exists only in the closed browser profile.
+- Created two credentialled accounts through the Supabase admin API so role shells could be tested at all: `staff.sweep@cosmoledger.local` (role staff) and `admin.sweep@cosmoledger.local` (role admin). **Removed again on 2026-11-08 at Zia's direction** through the same admin API; their profiles and device rows went with them.
+- Created entry `E-202611-000226` (`SWEEP-SAVE-2`, ৳2,500.00, bKash, ref `SWEEP-0002`) to test capture, ledger search and void. **Deleted on 2026-11-08 at Zia's direction**; the immutability trigger was disabled for that one statement inside a transaction and restored before commit, and `generate_monthly_settlements('2026-11-01')` brought the bKash payable from 23,260 to 20,385 poisha. The two `entry.create` audit rows stay, because `audit_log` is append-only.
 - `reconcile_tolerance_poisha` was written to `101` and restored to `100`; verified after reload.
-- No rates were published, no devices revoked, no months closed, no payments recorded.
+- No rates were published, no devices revoked, no months closed, no payments recorded. The cleanup and its verification are in `LEDGER.md` row 48.
 
 ## 5. What could not be run, and why
 
