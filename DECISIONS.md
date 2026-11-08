@@ -361,3 +361,25 @@ choice the PRD does not cover:
    rolls the disable back too.
 7. **`service_role` only.** `EXECUTE` is revoked from `PUBLIC`, `anon` and
    `authenticated` (hard rule 7). No client route calls this routine.
+
+## CLT-D-031 — Accounts with audit history are retired, not deleted
+
+Date: 2026-11-08. Trying to remove the two scope-verification accounts returned
+`23503` from the admin API: `audit_log_actor_fkey` on `audit_log` is `NO ACTION`,
+and rows 219/220 record those users creating their entries. `audit_log` is
+append-only (Rule 5), so the referencing rows cannot be nulled or removed.
+
+Decision: an account that has ever acted is **deactivated and banned**, never
+deleted.
+
+1. `profiles.active = false`, with a `user.deactivate` audit row, so the app's
+   authorization sees an inactive profile.
+2. `ban_duration` set through the auth admin API, so sign-in is refused at the
+   provider (`400 user_banned`) rather than only in the UI.
+3. Devices belonging to the retired account are pruned unless an entry
+   references them, with `device.prune` audit rows.
+
+Hard deletion stays correct only for accounts with no audit history — the
+earlier sweep accounts qualified, these do not. This is a property of the
+schema, not a tooling gap: deleting the profile would either break the foreign
+key or require rewriting the audit log.
