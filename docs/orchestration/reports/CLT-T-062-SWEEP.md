@@ -78,7 +78,7 @@
 | D1 overpayment approval | No `overpaid` settlement exists, and producing one needs a real payment mutation with an Owner approval bound to the surplus. |
 | E2 Mode B file ingestion | No real bKash/card statement sample exists in the repo (`CLT-R-003`); prior run used a constructed fixture and verified preview → accept → finalize. |
 | F1 publish, F2 role filter, F3 revoke, F5 filters | Each mutates configuration or hardware state; the brief's core assertion (fields/modes render, validation rejects) is covered, and the mutation paths were verified in the 2026-11-07 sweep. |
-| Staff/Admin data-scope checks (own entries only) | Needs fixtures authored by those accounts; both sweep accounts start with no entries. |
+| Staff/Admin data-scope checks (own entries only) | Closed on 2026-11-08 with fresh accounts and one entry each: Staff ledger shows 1 row (own) and 0 foreign rows; Admin ledger shows 18 rows including Staff's. `/api/v1/sync/pull` as Staff returns 1 entry from its own creator; as Admin, 18 entries across three creator ids. Staff `/reports` still redirects to `/dashboard`. |
 
 ## 6. How it was run
 
