@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.cosmo.ledgertrack',
-  appName: 'Cosmo Ledger Track',
+  appName: 'Kumon Ledger Track',
   webDir: 'build',
   server: {
     androidScheme: 'https',

@@ -1,6 +1,6 @@
 export const messages = {
   app: {
-    title: 'Cosmo Ledger Track',
+    title: 'Kumon Ledger Track',
     subtitle: 'Payment ledger and settlement tracker',
   },
   menu: {
@@ -46,7 +46,7 @@ export const messages = {
     mobileRegion: 'Mobile actions region',
     desktopSidebar: 'Desktop navigation sidebar',
     mainNav: 'Main navigation links',
-    footerBrand: 'Cosmo Ledger Track',
+    footerBrand: 'Kumon Ledger Track',
   },
   pwa: {
     staleRateBadge: 'Stale Rate',
@@ -55,7 +55,7 @@ export const messages = {
     upgradeModalHeadline: 'A new calculation engine version has been published.',
     upgradeModalBody: 'Your offline client calculation rules differ from the server. Please reload the app to download the latest update and ensure continuous sync.',
     upgradeModalButton: 'Reload Application',
-    installBannerAria: 'Install Cosmo Ledger Track application',
+    installBannerAria: 'Install Kumon Ledger Track application',
     installBannerTitle: 'Install App',
     installBannerSubtitle: 'Install for fast offline recording',
     dismissButton: 'Dismiss',

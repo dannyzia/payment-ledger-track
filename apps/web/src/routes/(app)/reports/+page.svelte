@@ -224,7 +224,7 @@
       <div class="flex justify-between items-start">
         <div>
           <h1 class="text-2xl font-bold text-black uppercase tracking-tight">
-            {appSettings?.organization_name || 'Cosmo Ledger Track'}
+            {appSettings?.organization_name || 'Kumon Ledger Track'}
           </h1>
           <p class="text-xs text-black/70">
             {appSettings?.business_address || 'Dhaka, Bangladesh'}

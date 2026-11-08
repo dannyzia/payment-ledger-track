@@ -45,7 +45,7 @@
   <div class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
     <div class="text-center mb-6">
       <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Set Your Password</h1>
-      <p class="text-xs text-[var(--muted)] mt-1">Complete your account setup to access Cosmo Ledger Track.</p>
+      <p class="text-xs text-[var(--muted)] mt-1">Complete your account setup to access Kumon Ledger Track.</p>
     </div>
 
     {#if errorMessage}

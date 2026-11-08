@@ -1,6 +1,6 @@
 {
-  "name": "Cosmo Ledger Track",
-  "short_name": "LedgerTrack",
+  "name": "Kumon Ledger Track",
+  "short_name": "Kumon Ledger",
   "description": "Offline-first payment ledger and settlement tracker",
   "start_url": "/dashboard",
   "scope": "/",

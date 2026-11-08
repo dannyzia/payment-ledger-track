@@ -39,7 +39,7 @@
 <div class="min-h-screen flex items-center justify-center p-6 bg-[var(--bg)]">
   <div class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
     <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Cosmo Ledger Track</h1>
+      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Kumon Ledger Track</h1>
       <p class="text-xs text-[var(--muted)] mt-1">Invitation-only payment ledger. Sign in to continue.</p>
     </div>
 
