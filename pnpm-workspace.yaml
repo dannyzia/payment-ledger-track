@@ -4,6 +4,9 @@ packages:
 
 # pnpm 11+ requires dependency lifecycle scripts (postinstall) to be explicitly approved.
 # esbuild: native binary setup used by Vite. supabase: downloads the local CLI binary.
+# sharp: builds the native addon that @capacitor/assets needs; without this the
+# generator fails on a clean install with "Cannot find module .../sharp-linux-x64.node" (CLT-R-030).
 allowBuilds:
   esbuild: true
   supabase: true
+  sharp: true
