@@ -4,6 +4,7 @@
   import { supabase } from '$lib/supabase/client';
   import { db, type CachedSettlementPayment, type CachedSettlement } from '$lib/db';
   import { formatPoishaToBdt, parseBdtToPoisha } from '@clt/shared';
+  import { describePaymentError } from '$lib/settlements/payment-errors';
 
   interface Props {
     open: boolean;
@@ -183,7 +184,7 @@
         paymentId?: string;
       };
       if (!res.ok) {
-        throw new Error(result.message || result.error || 'Failed to record payment');
+        throw new Error(describePaymentError(result));
       }
 
       // If server returned updated settlement, update local Dexie immediately

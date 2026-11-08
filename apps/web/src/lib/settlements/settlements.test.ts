@@ -6,6 +6,7 @@ import {
   detectMagicBytes,
   MAX_RECEIPT_FILE_SIZE,
 } from './receipt-validation';
+import { describePaymentError } from './payment-errors';
 
 describe('Settlement Reminders & Ordinal Formatting (PRD §8.4)', () => {
   it('formats ordinal days with accurate English suffixes', () => {
@@ -120,5 +121,38 @@ describe('Receipt Upload Magic-Byte Validation & Security (PRD §8.4, §13, Test
     expect(validateReceiptPath('/etc/passwd')).toBe(false);
     expect(validateReceiptPath('receipts/2026-10/../../../secret.txt')).toBe(false);
     expect(validateReceiptPath('receipts/invalid-month/uuid.png')).toBe(false);
+  });
+});
+
+describe('Settlement Payment Error Messages', () => {
+  it('translates Postgres raise-exception codes into sentences', () => {
+    expect(describePaymentError({ error: '422 future_payment_date' })).toBe(
+      "The payment date can't be in the future. Pick today or an earlier date."
+    );
+    expect(describePaymentError({ error: '422 payment_predates_settlement_month' })).toBe(
+      "The payment date can't be earlier than the month this settlement belongs to."
+    );
+    expect(describePaymentError({ error: 'reversals_exceed_original_amount' })).toBe(
+      'The reversal is larger than what remains of the original payment.'
+    );
+  });
+
+  it('keeps a server sentence the API already phrased for people', () => {
+    expect(
+      describePaymentError({
+        error: 'month_closed',
+        message: 'Month is closed. Payments and reversals are locked.',
+      })
+    ).toBe('This month is closed. Payments and reversals are locked.');
+    expect(describePaymentError({ error: 'permission denied for table settlements' })).toBe(
+      'permission denied for table settlements'
+    );
+  });
+
+  it('falls back to a sentence plus the code for an unknown token', () => {
+    expect(describePaymentError({ error: '422 some_new_guard' })).toBe(
+      'Could not record the payment. Please try again. (some_new_guard)'
+    );
+    expect(describePaymentError({})).toBe('Could not record the payment. Please try again.');
   });
 });
