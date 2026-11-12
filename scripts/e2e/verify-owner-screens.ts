@@ -62,6 +62,28 @@ async function waitForText(page: Page, text: string, timeoutMs = 20_000): Promis
   }
 }
 
+/** Stops waiting as soon as Access Restricted renders or the route redirects away. */
+async function waitForStaffRouteSettlement(
+  page: Page,
+  guardedPath: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const normalizedTarget = guardedPath.replace(/\/+$/, '');
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await page
+      .evaluate(() => ({
+        path: location.pathname.replace(/\/+$/, ''),
+        text: document.body.innerText,
+      }))
+      .catch(() => null);
+    if (state && (state.text.includes('Access Restricted') || state.path !== normalizedTarget)) {
+      return;
+    }
+    await page.waitForTimeout(300);
+  }
+}
+
 async function mobileNavLinks(page: Page): Promise<string[]> {
   const toggle = page.locator('button[aria-controls="mobile-nav-panel"]').first();
   if (await toggle.count()) {
@@ -163,7 +185,7 @@ if (accountFlag) {
 }
 
 const preflight = await runDevicePreflight();
-for (const note of preflight.notes) console.log(`  • ${note}`);
+for (const note of preflight.notes) console.info(`  • ${note}`);
 if (preflight.problems.length > 0) {
   console.error('\n❌ OWNER SCREEN CHECK PREFLIGHT FAILED — no screens were visited:');
   for (const problem of preflight.problems) {
@@ -225,7 +247,7 @@ try {
   });
 
   const profile = await readCachedProfile(page);
-  console.log(
+  console.info(
     `Signed in: ${profile?.email} (${profile?.role ?? 'unknown role'}, center ${profile?.centerCode ?? profile?.centerId ?? 'none'}) — fixture ${account.label}`,
   );
 
@@ -249,12 +271,12 @@ try {
         text: snapshot.text,
       });
       if (!outcome.ok) failures.push(`${route.path}: ${outcome.detail}`);
-      console.log(`  ${route.path.padEnd(13)} ${outcome.ok ? 'PASS' : 'FAIL'}  ${outcome.detail}`);
+      console.info(`  ${route.path.padEnd(13)} ${outcome.ok ? 'PASS' : 'FAIL'}  ${outcome.detail}`);
     }
 
     const nav = assessOwnerNav(await mobileNavLinks(page));
     if (!nav.ok) failures.push(`mobile menu: ${nav.detail}`);
-    console.log(`  ${'/nav'.padEnd(13)} ${nav.ok ? 'PASS' : 'FAIL'}  ${nav.detail}`);
+    console.info(`  ${'/nav'.padEnd(13)} ${nav.ok ? 'PASS' : 'FAIL'}  ${nav.detail}`);
 
     const probe = await probeAdminApis(page);
     const api = assessOwnerApiAccess({
@@ -270,11 +292,11 @@ try {
       })),
     });
     if (!api.ok) failures.push(`owner API access: ${api.detail}`);
-    console.log(`  ${'/api'.padEnd(13)} ${api.ok ? 'PASS' : 'FAIL'}  ${api.detail}`);
+    console.info(`  ${'/api'.padEnd(13)} ${api.ok ? 'PASS' : 'FAIL'}  ${api.detail}`);
   } else {
     for (const routePath of STAFF_GUARDED_ROUTES) {
       await page.goto(`https://localhost${routePath}`, { waitUntil: 'domcontentloaded' });
-      await waitForText(page, 'Access Restricted', 15_000);
+      await waitForStaffRouteSettlement(page, routePath, 15_000);
       const snapshot = await page.evaluate(() => ({
         url: location.href,
         text: document.body.innerText,
@@ -286,17 +308,17 @@ try {
         text: snapshot.text,
       });
       if (!outcome.ok) failures.push(`${routePath}: ${outcome.detail}`);
-      console.log(`  ${routePath.padEnd(13)} ${outcome.ok ? 'PASS' : 'FAIL'}  ${outcome.detail}`);
+      console.info(`  ${routePath.padEnd(13)} ${outcome.ok ? 'PASS' : 'FAIL'}  ${outcome.detail}`);
     }
 
     const nav = assessStaffNav(await mobileNavLinks(page));
     if (!nav.ok) failures.push(`mobile menu: ${nav.detail}`);
-    console.log(`  ${'/nav'.padEnd(13)} ${nav.ok ? 'PASS' : 'FAIL'}  ${nav.detail}`);
+    console.info(`  ${'/nav'.padEnd(13)} ${nav.ok ? 'PASS' : 'FAIL'}  ${nav.detail}`);
 
     const probe = await probeAdminApis(page);
     const api = assessAdminApiRefusals(probe);
     if (!api.ok) failures.push(`admin APIs: ${api.detail}`);
-    console.log(`  ${'/admin api'.padEnd(13)} ${api.ok ? 'PASS' : 'FAIL'}  ${api.detail}`);
+    console.info(`  ${'/admin api'.padEnd(13)} ${api.ok ? 'PASS' : 'FAIL'}  ${api.detail}`);
 
     // What a staff session sees when it loads /admin by URL: the guard may redirect
     // it, or the hub shell may paint first. Both keep the data out (probed above),
@@ -318,11 +340,11 @@ try {
       text: document.body.innerText,
     }));
     if (settled.path === '/admin' && settled.text.includes('Admin Hub')) {
-      console.log(
+      console.info(
         '  note: /admin paints its hub shell for a staff session before anything stops it; its data is refused, so this is UI exposure, not data access.',
       );
     } else if (settled.path !== '/admin') {
-      console.log(`  note: /admin sent the staff session to ${settled.path} of its own accord.`);
+      console.info(`  note: /admin sent the staff session to ${settled.path} of its own accord.`);
     }
   }
 
@@ -336,7 +358,7 @@ try {
       password: restore.password,
       passwordSource: restore.passwordVar,
     });
-    console.log(`  Restored session: ${restore.email}`);
+    console.info(`  Restored session: ${restore.email}`);
   }
 } catch (err) {
   failures.push(err instanceof Error ? err.message : String(err));
@@ -350,11 +372,11 @@ if (failures.length > 0) {
   console.error('\nFixture setup: docs/runbooks/DEVICE_JOURNEY.md §4.');
   process.exitCode = 1;
 } else if (expectFlag === 'owner') {
-  console.log(
+  console.info(
     `\nOwner screens: ${OWNER_ROUTES.length} routes, mobile menu and ${ADMIN_API_PROBES.length} endpoints passed as ${account.email}`,
   );
 } else {
-  console.log(
+  console.info(
     `\nStaff guard: ${STAFF_GUARDED_ROUTES.length} routes, mobile menu and ${ADMIN_API_PROBES.length} admin endpoints passed as ${account.email}`,
   );
 }

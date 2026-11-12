@@ -81,9 +81,23 @@ export function assessDeviceCheck(params: {
     };
   }
 
-  // Each of these three is emitted by the scripts' own preflight or fixture
-  // planning, so they identify an unusable test environment rather than a defect.
-  if (/PREFLIGHT FAILED/.test(params.output)) {
+  // Earlier stage output before a later preflight/fixture marker means the suite
+  // started running on the handset and later lost preflight or failed mid-run;
+  // never mask that partial failure as "not_run_no_environment".
+  const priorStagePattern =
+    /(?:^|\n).*(?:\bPASS\b|\bFAIL\b|===|Fixture credentials:|Owner screens:|Staff guard:|Signed in:)/m;
+
+  const preflightMatch = /PREFLIGHT FAILED/.exec(params.output);
+  if (preflightMatch) {
+    const beforePreflight = params.output.slice(0, preflightMatch.index);
+    if (priorStagePattern.test(beforePreflight)) {
+      return {
+        satisfied: false,
+        status: DEVICE_CHECK_STATUS.failed,
+        note: 'A later stage of the device check hit preflight failure after an earlier stage had already started; Gate 5 cannot pass until the full device suite is green.',
+      };
+    }
+
     return {
       satisfied: false,
       status: DEVICE_CHECK_STATUS.noEnvironment,
@@ -91,7 +105,17 @@ export function assessDeviceCheck(params: {
     };
   }
 
-  if (/Nothing to verify/.test(params.output)) {
+  const noFixturesMatch = /Nothing to verify/.exec(params.output);
+  if (noFixturesMatch) {
+    const beforeNoFixtures = params.output.slice(0, noFixturesMatch.index);
+    if (priorStagePattern.test(beforeNoFixtures)) {
+      return {
+        satisfied: false,
+        status: DEVICE_CHECK_STATUS.failed,
+        note: 'A later stage of the device check reported no fixtures after an earlier stage had already run; Gate 5 cannot pass until the full device suite is green.',
+      };
+    }
+
     return {
       satisfied: false,
       status: DEVICE_CHECK_STATUS.noFixtures,
@@ -103,5 +127,21 @@ export function assessDeviceCheck(params: {
     satisfied: false,
     status: DEVICE_CHECK_STATUS.failed,
     note: 'The device check ran and failed on the handset; Gate 5 cannot pass until it is green.',
+  };
+}
+
+export interface GateSummaryOutcome {
+  satisfied: boolean;
+  status?: string;
+}
+
+export function summarizeGateReport(gates: Record<string, GateSummaryOutcome>): {
+  allSatisfied: boolean;
+  blockingChecksPassed: boolean;
+} {
+  const outcomes = Object.values(gates);
+  return {
+    allSatisfied: outcomes.every((g) => g.satisfied),
+    blockingChecksPassed: outcomes.every((g) => g.satisfied || isNonBlockingDeviceStatus(g.status)),
   };
 }

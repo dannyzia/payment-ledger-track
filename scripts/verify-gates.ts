@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { assessDeviceCheck, deviceCheckEnv, isNonBlockingDeviceStatus } from './gate-device-check';
+import { assessDeviceCheck, deviceCheckEnv, summarizeGateReport } from './gate-device-check';
 
 /**
  * Plan 020 §6.7 — Implementation Readiness Gate verification (PRD §18).
@@ -230,16 +230,16 @@ async function verifyGates(): Promise<void> {
   console.info('Evaluating Gate 5 (Accessibility & Visual Proof)...');
   gates['Gate 5 (Accessibility Proof)'] = evaluateGate5();
 
-  // The device half only exists at M5; at M2 Gate 5 is deferred wholesale.
-  if (gate5Only || milestoneArg.toUpperCase() === 'M5') {
+  // The device half only exists outside M2; at M2 Gate 5 is deferred wholesale.
+  if (gate5Only || milestoneArg.toUpperCase() !== 'M2') {
     gates['Gate 5 (Physical Device)'] = evaluateDeviceCheck();
   }
 
-  // A device check that could not start is a missing prerequisite, not a failing
-  // app; it is still in the report as `not_run_*` and warned about below.
-  const allSatisfied = Object.values(gates).every(
-    (g) => g.satisfied || isNonBlockingDeviceStatus(g.status),
-  );
+  // Report truth (Rule 16): allSatisfied is true ONLY when every gate in the
+  // report actually passed. A missing handset/fixture keeps allSatisfied=false
+  // while allowing headless CI / non-device runs to exit 0 via
+  // blockingChecksPassed and printing explicit warnings below.
+  const { allSatisfied, blockingChecksPassed } = summarizeGateReport(gates);
 
   const report: GateEvidenceReport = {
     milestone: milestoneArg,
@@ -261,13 +261,13 @@ async function verifyGates(): Promise<void> {
         '',
         `⚠ Gate 5 physical device check did NOT pass (status: ${deviceGate.status}).`,
         `  ${deviceGate.note}`,
-        `  ${path.join(reportDir, reportName)} therefore contains no device result.`,
+        `  ${path.join(reportDir, reportName)} therefore records allSatisfied: false with no passing device result.`,
         '  Gate 5 sign-off needs the pasted pnpm test:e2e:device output (checklist item H36).',
       ].join('\n'),
     );
   }
 
-  if (!allSatisfied) {
+  if (!blockingChecksPassed) {
     console.error(`Gate verification FAILED for ${milestoneArg}.`);
     process.exit(1);
   }

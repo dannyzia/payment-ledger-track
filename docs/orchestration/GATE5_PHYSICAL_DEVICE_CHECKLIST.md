@@ -470,10 +470,11 @@ inheriting the isolated stack's `DATABASE_URL` makes every fixture look wrong (i
 on the first run of this).
 
 A `not_run_*` status does not fail the gate command — that would break every machine
-without a phone — but it is written into the report, warned about on stderr, and the
-final line then reads "…but the Gate 5 physical device check was not run — Gate 5 is not
-signed off" instead of "all gates passed". Inspect the `Gate 5 (Physical Device)` entry
-in `docs/orchestration/reports/GATE*_EVIDENCE.json` before quoting a green M5 run.
+without a phone — but `allSatisfied` in the report stays `false`, the status is
+warned about on stderr, and the final line then reads "…but the Gate 5 physical
+device check was not run — Gate 5 is not signed off" instead of "all gates passed".
+Inspect the `Gate 5 (Physical Device)` entry in
+`docs/orchestration/reports/GATE*_EVIDENCE.json` before quoting a green M5 run.
 
 Even a `passed` device entry covers only the role-access item (H36). Contrast
 measurement, `prefers-contrast`, `prefers-reduced-transparency`, haptics,
@@ -487,7 +488,7 @@ device, so this checklist remains the proof for everything else.
 | GS-1 | `ANDROID_HOME` unset and `adb` absent on the dev machine | P3/P4 cannot start; no install, no logcat, no screenshots | Zia (install Android SDK command-line tools + platform-tools) |
 | GS-2 | CLT-T-050 open (menu activation: `preventDefault` on bubbled Enter/Space in `FloatingMenu.svelte`; `setPointerCapture` in `draggable.ts` retargeting clicks) | H15 and H16 will fail; a hardware tap test cannot pass before the fix | Implementer (brief exists) |
 | GS-3 | Q1–Q4 unconfirmed (Rule 20): none of the `Qn: Status: CONFIRMED` marker lines exist in `DECISIONS.md` (checked 2026-11-06) | `--aab` refuses to build by design (store path only; `--apk` hardware builds are ungated); M5 sign-off needs the four confirmations | Zia (packet ready) |
-| GS-4 | Gate 5 automated check was E2E-only (§9 caveat) | **Revised 2026-11-12:** the M5 report now carries a `Gate 5 (Physical Device)` entry from `pnpm test:e2e:device`. A `not_run_*` entry means no device pass exists, and the run says so instead of claiming all gates passed | Orchestrator |
+| GS-4 | Gate 5 automated check was E2E-only (§9 caveat) | **Revised 2026-11-12:** outside `M2`, the gate report carries a `Gate 5 (Physical Device)` entry from `pnpm test:e2e:device`. A `not_run_*` entry keeps `allSatisfied: false` in `GATE*_EVIDENCE.json`, and the run warns on stderr instead of claiming all gates passed | Orchestrator |
 | GS-5 | PRD §14.5 requires screens < 640 px to "dock cleanly into a bottom sheet bar"; `draggable.ts` only clamps and dodges (`snapToEdge`, `calculateAvoidance`) — no bottom-sheet bar exists in `apps/web/src` (grep for "bottom sheet" returns nothing) | H11 passes only if dodge-away is accepted as the intended behaviour on narrow screens; otherwise this is a spec gap needing a Decision Request | Zia decision / implementer |
 | GS-6 | Performance targets (save < 100 ms, report < 1 s) unverified on low-end hardware (AGENTS.md §8) | H31/H32 measure rather than assert; results feed the §8 verdict | Tester |
 

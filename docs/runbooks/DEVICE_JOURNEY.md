@@ -306,8 +306,8 @@ a missing row after the polling window is.
 - Screenshots: `docs/orchestration/evidence/device-e2e/{1-dashboard-initial,2-entry-form-filled,3-entry-saved-success,4-ledger-view,5-dashboard-updated}.png`
 - Each run writes one immutable entry. Entries are not deletable from the app
   (`CLT-R-029`); owner-authorised cleanup is
-  `pnpm db:purge-entry --entry <uuid> --reason "<why>"` (local databases only
-  unless `--allow-local` is waived with `--allow-remote`).
+  `pnpm db:purge-entry --id <uuid> --reason "<why>"` (or `--entry <entry_number>`;
+  local databases only unless `--allow-remote` is passed).
 - Record what was run — centre, account, result, row id — in
   `docs/orchestration/`. Never paste a password into a record, brief, report, or
   chat (AGENTS.md Rule 8).

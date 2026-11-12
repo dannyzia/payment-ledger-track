@@ -40,7 +40,7 @@ if (!email || !password) {
 }
 
 const preflight = await runDevicePreflight();
-for (const note of preflight.notes) console.log(`  • ${note}`);
+for (const note of preflight.notes) console.info(`  • ${note}`);
 if (preflight.problems.length > 0) {
   console.error('\n❌ DEVICE SIGN-IN PREFLIGHT FAILED — nothing was changed:');
   for (const problem of preflight.problems) {
@@ -58,7 +58,7 @@ try {
   await signInOnDevice(page, { email, password, passwordSource });
 
   const profile = await readCachedProfile(page);
-  console.log(
+  console.info(
     `Signed in: ${profile?.email} (${profile?.role ?? 'unknown role'}, center ${profile?.centerCode ?? profile?.centerId ?? 'none'})`,
   );
 
@@ -69,7 +69,7 @@ try {
       el.textContent?.trim(),
     ),
   );
-  console.log('Center chips:', JSON.stringify(chips));
+  console.info('Center chips:', JSON.stringify(chips));
 } catch (err) {
   console.error(`\n❌ DEVICE SIGN-IN FAILED: ${err instanceof Error ? err.message : String(err)}`);
   process.exitCode = 1;

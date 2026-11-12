@@ -45,7 +45,7 @@ function readOption(name: string): string | undefined {
 const only = readOption('center')?.toUpperCase();
 
 const preflight = await runDevicePreflight();
-for (const note of preflight.notes) console.log(`  • ${note}`);
+for (const note of preflight.notes) console.info(`  • ${note}`);
 if (preflight.problems.length > 0) {
   console.error('\n❌ FIXTURE CHECK PREFLIGHT FAILED — no credentials were tested:');
   for (const problem of preflight.problems) {
@@ -85,7 +85,7 @@ const plan = only
   : declared;
 
 for (const fixture of plan.incomplete) {
-  console.log(
+  console.info(
     `  ${fixture.fixtureName}  SKIP  set ${fixture.missing.join(' and ')} in .env.local to check ${fixture.centerName}`,
   );
 }
@@ -158,7 +158,7 @@ try {
     }
 
     results.push({ code: fixture.fixtureName, email: fixture.email, ok, detail });
-    console.log(
+    console.info(
       `  ${fixture.fixtureName}  ${ok ? 'PASS' : 'FAIL'}  ${fixture.email} → ${ok ? `${label}: ${detail}` : detail}`,
     );
   }
@@ -173,7 +173,7 @@ try {
       password: restore.password,
       passwordSource: restore.passwordVar,
     });
-    console.log(`  Restored session: ${restore.email}`);
+    console.info(`  Restored session: ${restore.email}`);
   }
 } finally {
   await browser.close();
@@ -181,7 +181,7 @@ try {
 
 const passed = results.filter((result) => result.ok).length;
 const failed = results.length - passed;
-console.log(
+console.info(
   `\nFixture credentials: ${passed} passed, ${failed} failed, ${plan.incomplete.length} skipped`,
 );
 

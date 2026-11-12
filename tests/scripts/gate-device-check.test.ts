@@ -4,6 +4,7 @@ import {
   assessDeviceCheck,
   deviceCheckEnv,
   isNonBlockingDeviceStatus,
+  summarizeGateReport,
 } from '../../scripts/gate-device-check';
 
 describe('assessDeviceCheck', () => {
@@ -53,6 +54,74 @@ describe('assessDeviceCheck', () => {
 
   it('does not count a passing status as non-blocking', () => {
     expect(isNonBlockingDeviceStatus(DEVICE_CHECK_STATUS.passed)).toBe(false);
+  });
+
+  it('classifies multi-stage output as failed when an earlier stage already ran before PREFLIGHT FAILED', () => {
+    const outcome = assessDeviceCheck({
+      success: false,
+      output: [
+        '  MHK_OWNER  PASS  owner.mhk@cosmoledger.local → Owner',
+        'Fixture credentials: 2 passed, 0 failed, 0 skipped',
+        '❌ OWNER SCREEN CHECK PREFLIGHT FAILED — no screens were visited:',
+        '  • no device',
+      ].join('\n'),
+    });
+
+    expect(outcome.satisfied).toBe(false);
+    expect(outcome.status).toBe(DEVICE_CHECK_STATUS.failed);
+    expect(isNonBlockingDeviceStatus(outcome.status)).toBe(false);
+  });
+});
+
+describe('summarizeGateReport', () => {
+  it('keeps allSatisfied false while allowing blockingChecksPassed when device check is not_run_*', () => {
+    for (const status of [DEVICE_CHECK_STATUS.noEnvironment, DEVICE_CHECK_STATUS.noFixtures]) {
+      const summary = summarizeGateReport({
+        'Gate 1 (Database Proof)': { satisfied: true },
+        'Gate 5 (Accessibility Proof)': { satisfied: true, status: 'automated_checks_passed' },
+        'Gate 5 (Physical Device)': { satisfied: false, status },
+      });
+      expect(summary).toEqual({
+        allSatisfied: false,
+        blockingChecksPassed: true,
+      });
+    }
+  });
+
+  it('returns both true only when every gate is satisfied', () => {
+    const summary = summarizeGateReport({
+      'Gate 5 (Accessibility Proof)': { satisfied: true, status: 'automated_checks_passed' },
+      'Gate 5 (Physical Device)': { satisfied: true, status: DEVICE_CHECK_STATUS.passed },
+    });
+    expect(summary).toEqual({
+      allSatisfied: true,
+      blockingChecksPassed: true,
+    });
+  });
+
+  it('sets both false when the physical device check or another gate failed', () => {
+    expect(
+      summarizeGateReport({
+        'Gate 5 (Accessibility Proof)': { satisfied: true, status: 'automated_checks_passed' },
+        'Gate 5 (Physical Device)': { satisfied: false, status: DEVICE_CHECK_STATUS.failed },
+      }),
+    ).toEqual({
+      allSatisfied: false,
+      blockingChecksPassed: false,
+    });
+
+    expect(
+      summarizeGateReport({
+        'Gate 5 (Accessibility Proof)': { satisfied: false, status: 'failed' },
+        'Gate 5 (Physical Device)': {
+          satisfied: false,
+          status: DEVICE_CHECK_STATUS.noEnvironment,
+        },
+      }),
+    ).toEqual({
+      allSatisfied: false,
+      blockingChecksPassed: false,
+    });
   });
 });
 

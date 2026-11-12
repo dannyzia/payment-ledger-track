@@ -112,13 +112,13 @@ export async function signInOnDevice(page: Page, credentials: DeviceCredentials)
   if (await signOut.isVisible().catch(() => false)) {
     await signOut.click({ timeout: 10_000 });
     await page.waitForTimeout(2500);
-    console.log('Signed out through the mobile menu.');
+    console.info('Signed out through the mobile menu.');
   } else {
     // No session, or the panel never opened: drop the local session so /login
     // renders the form instead of redirecting to the dashboard. Unlike the menu
     // action this does not revoke the refresh token upstream.
     await page.evaluate(() => localStorage.clear());
-    console.log('Mobile menu unavailable; cleared the local session instead.');
+    console.info('Mobile menu unavailable; cleared the local session instead.');
   }
 
   await page.goto('https://localhost/login', { waitUntil: 'domcontentloaded' });

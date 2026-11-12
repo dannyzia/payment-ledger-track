@@ -78,9 +78,9 @@ function readOption(name: string): string | undefined {
 async function resolveCenter(
   pool: PgPool,
   centerSelector: string,
-): Promise<Omit<JourneyTarget, 'accountEmail'>> {
+): Promise<Omit<JourneyTarget, 'accountEmail' | 'accountSource'>> {
   const { rows } = await pool.query<{ id: string; code: string; name: string }>(
-    'select id, code, name from centers where code = $1 or id::text = $1',
+    'select id, code, name from centers where upper(code) = upper($1) or id::text = $1',
     [centerSelector],
   );
 
@@ -128,7 +128,7 @@ async function ensureTargetSession(
     );
   }
 
-  console.log(
+  console.info(
     `Switching handset: ${profile?.email ?? 'nobody'} → ${target.accountEmail} (center ${target.centerCode})`,
   );
   await signInOnDevice(page, {
@@ -146,7 +146,7 @@ async function ensureTargetSession(
 }
 
 async function main() {
-  console.log('=== STARTING PHYSICAL DEVICE E2E TEST ===');
+  console.info('=== STARTING PHYSICAL DEVICE E2E TEST ===');
   const evidenceDir = path.resolve(process.cwd(), 'docs/orchestration/evidence/device-e2e');
   if (!fs.existsSync(evidenceDir)) {
     fs.mkdirSync(evidenceDir, { recursive: true });
@@ -156,7 +156,7 @@ async function main() {
   // bugs: a locked handset (clicks time out), no attached WebView, and a
   // reversed port that hosts a different application (every call 404s).
   const preflight = await runDevicePreflight();
-  for (const note of preflight.notes) console.log(`  • ${note}`);
+  for (const note of preflight.notes) console.info(`  • ${note}`);
   if (preflight.problems.length > 0) {
     console.error('\n❌ DEVICE JOURNEY PREFLIGHT FAILED — the app was not exercised:');
     for (const problem of preflight.problems) {
@@ -209,12 +209,12 @@ async function main() {
         ? `CLT_DEVICE_${center.centerCode.toUpperCase()}_PASSWORD`
         : undefined;
   const target: JourneyTarget = { ...center, accountEmail, accountSource };
-  console.log(
+  console.info(
     `Journey target: ${target.centerCode} "${target.centerName}" (${target.centerId}), account ${target.accountEmail}`,
   );
 
   // 1. Connect over Chrome DevTools Protocol to physical phone
-  console.log('Connecting to device WebView via CDP on port 9222...');
+  console.info('Connecting to device WebView via CDP on port 9222...');
   const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
   const context = browser.contexts()[0];
   const page = context.pages()[0];
@@ -230,7 +230,7 @@ async function main() {
     });
 
     // Step 1: Verify Session & Multi-Tenant State
-    console.log('\n--- STEP 1: Verify Multi-Tenant Session & Dexie Physical Isolation ---');
+    console.info('\n--- STEP 1: Verify Multi-Tenant Session & Dexie Physical Isolation ---');
     await page.goto('https://localhost/dashboard');
     await page.waitForLoadState('networkidle');
     await capture(page, evidenceDir, '1-dashboard-initial.png');
@@ -248,8 +248,8 @@ async function main() {
       };
     });
 
-    console.log('Current URL:', sessionInfo.url);
-    console.log('IndexedDB Databases on Device:', sessionInfo.dbs);
+    console.info('Current URL:', sessionInfo.url);
+    console.info('IndexedDB Databases on Device:', sessionInfo.dbs);
 
     const signedInAs = sessionInfo.profile?.email?.toLowerCase() ?? null;
     if (signedInAs !== target.accountEmail) {
@@ -269,10 +269,10 @@ async function main() {
         `Expected physical IndexedDB database ${expectedDbName} not found! Found: ${sessionInfo.dbs.join(', ')}`,
       );
     }
-    console.log(`✓ Physical Dexie database is tenant-scoped: ${expectedDbName}`);
+    console.info(`✓ Physical Dexie database is tenant-scoped: ${expectedDbName}`);
 
     // Step 2: Navigate to /entries/new
-    console.log('\n--- STEP 2: Navigate to /entries/new & Inspect Center Header Chips ---');
+    console.info('\n--- STEP 2: Navigate to /entries/new & Inspect Center Header Chips ---');
     await page.goto('https://localhost/entries/new');
     await page.waitForSelector('#input-customer');
 
@@ -282,7 +282,7 @@ async function main() {
       );
       return all.map((el) => el.textContent?.trim());
     });
-    console.log('Header Chips on Form:', chips);
+    console.info('Header Chips on Form:', chips);
     const expectedCenterChip = `${target.centerCode} - ${target.centerName}`;
     if (!chips.some((c) => c?.includes(expectedCenterChip))) {
       throw new Error(`Center chip missing ${expectedCenterChip}! Got: ${chips.join(', ')}`);
@@ -291,10 +291,10 @@ async function main() {
     if (!chips.some((c) => c?.includes(expectedIdChip))) {
       throw new Error(`ID Preview chip missing ${expectedIdChip}! Got: ${chips.join(', ')}`);
     }
-    console.log(`✓ Center badge & ${expectedIdChip} ID format preview verified on phone`);
+    console.info(`✓ Center badge & ${expectedIdChip} ID format preview verified on phone`);
 
     // Step 3: Fill in Entry Details & Check Real-time Calculation Breakdown
-    console.log('\n--- STEP 3: Enter Customer, Gross Amount & Select bKash ---');
+    console.info('\n--- STEP 3: Enter Customer, Gross Amount & Select bKash ---');
     const customerName = `Mobile Test Student ${Date.now().toString().slice(-4)}`;
     await page.fill('#input-customer', customerName);
     await page.fill('#input-qty', '1');
@@ -302,7 +302,7 @@ async function main() {
     await page.fill('#input-gross', '5000');
 
     // Select bKash payment method
-    console.log('Selecting bKash payment method chip...');
+    console.info('Selecting bKash payment method chip...');
     await page.click('button:has-text("bKash")');
 
     // Check if txn ref is requested
@@ -318,18 +318,18 @@ async function main() {
     const breakdownText = await page.evaluate(() => {
       const breakdownEl =
         document.querySelector('[class*="ReceiptBreakdown"], .receipt-breakdown') || document.body;
-      return breakdownEl.innerText;
+      return (breakdownEl as HTMLElement).innerText ?? breakdownEl.textContent ?? '';
     });
-    console.log(
+    console.info(
       'Breakdown preview:\n',
       breakdownText
         .split('\n')
-        .filter((l) => l.includes('৳') || l.includes('Gross') || l.includes('Net'))
+        .filter((l: string) => l.includes('৳') || l.includes('Gross') || l.includes('Net'))
         .join(' | '),
     );
 
     // Step 4: Perform Local-First Save and Measure Latency (<100ms)
-    console.log('\n--- STEP 4: Measure Local Save Latency (<100ms SLA) ---');
+    console.info('\n--- STEP 4: Measure Local Save Latency (<100ms SLA) ---');
     const saveStart = Date.now();
     await page.click('#btn-save');
 
@@ -337,17 +337,17 @@ async function main() {
     await page.waitForSelector('.text-green-700', { timeout: 10000 });
     const saveDuration = Date.now() - saveStart;
     const successMsg = await page.innerText('.text-green-700');
-    console.log(`Success message: "${successMsg}"`);
-    console.log(`Local Save latency: ${saveDuration}ms`);
+    console.info(`Success message: "${successMsg}"`);
+    console.info(`Local Save latency: ${saveDuration}ms`);
     if (saveDuration > 3000) {
       console.warn(`Local save took longer than expected: ${saveDuration}ms`);
     } else {
-      console.log(`✓ Local save completed swiftly (${saveDuration}ms)`);
+      console.info(`✓ Local save completed swiftly (${saveDuration}ms)`);
     }
     await capture(page, evidenceDir, '3-entry-saved-success.png');
 
     // Step 5: Wait for Automatic Background Sync
-    console.log('\n--- STEP 5: Verify Auto-Sync Over Reverse Tunnel ---');
+    console.info('\n--- STEP 5: Verify Auto-Sync Over Reverse Tunnel ---');
     // The push is background work: poll the indicator rather than guessing a
     // fixed delay, which previously reached the database assertion while the app
     // still read "Syncing..." and failed a healthy sync.
@@ -359,12 +359,12 @@ async function main() {
       if (/synced/i.test(syncStatus)) break;
       await page.waitForTimeout(500);
     }
-    console.log('Sync indicator text:', syncStatus || 'unknown');
+    console.info('Sync indicator text:', syncStatus || 'unknown');
 
     // Step 6: Verify Persistence in PostgreSQL Database
-    console.log('\n--- STEP 6: Direct Database Assertion in PostgreSQL ---');
+    console.info('\n--- STEP 6: Direct Database Assertion in PostgreSQL ---');
     let dbRes = await pgPool.query(
-      `SELECT id, center_id, entry_date, customer_name, gross_poisha, vat_poisha, commission_poisha, charge_poisha, net_poisha, status, server_seq
+      `SELECT id, entry_number, center_id, entry_date, customer_name, gross_poisha, vat_poisha, commission_poisha, charge_poisha, net_poisha, status, server_seq
        FROM entries
        WHERE customer_name = $1 AND center_id = $2`,
       [customerName, target.centerId],
@@ -374,7 +374,7 @@ async function main() {
     for (let i = 0; i < 20 && dbRes.rows.length === 0; i += 1) {
       await page.waitForTimeout(1000);
       dbRes = await pgPool.query(
-        `SELECT id, center_id, entry_date, customer_name, gross_poisha, vat_poisha, commission_poisha, charge_poisha, net_poisha, status, server_seq
+        `SELECT id, entry_number, center_id, entry_date, customer_name, gross_poisha, vat_poisha, commission_poisha, charge_poisha, net_poisha, status, server_seq
            FROM entries
            WHERE customer_name = $1 AND center_id = $2`,
         [customerName, target.centerId],
@@ -385,32 +385,60 @@ async function main() {
       throw new Error(`Database record for customer "${customerName}" not found in PostgreSQL!`);
     }
 
-    const row = dbRes.rows[0];
-    console.log('Database row successfully retrieved:');
-    console.log(`  - Entry ID:          ${row.id}`);
-    console.log(`  - Center ID:         ${row.center_id} (${target.centerCode})`);
-    console.log(`  - Customer:          ${row.customer_name}`);
-    console.log(
+    const row = dbRes.rows[0] as {
+      id: string;
+      entry_number: string | number | null;
+      center_id: string;
+      entry_date: string | Date;
+      customer_name: string;
+      gross_poisha: string | number;
+      commission_poisha: string | number;
+      charge_poisha: string | number;
+      net_poisha: string | number;
+      server_seq: string | number | null;
+      status: string;
+    };
+    const rawEntryNumber = row.entry_number != null ? String(row.entry_number) : null;
+    let formattedEntryId: string | null = null;
+    if (rawEntryNumber !== null) {
+      if (rawEntryNumber.startsWith(`E-${target.centerCode}-`)) {
+        formattedEntryId = rawEntryNumber;
+      } else {
+        const entryDateStr =
+          row.entry_date instanceof Date
+            ? row.entry_date.toISOString().slice(0, 10)
+            : String(row.entry_date);
+        const ym = entryDateStr.slice(0, 7).replace('-', '');
+        formattedEntryId = `E-${target.centerCode}-${ym}-${rawEntryNumber.padStart(6, '0')}`;
+      }
+    }
+
+    console.info('Database row successfully retrieved:');
+    console.info(`  - Entry ID:          ${row.id}`);
+    console.info(`  - Entry Number:      ${row.entry_number ?? 'null'}`);
+    console.info(`  - Center ID:         ${row.center_id} (${target.centerCode})`);
+    console.info(`  - Customer:          ${row.customer_name}`);
+    console.info(
       `  - Gross (poisha):    ${row.gross_poisha} (= ৳${Number(row.gross_poisha) / 100})`,
     );
-    console.log(
+    console.info(
       `  - Commission:        ${row.commission_poisha} (= ৳${Number(row.commission_poisha) / 100})`,
     );
-    console.log(
+    console.info(
       `  - Method Charge:     ${row.charge_poisha} (= ৳${Number(row.charge_poisha) / 100})`,
     );
-    console.log(`  - Net:               ${row.net_poisha} (= ৳${Number(row.net_poisha) / 100})`);
-    console.log(`  - Server Sequence:   ${row.server_seq}`);
-    console.log(`  - Status:            ${row.status}`);
+    console.info(`  - Net:               ${row.net_poisha} (= ৳${Number(row.net_poisha) / 100})`);
+    console.info(`  - Server Sequence:   ${row.server_seq}`);
+    console.info(`  - Status:            ${row.status}`);
 
-    if (row.id.startsWith(`E-${target.centerCode}-`)) {
-      console.log(`✓ Confirmed human-readable ID format with center prefix: ${row.id}`);
+    if (formattedEntryId?.startsWith(`E-${target.centerCode}-`)) {
+      console.info(`✓ Confirmed human-readable ID format with center prefix: ${formattedEntryId}`);
     } else {
-      console.log(`Note: Local entry synced with UUID / ID: ${row.id}`);
+      console.info(`Note: Local entry synced with UUID / ID: ${row.id}`);
     }
 
     // Step 7: Verify Ledger View on Phone
-    console.log('\n--- STEP 7: Verify Ledger View on Phone ---');
+    console.info('\n--- STEP 7: Verify Ledger View on Phone ---');
     await page.goto('https://localhost/ledger');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1000);
@@ -420,17 +448,17 @@ async function main() {
     if (!ledgerText.includes(customerName)) {
       throw new Error(`Customer "${customerName}" not visible in Ledger view on phone!`);
     }
-    console.log(`✓ Customer "${customerName}" visible in Ledger on device`);
+    console.info(`✓ Customer "${customerName}" visible in Ledger on device`);
 
     // Step 8: Verify Dashboard Aggregation on Phone
-    console.log('\n--- STEP 8: Verify Dashboard Metric Update on Phone ---');
+    console.info('\n--- STEP 8: Verify Dashboard Metric Update on Phone ---');
     await page.goto('https://localhost/dashboard');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1000);
     await capture(page, evidenceDir, '5-dashboard-updated.png');
 
     const dashboardText = await page.evaluate(() => document.body.innerText);
-    console.log(
+    console.info(
       'Dashboard summary:\n',
       dashboardText
         .split('\n')
@@ -438,9 +466,9 @@ async function main() {
         .slice(0, 6)
         .join(' | '),
     );
-    console.log('✓ Dashboard updated with fresh entry aggregates');
+    console.info('✓ Dashboard updated with fresh entry aggregates');
 
-    console.log('\n=== ALL PHYSICAL DEVICE E2E CHECKS PASSED SUCCESSFULLY ===');
+    console.info('\n=== ALL PHYSICAL DEVICE E2E CHECKS PASSED SUCCESSFULLY ===');
   } finally {
     await pgPool.end();
     await browser.close();
