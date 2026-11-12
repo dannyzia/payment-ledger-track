@@ -41,6 +41,8 @@ interface MethodRow {
 describe('SQL View vs Client Aggregator Parity Tests', () => {
   let pgClient: Client;
   let methodsMap: Record<string, CachedPaymentMethod>;
+  let centerId: string;
+  const TEST_USER_ID = '00000000-0000-0000-0000-000000000999';
 
   beforeAll(async () => {
     pgClient = new Client({ connectionString: CONNECTION_STRING });
@@ -54,6 +56,23 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
     // the shared database.
     await pgClient.query('BEGIN');
 
+    const centerRes = await pgClient.query('SELECT id FROM centers ORDER BY created_at LIMIT 1');
+    if (centerRes.rows.length === 0) {
+      throw new Error('No centers found in database for view_parity test');
+    }
+    centerId = centerRes.rows[0].id;
+
+    // Seed test auth user and profile within this center
+    await pgClient.query(`
+      INSERT INTO auth.users (id, email)
+      VALUES ('${TEST_USER_ID}', 'parity_test@example.com')
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO profiles (id, center_id, full_name, role, active)
+      VALUES ('${TEST_USER_ID}', '${centerId}', 'Parity Test User', 'staff', true)
+      ON CONFLICT (id) DO UPDATE SET center_id = '${centerId}', role = 'staff', active = true;
+    `);
+
     // Seed test transactions across 3 distinct months.
     await pgClient.query(`
       ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
@@ -61,7 +80,7 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
       ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
       INSERT INTO entries (
         id, entry_date, customer_name, sub_qty, sub_description, method_id,
-        gross_poisha, rate_profile_id, snapshot, vat_input_poisha,
+        center_id, gross_poisha, rate_profile_id, snapshot, vat_input_poisha,
         vat_poisha, commission_poisha, charge_poisha, business_charge_poisha,
         customer_charge_poisha, net_poisha, notes, status, created_by
       )
@@ -72,6 +91,7 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
         d.sub_qty,
         'Broadband install',
         m.method_id,
+        '${centerId}'::uuid,
         d.gross,
         p.id,
         '{"vat":{"mode":"manual","bp":0}}'::jsonb,
@@ -84,7 +104,7 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
         d.net,
         'VIEW_PARITY_SEED_' || d.month,
         'active',
-        (SELECT id FROM profiles ORDER BY created_at LIMIT 1)
+        '${TEST_USER_ID}'::uuid
       FROM (VALUES
         ('2026-09', 1, 590900::bigint, 50900, 226800, 6795, 6795, 0, 306405),
         ('2026-09', 2, 590900::bigint, 50900, 226800, 6795, 0, 6795, 313200),
@@ -95,14 +115,23 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
       ) AS d(month, sub_qty, gross, vat, comm, charge, biz_charge, cust_charge, net)
       CROSS JOIN LATERAL (
         SELECT id FROM payment_methods
-        WHERE code = CASE WHEN d.gross % 2 = 0 THEN 'bkash' ELSE 'cash' END
+        WHERE center_id = '${centerId}'::uuid
+          AND code = CASE WHEN d.gross % 2 = 0 THEN 'bkash' ELSE 'cash' END
         LIMIT 1
       ) AS m(method_id)
-      CROSS JOIN LATERAL (SELECT id FROM rate_profiles ORDER BY effective_from LIMIT 1) p;
+      CROSS JOIN LATERAL (
+        SELECT id FROM rate_profiles
+        WHERE center_id = '${centerId}'::uuid
+        ORDER BY effective_from LIMIT 1
+      ) p;
     `);
 
     methodsMap = {};
-    for (const row of (await pgClient.query('SELECT id, code, active FROM payment_methods')).rows) {
+    for (const row of (
+      await pgClient.query(
+        `SELECT id, code, active FROM payment_methods WHERE center_id = '${centerId}'`,
+      )
+    ).rows) {
       methodsMap[row.id] = {
         id: row.id,
         code: row.code,
@@ -128,8 +157,9 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
          FROM entries
         WHERE date_trunc('month', entry_date) = $1::date
           AND status = 'active'
+          AND center_id = $2::uuid
         ORDER BY entry_date, created_at`,
-      [`${month}-01`],
+      [`${month}-01`, centerId],
     );
 
     return res.rows.map(
@@ -165,8 +195,9 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
         `SELECT month::text AS month, entries, total_sub_qty, gross, vat,
                 commission, total_charge, business_charge, customer_charge, net
            FROM v_monthly_totals
-          WHERE month = $1::date`,
-        [`${month}-01`],
+          WHERE month = $1::date
+            AND center_id = $2::uuid`,
+        [`${month}-01`, centerId],
       );
 
       const clientEntries = await fetchMonthlyRows(month);
@@ -196,8 +227,9 @@ describe('SQL View vs Client Aggregator Parity Tests', () => {
                 total_charge, entries
            FROM v_monthly_method_charges
           WHERE month = $1::date
+            AND center_id = $2::uuid
           ORDER BY code`,
-        [`${month}-01`],
+        [`${month}-01`, centerId],
       );
 
       const clientEntries = await fetchMonthlyRows(month);

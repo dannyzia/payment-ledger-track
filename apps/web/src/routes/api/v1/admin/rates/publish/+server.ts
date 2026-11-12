@@ -13,6 +13,11 @@ export const POST: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const body = await event.request.json();
   const parsed = publishSchema.safeParse(body);
   if (!parsed.success) {
@@ -23,6 +28,7 @@ export const POST: RequestHandler = async (event) => {
 
   const supabase = getServiceSupabase();
   const { error } = await supabase.rpc('publish_rate_profile', {
+    p_center_id: centerId,
     p_profile_id: parsed.data.profileId,
     p_actor_id: caller.userId,
   });

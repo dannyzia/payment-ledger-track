@@ -16,6 +16,11 @@ export const POST: RequestHandler = async (event) => {
     throw error(403, 'unauthorized: Admin or Owner role required');
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return json({ error: 'missing_center_id' }, { status: 400 });
+  }
+
   const body = await event.request.json().catch(() => null);
   const parsed = acceptSchema.safeParse(body);
   if (!parsed.success) {
@@ -25,6 +30,7 @@ export const POST: RequestHandler = async (event) => {
   const supabase = getServiceSupabase();
 
   const { error: rpcErr } = await supabase.rpc('accept_statement_line', {
+    p_center_id: centerId,
     p_line_id: parsed.data.lineId,
     p_review_note: parsed.data.reviewNote,
     p_actor_id: caller.userId,

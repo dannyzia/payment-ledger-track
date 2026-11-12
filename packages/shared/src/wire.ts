@@ -95,10 +95,31 @@ export const seq64Schema = z
   .transform((val) => BigInt(val));
 
 /**
+ * Zod schema for a Center data transfer object (design §2.1).
+ */
+export const centerDtoSchema = z.object({
+  id: z.string().uuid(),
+  centerNumber: z.number().int().positive(),
+  code: z.string().regex(/^[A-Z0-9]{2,8}$/, {
+    message: 'Center code must be 2-8 uppercase alphanumeric characters',
+  }),
+  name: z.string().min(1),
+  legalEntityName: z.string().min(1),
+  binNumber: z.string().nullable().optional(),
+  tradeLicenseNumber: z.string().nullable().optional(),
+  vatCircle: z.string().nullable().optional(),
+  address: z.string().min(1),
+  phone: z.string().min(1),
+  status: z.enum(['active', 'suspended', 'archived']),
+  createdAt: z.string().datetime({ offset: true }),
+});
+
+/**
  * Zod schema for outbox operations (PRD §9.1).
  */
 export const outboxOpSchema = z.object({
   opId: z.string().uuid(),
+  centerId: z.string().uuid(),
   type: z.enum([
     'create_entry',
     'request_void',
@@ -117,6 +138,7 @@ export const outboxOpSchema = z.object({
  */
 export const entryDtoSchema = z.object({
   id: z.string().uuid(),
+  centerId: z.string().uuid(),
   entryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   customerName: z.string().min(1),
   subQty: z.number().int().min(1),
@@ -155,6 +177,7 @@ export const entryDtoSchema = z.object({
  */
 export const rateProfileSchema = z.object({
   id: z.string().uuid(),
+  centerId: z.string().uuid(),
   version: z.number().int().min(1),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   status: z.enum(['draft', 'published', 'superseded']),
@@ -170,6 +193,60 @@ export const rateProfileSchema = z.object({
     }),
   ),
 });
+
+/**
+ * Human-readable entry ID: E-{CENTER_CODE}-YYYYMM-XXXXXX (design §7).
+ */
+export const ENTRY_ID_REGEX = /^E-[A-Z0-9]{2,8}-\d{6}-\d{6}$/;
+
+export const entryIdSchema = z.string().regex(ENTRY_ID_REGEX, {
+  message: 'Entry ID must match format E-{CENTER_CODE}-YYYYMM-XXXXXX',
+});
+
+/**
+ * Formats a center-prefixed entry ID. Accepts a `YYYY-MM-DD` string (the month is
+ * read from the string itself, never from the local timezone) or a Date (read in UTC).
+ */
+export function formatEntryId(
+  centerCode: string,
+  entryDate: string | Date,
+  seq: bigint | number,
+): string {
+  const code = centerCode.toUpperCase();
+  if (!/^[A-Z0-9]{2,8}$/.test(code)) {
+    throw new TypeError(`Invalid center code: "${centerCode}"`);
+  }
+  let ym: string;
+  if (typeof entryDate === 'string') {
+    const match = entryDate.match(/^(\d{4})-(\d{2})/);
+    if (!match) throw new TypeError(`Invalid entry date format: "${entryDate}"`);
+    ym = `${match[1]!}${match[2]!}`;
+  } else {
+    const y = entryDate.getUTCFullYear();
+    const m = String(entryDate.getUTCMonth() + 1).padStart(2, '0');
+    ym = `${y}${m}`;
+  }
+  const s = BigInt(seq);
+  if (s <= 0n) {
+    throw new RangeError(`Entry sequence must be positive: ${seq}`);
+  }
+  return `E-${code}-${ym}-${s.toString().padStart(6, '0')}`;
+}
+
+/**
+ * Parses a center-prefixed entry ID, returning null for any other format.
+ */
+export function parseEntryId(
+  id: string,
+): { centerCode: string; yearMonth: string; seq: bigint } | null {
+  const match = id.match(/^E-([A-Z0-9]{2,8})-(\d{6})-(\d{6})$/);
+  if (!match) return null;
+  return {
+    centerCode: match[1]!,
+    yearMonth: match[2]!,
+    seq: BigInt(match[3]!),
+  };
+}
 
 /**
  * RFC 8785 JSON Canonicalization Scheme (JCS) deterministic stringifier.

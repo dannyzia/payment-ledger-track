@@ -67,6 +67,11 @@ export const PATCH: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const body = await event.request.json();
   const parsed = userManageSchema.safeParse(body);
   if (!parsed.success) {
@@ -90,6 +95,7 @@ export const PATCH: RequestHandler = async (event) => {
   }
 
   const { error } = await supabase.rpc('admin_manage_user', {
+    p_center_id: centerId,
     p_action: parsed.data.action,
     p_user_id: parsed.data.userId,
     p_role: targetRole,

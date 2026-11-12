@@ -2,6 +2,7 @@
  * apps/web/src/lib/reconcile/tolerance.ts
  * Pure reconciliation math, validation helpers, and month-close checklist gating logic.
  */
+import type { UserRole } from '@clt/shared';
 
 /**
  * Tolerance verification helper conforming to PRD §11.2 (Mode A manual reconciliation).
@@ -69,7 +70,7 @@ export function resolveTargetPayableIds(selectedOption: string, payables: Payabl
 }
 
 export interface MonthCloseGatesInput {
-  callerRole: 'staff' | 'admin' | 'owner';
+  callerRole: UserRole;
   allPayablesReconciled: boolean;
   overpaymentsApproved: boolean;
   zeroPendingStaleReviews: boolean;

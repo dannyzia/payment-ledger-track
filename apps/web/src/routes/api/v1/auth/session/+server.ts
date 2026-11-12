@@ -12,7 +12,24 @@ export const GET: RequestHandler = async (event) => {
     .eq('id', caller.userId)
     .single();
 
-  const defaultRoute = caller.role === 'staff' ? '/entries/new' : '/dashboard';
+  let centerCode: string | null = null;
+  let centerName: string | null = null;
+  if (caller.centerId) {
+    const { data: center } = await supabase
+      .from('centers')
+      .select('code, name')
+      .eq('id', caller.centerId)
+      .single();
+    centerCode = center?.code ?? null;
+    centerName = center?.name ?? null;
+  }
+
+  const defaultRoute =
+    caller.role === 'super_admin'
+      ? '/admin/super/centers'
+      : caller.role === 'staff'
+        ? '/entries/new'
+        : '/dashboard';
 
   return new Response(
     JSON.stringify({
@@ -20,6 +37,9 @@ export const GET: RequestHandler = async (event) => {
       role: caller.role,
       active: caller.active,
       fullName: profile?.full_name,
+      centerId: caller.centerId,
+      centerCode,
+      centerName,
       defaultRoute,
     }),
     {

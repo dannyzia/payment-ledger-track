@@ -47,6 +47,23 @@ create or replace function auth.uid() returns uuid language sql stable as $fn$ s
 create or replace function auth.jwt() returns jsonb language sql stable as $fn$ select '{}'::jsonb $fn$;
 `;
 
+/**
+ * The multi-center baseline needs at least one center before any tenant row can
+ * exist. Migrations run first, so this seed is applied after them and before the
+ * provisioning stamp is written.
+ */
+export const DEFAULT_CENTER_ID = '00000000-0000-0000-0000-000000000001';
+
+const DEFAULT_CENTER_SQL = `
+insert into centers (id, code, name, legal_entity_name, address, phone)
+values ('${DEFAULT_CENTER_ID}', 'MHK', 'Mohakhali Center', 'Mohakhali Learning Center Ltd', 'Mohakhali, Dhaka', '01700000000')
+on conflict (id) do nothing;
+
+insert into center_counters (center_id, next_entry_number)
+values ('${DEFAULT_CENTER_ID}', 1)
+on conflict (center_id) do nothing;
+`;
+
 function devUrl(): URL {
   return new URL(process.env.DATABASE_URL ?? DEV_DEFAULT_URL);
 }
@@ -97,7 +114,7 @@ function migrationFiles(): { name: string; sql: string }[] {
  * otherwise provisioning fails loudly rather than silently drifting.
  */
 function withoutCronSchedule(sql: string, name: string): string {
-  const marker = '-- 26. Scheduled Cron Job';
+  const marker = '-- 27. Scheduled Cron Job';
   const start = sql.indexOf(marker);
   if (start === -1) {
     if (sql.includes('cron.schedule(')) {
@@ -137,6 +154,7 @@ async function provision(explicitlyProvided: boolean): Promise<void> {
       const files = migrationFiles();
       const hash = createHash('sha256')
         .update(PRELUDE_SQL)
+        .update(DEFAULT_CENTER_SQL)
         .update(files.map((f) => `${f.name}\n${f.sql}`).join('\n'))
         .digest('hex');
 
@@ -192,6 +210,7 @@ async function provision(explicitlyProvided: boolean): Promise<void> {
             );
           }
         }
+        await db.query(DEFAULT_CENTER_SQL);
         await db.query(
           'create table public.clt_test_schema (id int primary key, migrations_sha256 text not null, provisioned_at timestamptz not null default now())',
         );

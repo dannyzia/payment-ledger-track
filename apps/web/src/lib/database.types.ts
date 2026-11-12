@@ -30,9 +30,9 @@ export type Database = {
     Tables: {
       app_settings: {
         Row: {
+          center_id: string;
           created_at: string;
           currency: string;
-          id: boolean;
           locale: string;
           net_label: string;
           reconcile_tolerance_poisha: number;
@@ -40,9 +40,9 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          center_id: string;
           created_at?: string;
           currency?: string;
-          id?: boolean;
           locale?: string;
           net_label?: string;
           reconcile_tolerance_poisha?: number;
@@ -50,16 +50,24 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          center_id?: string;
           created_at?: string;
           currency?: string;
-          id?: boolean;
           locale?: string;
           net_label?: string;
           reconcile_tolerance_poisha?: number;
           timezone?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'app_settings_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: true;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       audit_log: {
         Row: {
@@ -68,6 +76,7 @@ export type Database = {
           after: Json | null;
           at: string;
           before: Json | null;
+          center_id: string | null;
           id: number;
           target_id: string | null;
           target_table: string | null;
@@ -78,6 +87,7 @@ export type Database = {
           after?: Json | null;
           at?: string;
           before?: Json | null;
+          center_id?: string | null;
           id?: never;
           target_id?: string | null;
           target_table?: string | null;
@@ -88,6 +98,7 @@ export type Database = {
           after?: Json | null;
           at?: string;
           before?: Json | null;
+          center_id?: string | null;
           id?: never;
           target_id?: string | null;
           target_table?: string | null;
@@ -100,10 +111,86 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'audit_log_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
         ];
+      };
+      center_counters: {
+        Row: {
+          center_id: string;
+          next_entry_number: number;
+        };
+        Insert: {
+          center_id: string;
+          next_entry_number?: number;
+        };
+        Update: {
+          center_id?: string;
+          next_entry_number?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'center_counters_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: true;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      centers: {
+        Row: {
+          address: string;
+          bin_number: string | null;
+          center_number: number;
+          code: string;
+          created_at: string;
+          id: string;
+          legal_entity_name: string;
+          name: string;
+          phone: string;
+          status: string;
+          trade_license_number: string | null;
+          vat_circle: string | null;
+        };
+        Insert: {
+          address: string;
+          bin_number?: string | null;
+          center_number?: never;
+          code: string;
+          created_at?: string;
+          id?: string;
+          legal_entity_name: string;
+          name: string;
+          phone: string;
+          status?: string;
+          trade_license_number?: string | null;
+          vat_circle?: string | null;
+        };
+        Update: {
+          address?: string;
+          bin_number?: string | null;
+          center_number?: never;
+          code?: string;
+          created_at?: string;
+          id?: string;
+          legal_entity_name?: string;
+          name?: string;
+          phone?: string;
+          status?: string;
+          trade_license_number?: string | null;
+          vat_circle?: string | null;
+        };
+        Relationships: [];
       };
       devices: {
         Row: {
+          center_id: string;
           created_at: string;
           device_id: string;
           device_name: string | null;
@@ -115,6 +202,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          center_id: string;
           created_at?: string;
           device_id: string;
           device_name?: string | null;
@@ -126,6 +214,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          center_id?: string;
           created_at?: string;
           device_id?: string;
           device_name?: string | null;
@@ -138,17 +227,25 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'devices_user_id_fkey';
-            columns: ['user_id'];
+            foreignKeyName: 'devices_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_devices_center_user';
+            columns: ['center_id', 'user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
-            referencedColumns: ['id'];
+            referencedColumns: ['center_id', 'id'];
           },
         ];
       };
       entries: {
         Row: {
           business_charge_poisha: number;
+          center_id: string;
           charge_poisha: number;
           client_created_at: string | null;
           commission_override_poisha: number | null;
@@ -196,6 +293,7 @@ export type Database = {
         };
         Insert: {
           business_charge_poisha: number;
+          center_id: string;
           charge_poisha: number;
           client_created_at?: string | null;
           commission_override_poisha?: number | null;
@@ -243,6 +341,7 @@ export type Database = {
         };
         Update: {
           business_charge_poisha?: number;
+          center_id?: string;
           charge_poisha?: number;
           client_created_at?: string | null;
           commission_override_poisha?: number | null;
@@ -290,24 +389,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'entries_created_by_fkey';
-            columns: ['created_by'];
+            foreignKeyName: 'entries_center_id_fkey';
+            columns: ['center_id'];
             isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'entries_method_id_fkey';
-            columns: ['method_id'];
-            isOneToOne: false;
-            referencedRelation: 'payment_methods';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'entries_rate_profile_id_fkey';
-            columns: ['rate_profile_id'];
-            isOneToOne: false;
-            referencedRelation: 'rate_profiles';
+            referencedRelation: 'centers';
             referencedColumns: ['id'];
           },
           {
@@ -315,13 +400,6 @@ export type Database = {
             columns: ['stale_reviewed_by'];
             isOneToOne: false;
             referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'entries_supersedes_id_fkey';
-            columns: ['supersedes_id'];
-            isOneToOne: false;
-            referencedRelation: 'entries';
             referencedColumns: ['id'];
           },
           {
@@ -338,10 +416,39 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'fk_entries_creator';
+            columns: ['center_id', 'created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'fk_entries_method';
+            columns: ['center_id', 'method_id'];
+            isOneToOne: false;
+            referencedRelation: 'payment_methods';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'fk_entries_rate_profile';
+            columns: ['center_id', 'rate_profile_id'];
+            isOneToOne: false;
+            referencedRelation: 'rate_profiles';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'fk_entries_supersedes';
+            columns: ['center_id', 'supersedes_id'];
+            isOneToOne: false;
+            referencedRelation: 'entries';
+            referencedColumns: ['center_id', 'id'];
+          },
         ];
       };
       entry_reconciliation_exceptions: {
         Row: {
+          center_id: string;
           created_at: string;
           entry_id: string;
           id: string;
@@ -354,6 +461,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          center_id: string;
           created_at?: string;
           entry_id: string;
           id?: string;
@@ -366,6 +474,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          center_id?: string;
           created_at?: string;
           entry_id?: string;
           id?: string;
@@ -379,17 +488,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'entry_reconciliation_exceptions_entry_id_fkey';
-            columns: ['entry_id'];
+            foreignKeyName: 'entry_reconciliation_exceptions_center_id_fkey';
+            columns: ['center_id'];
             isOneToOne: false;
-            referencedRelation: 'entries';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'entry_reconciliation_exceptions_payable_id_fkey';
-            columns: ['payable_id'];
-            isOneToOne: false;
-            referencedRelation: 'payables';
+            referencedRelation: 'centers';
             referencedColumns: ['id'];
           },
           {
@@ -399,37 +501,61 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'fk_exceptions_entry';
+            columns: ['center_id', 'entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'entries';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'fk_exceptions_payable';
+            columns: ['center_id', 'payable_id'];
+            isOneToOne: false;
+            referencedRelation: 'payables';
+            referencedColumns: ['center_id', 'id'];
+          },
         ];
       };
       method_rates: {
         Row: {
+          center_id: string;
           charge_bp: number;
           method_id: string;
           rate_profile_id: string;
         };
         Insert: {
+          center_id: string;
           charge_bp: number;
           method_id: string;
           rate_profile_id: string;
         };
         Update: {
+          center_id?: string;
           charge_bp?: number;
           method_id?: string;
           rate_profile_id?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'method_rates_method_id_fkey';
-            columns: ['method_id'];
+            foreignKeyName: 'fk_method_rates_method';
+            columns: ['center_id', 'method_id'];
             isOneToOne: false;
             referencedRelation: 'payment_methods';
-            referencedColumns: ['id'];
+            referencedColumns: ['center_id', 'id'];
           },
           {
-            foreignKeyName: 'method_rates_rate_profile_id_fkey';
-            columns: ['rate_profile_id'];
+            foreignKeyName: 'fk_method_rates_profile';
+            columns: ['center_id', 'rate_profile_id'];
             isOneToOne: false;
             referencedRelation: 'rate_profiles';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'method_rates_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
             referencedColumns: ['id'];
           },
         ];
@@ -438,6 +564,7 @@ export type Database = {
         Row: {
           action: string;
           actor: string;
+          center_id: string;
           created_at: string;
           id: string;
           month: string;
@@ -446,6 +573,7 @@ export type Database = {
         Insert: {
           action: string;
           actor: string;
+          center_id: string;
           created_at?: string;
           id?: string;
           month: string;
@@ -454,6 +582,7 @@ export type Database = {
         Update: {
           action?: string;
           actor?: string;
+          center_id?: string;
           created_at?: string;
           id?: string;
           month?: string;
@@ -461,16 +590,31 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'fk_month_close_events_close';
+            columns: ['center_id', 'month'];
+            isOneToOne: false;
+            referencedRelation: 'month_closes';
+            referencedColumns: ['center_id', 'month'];
+          },
+          {
             foreignKeyName: 'month_close_events_actor_fkey';
             columns: ['actor'];
             isOneToOne: false;
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'month_close_events_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
         ];
       };
       month_closes: {
         Row: {
+          center_id: string;
           closed_at: string | null;
           closed_by: string | null;
           created_at: string;
@@ -482,6 +626,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          center_id: string;
           closed_at?: string | null;
           closed_by?: string | null;
           created_at?: string;
@@ -493,6 +638,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          center_id?: string;
           closed_at?: string | null;
           closed_by?: string | null;
           created_at?: string;
@@ -504,6 +650,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'month_closes_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'month_closes_closed_by_fkey';
             columns: ['closed_by'];
@@ -523,6 +676,7 @@ export type Database = {
       payables: {
         Row: {
           active: boolean;
+          center_id: string;
           code: string;
           created_at: string;
           due_day: number;
@@ -535,6 +689,7 @@ export type Database = {
         };
         Insert: {
           active?: boolean;
+          center_id: string;
           code: string;
           created_at?: string;
           due_day: number;
@@ -547,6 +702,7 @@ export type Database = {
         };
         Update: {
           active?: boolean;
+          center_id?: string;
           code?: string;
           created_at?: string;
           due_day?: number;
@@ -559,10 +715,17 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'payables_method_id_fkey';
-            columns: ['method_id'];
+            foreignKeyName: 'fk_payables_method';
+            columns: ['center_id', 'method_id'];
             isOneToOne: false;
             referencedRelation: 'payment_methods';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'payables_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
             referencedColumns: ['id'];
           },
         ];
@@ -570,6 +733,7 @@ export type Database = {
       payment_methods: {
         Row: {
           active: boolean;
+          center_id: string;
           code: string;
           created_at: string;
           id: string;
@@ -580,6 +744,7 @@ export type Database = {
         };
         Insert: {
           active?: boolean;
+          center_id: string;
           code: string;
           created_at?: string;
           id?: string;
@@ -590,6 +755,7 @@ export type Database = {
         };
         Update: {
           active?: boolean;
+          center_id?: string;
           code?: string;
           created_at?: string;
           id?: string;
@@ -598,11 +764,20 @@ export type Database = {
           sort_order?: number;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'payment_methods_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       profiles: {
         Row: {
           active: boolean;
+          center_id: string | null;
           created_at: string;
           full_name: string;
           id: string;
@@ -611,6 +786,7 @@ export type Database = {
         };
         Insert: {
           active?: boolean;
+          center_id?: string | null;
           created_at?: string;
           full_name: string;
           id: string;
@@ -619,16 +795,26 @@ export type Database = {
         };
         Update: {
           active?: boolean;
+          center_id?: string | null;
           created_at?: string;
           full_name?: string;
           id?: string;
           role?: Database['public']['Enums']['user_role'];
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'profiles_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       rate_profiles: {
         Row: {
+          center_id: string;
           charges_borne_by: string;
           commission_base: string;
           commission_bp: number;
@@ -644,6 +830,7 @@ export type Database = {
           version: number | null;
         };
         Insert: {
+          center_id: string;
           charges_borne_by?: string;
           commission_base?: string;
           commission_bp?: number;
@@ -659,6 +846,7 @@ export type Database = {
           version?: number | null;
         };
         Update: {
+          center_id?: string;
           charges_borne_by?: string;
           commission_base?: string;
           commission_bp?: number;
@@ -675,6 +863,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'rate_profiles_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'rate_profiles_created_by_fkey';
             columns: ['created_by'];
             isOneToOne: false;
@@ -686,6 +881,7 @@ export type Database = {
       settlement_payments: {
         Row: {
           amount_poisha: number;
+          center_id: string;
           created_at: string;
           id: string;
           is_reversal: boolean;
@@ -700,6 +896,7 @@ export type Database = {
         };
         Insert: {
           amount_poisha: number;
+          center_id: string;
           created_at?: string;
           id?: string;
           is_reversal?: boolean;
@@ -714,6 +911,7 @@ export type Database = {
         };
         Update: {
           amount_poisha?: number;
+          center_id?: string;
           created_at?: string;
           id?: string;
           is_reversal?: boolean;
@@ -728,6 +926,20 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'fk_settlement_payments_settlement';
+            columns: ['center_id', 'settlement_id'];
+            isOneToOne: false;
+            referencedRelation: 'settlements';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'settlement_payments_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'settlement_payments_recorded_by_fkey';
             columns: ['recorded_by'];
             isOneToOne: false;
@@ -741,17 +953,11 @@ export type Database = {
             referencedRelation: 'settlement_payments';
             referencedColumns: ['id'];
           },
-          {
-            foreignKeyName: 'settlement_payments_settlement_id_fkey';
-            columns: ['settlement_id'];
-            isOneToOne: false;
-            referencedRelation: 'settlements';
-            referencedColumns: ['id'];
-          },
         ];
       };
       settlements: {
         Row: {
+          center_id: string;
           created_at: string;
           expected_poisha: number;
           id: string;
@@ -769,6 +975,7 @@ export type Database = {
           variance_poisha: number | null;
         };
         Insert: {
+          center_id: string;
           created_at?: string;
           expected_poisha: number;
           id?: string;
@@ -786,6 +993,7 @@ export type Database = {
           variance_poisha?: number | null;
         };
         Update: {
+          center_id?: string;
           created_at?: string;
           expected_poisha?: number;
           id?: string;
@@ -804,23 +1012,31 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'fk_settlements_payable';
+            columns: ['center_id', 'payable_id'];
+            isOneToOne: false;
+            referencedRelation: 'payables';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'settlements_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'settlements_overpayment_approved_by_fkey';
             columns: ['overpayment_approved_by'];
             isOneToOne: false;
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
-          {
-            foreignKeyName: 'settlements_payable_id_fkey';
-            columns: ['payable_id'];
-            isOneToOne: false;
-            referencedRelation: 'payables';
-            referencedColumns: ['id'];
-          },
         ];
       };
       statement_lines: {
         Row: {
+          center_id: string;
           created_at: string;
           fee_poisha: number | null;
           gross_poisha: number | null;
@@ -838,6 +1054,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          center_id: string;
           created_at?: string;
           fee_poisha?: number | null;
           gross_poisha?: number | null;
@@ -855,6 +1072,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          center_id?: string;
           created_at?: string;
           fee_poisha?: number | null;
           gross_poisha?: number | null;
@@ -873,10 +1091,24 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'statement_lines_matched_entry_id_fkey';
-            columns: ['matched_entry_id'];
+            foreignKeyName: 'fk_statement_lines_entry';
+            columns: ['center_id', 'matched_entry_id'];
             isOneToOne: false;
             referencedRelation: 'entries';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'fk_statement_lines_statement';
+            columns: ['center_id', 'statement_id'];
+            isOneToOne: false;
+            referencedRelation: 'statements';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'statement_lines_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
             referencedColumns: ['id'];
           },
           {
@@ -886,29 +1118,25 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
-          {
-            foreignKeyName: 'statement_lines_statement_id_fkey';
-            columns: ['statement_id'];
-            isOneToOne: false;
-            referencedRelation: 'statements';
-            referencedColumns: ['id'];
-          },
         ];
       };
       statement_payables: {
         Row: {
+          center_id: string;
           month: string;
           payable_id: string;
           statement_id: string;
           status: string;
         };
         Insert: {
+          center_id: string;
           month: string;
           payable_id: string;
           statement_id: string;
           status?: string;
         };
         Update: {
+          center_id?: string;
           month?: string;
           payable_id?: string;
           statement_id?: string;
@@ -916,23 +1144,31 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'statement_payables_payable_id_fkey';
-            columns: ['payable_id'];
+            foreignKeyName: 'fk_statement_payables_payable';
+            columns: ['center_id', 'payable_id'];
             isOneToOne: false;
             referencedRelation: 'payables';
-            referencedColumns: ['id'];
+            referencedColumns: ['center_id', 'id'];
           },
           {
-            foreignKeyName: 'statement_payables_statement_id_month_fkey';
-            columns: ['statement_id', 'month'];
+            foreignKeyName: 'fk_statement_payables_statement';
+            columns: ['center_id', 'statement_id', 'month'];
             isOneToOne: false;
             referencedRelation: 'statements';
-            referencedColumns: ['id', 'month'];
+            referencedColumns: ['center_id', 'id', 'month'];
+          },
+          {
+            foreignKeyName: 'statement_payables_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
           },
         ];
       };
       statements: {
         Row: {
+          center_id: string;
           created_at: string;
           created_by: string | null;
           expected_poisha: number;
@@ -952,6 +1188,7 @@ export type Database = {
           variance_poisha: number | null;
         };
         Insert: {
+          center_id: string;
           created_at?: string;
           created_by?: string | null;
           expected_poisha: number;
@@ -971,6 +1208,7 @@ export type Database = {
           variance_poisha?: number | null;
         };
         Update: {
+          center_id?: string;
           created_at?: string;
           created_by?: string | null;
           expected_poisha?: number;
@@ -991,6 +1229,20 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'fk_statements_superseded_by';
+            columns: ['center_id', 'superseded_by'];
+            isOneToOne: false;
+            referencedRelation: 'statements';
+            referencedColumns: ['center_id', 'id'];
+          },
+          {
+            foreignKeyName: 'statements_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'statements_created_by_fkey';
             columns: ['created_by'];
             isOneToOne: false;
@@ -1004,18 +1256,12 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
-          {
-            foreignKeyName: 'statements_superseded_by_fkey';
-            columns: ['superseded_by'];
-            isOneToOne: false;
-            referencedRelation: 'statements';
-            referencedColumns: ['id'];
-          },
         ];
       };
       sync_ops: {
         Row: {
           actor_id: string;
+          center_id: string;
           client_created_at: string;
           created_at: string;
           device_id: string;
@@ -1031,6 +1277,7 @@ export type Database = {
         };
         Insert: {
           actor_id: string;
+          center_id: string;
           client_created_at: string;
           created_at?: string;
           device_id: string;
@@ -1046,6 +1293,7 @@ export type Database = {
         };
         Update: {
           actor_id?: string;
+          center_id?: string;
           client_created_at?: string;
           created_at?: string;
           device_id?: string;
@@ -1068,6 +1316,13 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
+            foreignKeyName: 'sync_ops_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'sync_ops_supersedes_rejected_op_id_fkey';
             columns: ['supersedes_rejected_op_id'];
             isOneToOne: false;
@@ -1081,17 +1336,27 @@ export type Database = {
       v_monthly_method_charges: {
         Row: {
           business_charge: number | null;
+          center_id: string | null;
           code: string | null;
           customer_charge: number | null;
           entries: number | null;
           month: string | null;
           total_charge: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'entries_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       v_monthly_totals: {
         Row: {
           business_charge: number | null;
+          center_id: string | null;
           commission: number | null;
           customer_charge: number | null;
           entries: number | null;
@@ -1102,20 +1367,46 @@ export type Database = {
           total_sub_qty: number | null;
           vat: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'entries_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       v_staff_personal_metrics: {
         Row: {
+          center_id: string | null;
+          created_by: string | null;
           entries_this_month: number | null;
           entries_today: number | null;
           gross_this_month: number | null;
           gross_today: number | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'entries_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'fk_entries_creator';
+            columns: ['center_id', 'created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['center_id', 'id'];
+          },
+        ];
       };
       view_device_stale_rate_anomalies: {
         Row: {
           actor_id: string | null;
+          center_id: string | null;
           device_id: string | null;
           latest_stale_op_at: string | null;
           stale_ops_last_hour: number | null;
@@ -1128,12 +1419,20 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'sync_ops_center_id_fkey';
+            columns: ['center_id'];
+            isOneToOne: false;
+            referencedRelation: 'centers';
+            referencedColumns: ['id'];
+          },
         ];
       };
     };
     Functions: {
       accept_statement_line: {
         Args: {
+          p_center_id: string;
           p_line_id: string;
           p_review_note: string;
           p_actor_id: string;
@@ -1142,6 +1441,7 @@ export type Database = {
       };
       admin_invite_user: {
         Args: {
+          p_center_id: string;
           p_email: string;
           p_role: Database['public']['Enums']['user_role'];
           p_full_name: string;
@@ -1151,6 +1451,7 @@ export type Database = {
       };
       admin_manage_device: {
         Args: {
+          p_center_id: string;
           p_device_id: string;
           p_action: string;
           p_actor_id: string;
@@ -1159,6 +1460,7 @@ export type Database = {
       };
       admin_manage_payable: {
         Args: {
+          p_center_id: string;
           p_action: string;
           p_id: string;
           p_kind: string;
@@ -1174,6 +1476,7 @@ export type Database = {
       };
       admin_manage_payment_method: {
         Args: {
+          p_center_id: string;
           p_action: string;
           p_id: string;
           p_code: string;
@@ -1187,6 +1490,7 @@ export type Database = {
       };
       admin_manage_user: {
         Args: {
+          p_center_id: string;
           p_action: string;
           p_user_id: string;
           p_role: string;
@@ -1197,6 +1501,7 @@ export type Database = {
       };
       admin_review_stale_entry: {
         Args: {
+          p_center_id: string;
           p_entry_id: string;
           p_action: string;
           p_actor_id: string;
@@ -1206,6 +1511,7 @@ export type Database = {
       };
       admin_update_settings: {
         Args: {
+          p_center_id: string;
           p_settings: Json;
           p_actor_id: string;
         };
@@ -1213,6 +1519,7 @@ export type Database = {
       };
       approve_settlement_overpayment: {
         Args: {
+          p_center_id: string;
           p_settlement_id: string;
           p_reason: string;
           p_actor_id: string;
@@ -1228,6 +1535,7 @@ export type Database = {
       };
       close_month: {
         Args: {
+          p_center_id: string;
           p_month: string;
           p_actor_id: string;
         };
@@ -1235,6 +1543,7 @@ export type Database = {
       };
       create_or_update_draft_rate_profile: {
         Args: {
+          p_center_id: string;
           p_profile_id: string;
           p_effective_from: string;
           p_vat_mode: string;
@@ -1248,6 +1557,7 @@ export type Database = {
       };
       create_statement: {
         Args: {
+          p_center_id: string;
           p_kind: string;
           p_month: string;
           p_source: string;
@@ -1262,12 +1572,14 @@ export type Database = {
       };
       generate_monthly_settlements: {
         Args: {
+          p_center_id: string;
           p_month: string;
         };
         Returns: undefined;
       };
       log_audit_event: {
         Args: {
+          p_center_id: string;
           p_actor_id: string;
           p_event_name: string;
           p_target_table: string;
@@ -1277,8 +1589,18 @@ export type Database = {
         };
         Returns: undefined;
       };
+      maintenance_purge_entries: {
+        Args: {
+          p_center_id: string;
+          p_entry_ids: string[];
+          p_reason: string;
+          p_actor?: string;
+        };
+        Returns: Json;
+      };
       match_statement_line: {
         Args: {
+          p_center_id: string;
           p_line_id: string;
           p_entry_id: string;
           p_actor_id: string;
@@ -1294,6 +1616,7 @@ export type Database = {
       };
       perform_statement_auto_match: {
         Args: {
+          p_center_id: string;
           p_statement_id: string;
           p_month: string;
         };
@@ -1301,17 +1624,21 @@ export type Database = {
       };
       publish_rate_profile: {
         Args: {
+          p_center_id: string;
           p_profile_id: string;
           p_actor_id: string;
         };
         Returns: undefined;
       };
       purge_expired_sync_ops: {
-        Args: Record<PropertyKey, never>;
+        Args: {
+          p_center_id?: string;
+        };
         Returns: number;
       };
       reconcile_statement: {
         Args: {
+          p_center_id: string;
           p_statement_id: string;
           p_note: string;
           p_actor_id: string;
@@ -1320,6 +1647,7 @@ export type Database = {
       };
       record_settlement_payment: {
         Args: {
+          p_center_id: string;
           p_settlement_id: string;
           p_amount_poisha: number;
           p_paid_on: string;
@@ -1334,6 +1662,7 @@ export type Database = {
       };
       reopen_month: {
         Args: {
+          p_center_id: string;
           p_month: string;
           p_reason: string;
           p_actor_id: string;
@@ -1342,6 +1671,7 @@ export type Database = {
       };
       review_entry_reconciliation_exception: {
         Args: {
+          p_center_id: string;
           p_entry_id: string;
           p_payable_id: string;
           p_action: string;
@@ -1357,8 +1687,24 @@ export type Database = {
         };
         Returns: number;
       };
+      rpc_create_center: {
+        Args: {
+          p_actor_id: string;
+          p_code: string;
+          p_name: string;
+          p_legal_entity_name: string;
+          p_bin_number: string;
+          p_trade_license: string;
+          p_address: string;
+          p_phone: string;
+          p_owner_email: string;
+          p_owner_name: string;
+        };
+        Returns: Json;
+      };
       rpc_push_sync_op: {
         Args: {
+          p_center_id: string;
           p_device_id: string;
           p_caller_id: string;
           p_caller_role: Database['public']['Enums']['user_role'];
@@ -1368,6 +1714,7 @@ export type Database = {
       };
       rpc_supersede_entry: {
         Args: {
+          p_center_id: string;
           p_original_id: string;
           p_new_entry: Json;
           p_actor_id: string;
@@ -1376,6 +1723,7 @@ export type Database = {
       };
       supersede_statement: {
         Args: {
+          p_center_id: string;
           p_original_statement_id: string;
           p_file_storage_path: string;
           p_file_sha256: string;
@@ -1388,6 +1736,7 @@ export type Database = {
       };
       transfer_ownership: {
         Args: {
+          p_center_id: string;
           p_new_owner_id: string;
           p_caller_id: string;
         };
@@ -1395,6 +1744,7 @@ export type Database = {
       };
       unmatch_statement_line: {
         Args: {
+          p_center_id: string;
           p_line_id: string;
           p_reason: string;
           p_actor_id: string;
@@ -1403,6 +1753,7 @@ export type Database = {
       };
       upsert_device_sync_state: {
         Args: {
+          p_center_id: string;
           p_device_id: string;
           p_user_id: string;
           p_rate_version?: number;
@@ -1412,7 +1763,7 @@ export type Database = {
     };
     Enums: {
       entry_status: 'active' | 'voided' | 'superseded';
-      user_role: 'owner' | 'admin' | 'staff';
+      user_role: 'super_admin' | 'owner' | 'admin' | 'staff';
     };
     CompositeTypes: {
       [_ in never]: never;

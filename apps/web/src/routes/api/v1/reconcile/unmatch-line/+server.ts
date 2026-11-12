@@ -16,6 +16,11 @@ export const POST: RequestHandler = async (event) => {
     throw error(403, 'unauthorized: Admin or Owner role required');
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return json({ error: 'missing_center_id' }, { status: 400 });
+  }
+
   const body = await event.request.json().catch(() => null);
   const parsed = unmatchSchema.safeParse(body);
   if (!parsed.success) {
@@ -25,6 +30,7 @@ export const POST: RequestHandler = async (event) => {
   const supabase = getServiceSupabase();
 
   const { error: rpcErr } = await supabase.rpc('unmatch_statement_line', {
+    p_center_id: centerId,
     p_line_id: parsed.data.lineId,
     p_reason: parsed.data.reason,
     p_actor_id: caller.userId,

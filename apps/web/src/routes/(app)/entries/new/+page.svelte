@@ -39,10 +39,34 @@
   // Supersede Mode State (S07)
   let supersedingOriginalId = $state<string | null>(null);
   let supersedingOriginalBadge = $state<string | null>(null);
+  let requireExplicitMethodSelection = $state(false);
+  let unavailableSupersedeMethodWarning = $state('');
 
   // Computed selected method record
   let currentMethod = $derived(methods.find((m) => m.id === selectedMethodId));
   let requiresTxnRef = $derived(currentMethod?.requires_txn_ref ?? false);
+
+  // CLT-R-026: only offer methods the active profile can price. Offering a
+  // cached method the profile has no rate for makes an unpriceable chip the
+  // default selection and leaves Save disabled behind "Selected payment method
+  // is not configured in the active rate profile".
+  let selectableMethods = $derived(
+    activeProfile
+      ? methods.filter((m) => activeProfile!.method_rates[m.id] !== undefined)
+      : methods,
+  );
+
+  // Keep the selection on a priceable method, adopting the first configured one
+  // when the previous default was stale or is not configured for this date.
+  // Never overwrite explicit selection requirement when superseding an entry
+  // whose original payment method is no longer available.
+  $effect(() => {
+    if (requireExplicitMethodSelection) return;
+    const available = selectableMethods;
+    if (available.length > 0 && !available.some((m) => m.id === selectedMethodId)) {
+      selectedMethodId = available[0].id;
+    }
+  });
 
   // Historical Rate Difference Notice
   let hasRateDeviation = $derived(
@@ -53,7 +77,13 @@
     // 1. Load active payment methods with memory filter to avoid IndexedDB boolean key bugs
     const allMethods = await db.methods.orderBy('display_order').toArray();
     methods = allMethods.filter((m) => m.active);
-    if (methods.length > 0 && !selectedMethodId) {
+
+    const supersedeId =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('supersede')
+        : null;
+
+    if (!supersedeId && methods.length > 0 && !selectedMethodId) {
       selectedMethodId = methods[0].id;
     }
 
@@ -64,42 +94,55 @@
     await updateProfileForDate();
 
     // 4. Check for ?supersede=<id> query parameter
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const supersedeId = urlParams.get('supersede');
-      if (supersedeId) {
-        const orig = await db.entries.get(supersedeId);
-        if (orig && orig.status === 'active') {
-          supersedingOriginalId = orig.id;
-          supersedingOriginalBadge = orig.local_id || orig.id.substring(0, 8);
-          entryDate = orig.entry_date;
-          customerName = orig.customer_name;
-          subQty = Math.max(1, orig.sub_qty);
-          subDescription = orig.sub_description ?? '';
+    if (supersedeId) {
+      const orig = await db.entries.get(supersedeId);
+      if (orig && orig.status === 'active') {
+        supersedingOriginalId = orig.id;
+        supersedingOriginalBadge = orig.local_id || orig.id.substring(0, 8);
+        entryDate = orig.entry_date;
+        customerName = orig.customer_name;
+        subQty = Math.max(1, orig.sub_qty);
+        subDescription = orig.sub_description ?? '';
 
-          // Pure integer derivation without floating point conversions (Rule 2)
-          const gp = BigInt(orig.gross_poisha);
-          const gTaka = gp / 100n;
-          const gRem = gp % 100n;
-          grossInput = `${gTaka.toString()}.${gRem.toString().padStart(2, '0')}`;
+        // Pure integer derivation without floating point conversions (Rule 2)
+        const gp = BigInt(orig.gross_poisha);
+        const gTaka = gp / 100n;
+        const gRem = gp % 100n;
+        grossInput = `${gTaka.toString()}.${gRem.toString().padStart(2, '0')}`;
 
-          const vatSource = orig.vat_input_poisha ?? orig.vat_poisha;
-          if (vatSource && BigInt(vatSource) > 0n) {
-            const vp = BigInt(vatSource);
-            const vTaka = vp / 100n;
-            const vRem = vp % 100n;
-            manualVatInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
-          }
-
-          selectedMethodId = orig.method_id;
-          txnRef = orig.txn_ref ?? '';
-          notes = orig.notes
-            ? `[Supersedes ${supersedingOriginalBadge}] ${orig.notes}`
-            : `[Supersedes ${supersedingOriginalBadge}]`;
-          await updateProfileForDate();
-        } else if (orig && orig.status !== 'active') {
-          saveErrorMessage = 'Cannot supersede transaction that is already voided or superseded.';
+        const vatSource = orig.vat_input_poisha ?? orig.vat_poisha;
+        if (vatSource && BigInt(vatSource) > 0n) {
+          const vp = BigInt(vatSource);
+          const vTaka = vp / 100n;
+          const vRem = vp % 100n;
+          manualVatInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
         }
+
+        txnRef = orig.txn_ref ?? '';
+        notes = orig.notes
+          ? `[Supersedes ${supersedingOriginalBadge}] ${orig.notes}`
+          : `[Supersedes ${supersedingOriginalBadge}]`;
+        await updateProfileForDate();
+
+        const origMethod = allMethods.find((m) => m.id === orig.method_id);
+        const isMethodActive = Boolean(origMethod && origMethod.active);
+        const isMethodConfigured =
+          !activeProfile || activeProfile.method_rates[orig.method_id] !== undefined;
+
+        if (isMethodActive && isMethodConfigured) {
+          selectedMethodId = orig.method_id;
+          requireExplicitMethodSelection = false;
+          unavailableSupersedeMethodWarning = '';
+        } else {
+          const methodLabel = origMethod?.name ?? orig.method_id;
+          requireExplicitMethodSelection = true;
+          selectedMethodId = '';
+          unavailableSupersedeMethodWarning = !isMethodActive
+            ? `Original payment method "${methodLabel}" is no longer active. Please pick an active replacement payment method before saving.`
+            : `Original payment method "${methodLabel}" is not configured for ${orig.entry_date}. Please pick an active replacement payment method before saving.`;
+        }
+      } else if (orig && orig.status !== 'active') {
+        saveErrorMessage = 'Cannot supersede transaction that is already voided or superseded.';
       }
     }
   }
@@ -303,6 +346,7 @@
       const saved = await saveLocalEntry({
         entryDate,
         customerName: customerName.trim(),
+        centerId: session.user?.centerId ?? undefined,
         subQty: Math.max(1, subQty),
         subDescription: subDescription.trim() || undefined,
         methodId: selectedMethodId,
@@ -334,6 +378,8 @@
       subQty = 1;
       supersedingOriginalId = null;
       supersedingOriginalBadge = null;
+      requireExplicitMethodSelection = false;
+      unavailableSupersedeMethodWarning = '';
       duplicateVisible = false;
 
       const customerInput = document.getElementById('input-customer');
@@ -359,7 +405,9 @@
     </div>
     <div class="flex items-center gap-2">
       <Chip variant="default">{session.isOnline ? 'Online' : 'Offline'}</Chip>
-      <Chip variant="default">#LOCAL-xxxx</Chip>
+      <Chip variant="default">
+        {session.user?.centerCode ? `E-${session.user.centerCode}-…` : '#LOCAL-xxxx'}
+      </Chip>
     </div>
   </div>
 
@@ -412,6 +460,15 @@
     </div>
   {/if}
 
+  {#if unavailableSupersedeMethodWarning}
+    <div
+      role="alert"
+      class="mb-6 p-4 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-semibold"
+    >
+      {unavailableSupersedeMethodWarning}
+    </div>
+  {/if}
+
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Form Card -->
     <div class="lg:col-span-2">
@@ -430,6 +487,8 @@
               onclick={() => {
                 supersedingOriginalId = null;
                 supersedingOriginalBadge = null;
+                requireExplicitMethodSelection = false;
+                unavailableSupersedeMethodWarning = '';
               }}>Cancel supersede</button
             >
           </div>
@@ -524,7 +583,7 @@
               >Payment Method</label
             >
             <div class="flex flex-wrap gap-2">
-              {#each methods as m (m.id)}
+              {#each selectableMethods as m (m.id)}
                 <button
                   type="button"
                   aria-pressed={selectedMethodId === m.id}
@@ -534,6 +593,8 @@
                     : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
                   onclick={() => {
                     selectedMethodId = m.id;
+                    requireExplicitMethodSelection = false;
+                    unavailableSupersedeMethodWarning = '';
                     txnRefError = '';
                     triggerDuplicateCheck();
                   }}

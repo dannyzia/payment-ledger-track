@@ -87,7 +87,13 @@ export const POST: RequestHandler = async (event) => {
   }
 
   const supabase = getServiceSupabase();
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const { error } = await supabase.rpc('admin_manage_device', {
+    p_center_id: centerId,
     p_device_id: parsed.data.deviceId,
     p_action: parsed.data.action,
     p_actor_id: caller.userId,

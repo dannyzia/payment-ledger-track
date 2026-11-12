@@ -303,7 +303,7 @@ describe('PRD §16.2 Mandatory Critical Regression Test Suite (#1 to #65)', () =
 
     it('Test #33: Duplicate Payable Prevention & Method Consistency', async () => {
       const res = await pgClient.query(
-        `SELECT conname FROM pg_constraint WHERE conname = 'settlements_payable_id_month_key'`,
+        `SELECT conname FROM pg_constraint WHERE conname = 'settlements_center_id_payable_id_month_key'`,
       );
       expect(res.rows.length).toBe(1);
     });
@@ -409,7 +409,7 @@ describe('PRD §16.2 Mandatory Critical Regression Test Suite (#1 to #65)', () =
 
     it('Test #21: Payment Method Code Immutability', async () => {
       const res = await pgClient.query(
-        `SELECT conname FROM pg_constraint WHERE conname = 'payment_methods_code_key'`,
+        `SELECT conname FROM pg_constraint WHERE conname = 'payment_methods_center_id_code_key'`,
       );
       expect(res.rows.length).toBe(1);
     });
@@ -604,6 +604,206 @@ describe('PRD §16.2 Mandatory Critical Regression Test Suite (#1 to #65)', () =
          WHERE table_name = 'view_device_stale_rate_anomalies'
       `);
       expect(res.rows.length).toBe(1);
+    });
+  });
+
+  describe('Suite 6: Multi-Tenant Isolation & Zero Data Bleed (Tests #66 to #70)', () => {
+    it('Test #66: Force Row Level Security on All 20 Public Tables', async () => {
+      const expectedTables = [
+        'centers',
+        'center_counters',
+        'profiles',
+        'payment_methods',
+        'payables',
+        'rate_profiles',
+        'method_rates',
+        'entries',
+        'entry_reconciliation_exceptions',
+        'settlements',
+        'settlement_payments',
+        'statements',
+        'statement_payables',
+        'statement_lines',
+        'month_closes',
+        'month_close_events',
+        'sync_ops',
+        'devices',
+        'app_settings',
+        'audit_log',
+      ];
+      const res = await pgClient.query(`
+        SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname != 'clt_test_schema'
+      `);
+      expect(res.rows.length).toBe(20);
+      const rowMap = new Map(res.rows.map((r) => [r.relname, r]));
+      for (const table of expectedTables) {
+        expect(rowMap.has(table), `Table ${table} must exist`).toBe(true);
+        expect(rowMap.get(table)?.relrowsecurity, `Table ${table} must have RLS enabled`).toBe(
+          true,
+        );
+        expect(
+          rowMap.get(table)?.relforcerowsecurity,
+          `Table ${table} must have FORCE RLS enabled`,
+        ).toBe(true);
+      }
+    });
+
+    it('Test #67: Cross-Tenant Data Isolation Proof under RLS', async () => {
+      const centersRes = await pgClient.query('SELECT id FROM centers ORDER BY created_at LIMIT 2');
+      expect(centersRes.rows.length).toBeGreaterThanOrEqual(2);
+      const centerA = centersRes.rows[0].id;
+      const centerB = centersRes.rows[1].id;
+      const staffAId = 'a0000000-0000-0000-0000-000000000001';
+      const staffBId = 'b0000000-0000-0000-0000-000000000001';
+
+      await pgClient.query('BEGIN');
+      try {
+        await pgClient.query(`
+          INSERT INTO auth.users (id, email) VALUES ('${staffAId}', 'staffA@example.com') ON CONFLICT (id) DO NOTHING;
+          INSERT INTO profiles (id, center_id, full_name, role, active)
+          VALUES ('${staffAId}', '${centerA}', 'Staff A', 'staff', true)
+          ON CONFLICT (id) DO UPDATE SET center_id = '${centerA}', role = 'staff', active = true;
+
+          INSERT INTO auth.users (id, email) VALUES ('${staffBId}', 'staffB@example.com') ON CONFLICT (id) DO NOTHING;
+          INSERT INTO profiles (id, center_id, full_name, role, active)
+          VALUES ('${staffBId}', '${centerB}', 'Staff B', 'staff', true)
+          ON CONFLICT (id) DO UPDATE SET center_id = '${centerB}', role = 'staff', active = true;
+
+          ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
+          INSERT INTO entries (
+            id, center_id, entry_date, customer_name, method_id, gross_poisha,
+            rate_profile_id, snapshot, vat_poisha, commission_poisha, charge_poisha,
+            business_charge_poisha, customer_charge_poisha, net_poisha, status, created_by
+          ) VALUES
+            ('e0000000-0000-0000-0000-00000000000a', '${centerA}', '2026-10-15', 'Cust A',
+             (SELECT id FROM payment_methods WHERE center_id = '${centerA}' LIMIT 1), 1000,
+             (SELECT id FROM rate_profiles WHERE center_id = '${centerA}' LIMIT 1), '{"vatMode":"percent_of_gross"}'::jsonb,
+             0, 0, 0, 0, 0, 1000, 'active', '${staffAId}'),
+            ('e0000000-0000-0000-0000-00000000000b', '${centerB}', '2026-10-15', 'Cust B',
+             (SELECT id FROM payment_methods WHERE center_id = '${centerB}' LIMIT 1), 2000,
+             (SELECT id FROM rate_profiles WHERE center_id = '${centerB}' LIMIT 1), '{"vatMode":"percent_of_gross"}'::jsonb,
+             0, 0, 0, 0, 0, 2000, 'active', '${staffBId}')
+          ON CONFLICT (id) DO NOTHING;
+          ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
+        `);
+
+        // Query under authenticated Staff A
+        await pgClient.query('SET ROLE authenticated');
+        await pgClient.query(
+          `SET request.jwt.claims = '{"sub":"${staffAId}","role":"authenticated","app_metadata":{"role":"staff","center_id":"${centerA}"}}'`,
+        );
+
+        const visibleEntries = await pgClient.query('SELECT id, center_id FROM entries');
+        expect(visibleEntries.rows.every((r) => r.center_id === centerA)).toBe(true);
+        expect(visibleEntries.rows.some((r) => r.center_id === centerB)).toBe(false);
+      } finally {
+        await pgClient.query('ROLLBACK').catch(() => {});
+        await pgClient.query('RESET ROLE').catch(() => {});
+      }
+    });
+
+    it('Test #68: 64-Bit Injective Coordinate Advisory Lock Isolation', async () => {
+      const centersRes = await pgClient.query(
+        'SELECT center_number FROM centers ORDER BY center_number ASC',
+      );
+      expect(centersRes.rows.length).toBeGreaterThanOrEqual(2);
+      const centerNums = centersRes.rows.map((r) => r.center_number);
+
+      // Compute lock keys across all centers for the same month
+      const lockKeys = new Set<string>();
+      for (const cn of centerNums) {
+        // (1001 << 16) | (cn & 0xFFFF)
+        const key = ((BigInt(1001) << 16n) | (BigInt(cn) & 0xffffn)).toString();
+        expect(lockKeys.has(key)).toBe(false);
+        lockKeys.add(key);
+      }
+      expect(lockKeys.size).toBe(centerNums.length);
+    });
+
+    it('Test #69: Center-Specific Sequential Entry Numbering Independence', async () => {
+      const centersRes = await pgClient.query('SELECT id FROM centers ORDER BY created_at LIMIT 2');
+      expect(centersRes.rows.length).toBeGreaterThanOrEqual(2);
+      const centerA = centersRes.rows[0].id;
+      const centerB = centersRes.rows[1].id;
+
+      await pgClient.query('BEGIN');
+      try {
+        const initialA = await pgClient.query(
+          'SELECT next_entry_number FROM center_counters WHERE center_id = $1',
+          [centerA],
+        );
+        const initialB = await pgClient.query(
+          'SELECT next_entry_number FROM center_counters WHERE center_id = $1',
+          [centerB],
+        );
+
+        const a1 = BigInt(initialA.rows[0].next_entry_number);
+        const b1 = BigInt(initialB.rows[0].next_entry_number);
+
+        // Atomic increment Center A
+        await pgClient.query(
+          'UPDATE center_counters SET next_entry_number = next_entry_number + 1 WHERE center_id = $1',
+          [centerA],
+        );
+
+        const afterA = await pgClient.query(
+          'SELECT next_entry_number FROM center_counters WHERE center_id = $1',
+          [centerA],
+        );
+        const afterB = await pgClient.query(
+          'SELECT next_entry_number FROM center_counters WHERE center_id = $1',
+          [centerB],
+        );
+
+        expect(BigInt(afterA.rows[0].next_entry_number)).toBe(a1 + 1n);
+        expect(BigInt(afterB.rows[0].next_entry_number)).toBe(b1); // B unchanged!
+      } finally {
+        await pgClient.query('ROLLBACK');
+      }
+    });
+
+    it('Test #70: Super-Admin Read Bypass vs Franchise Role Scope', async () => {
+      const centersRes = await pgClient.query('SELECT id FROM centers ORDER BY created_at LIMIT 2');
+      expect(centersRes.rows.length).toBeGreaterThanOrEqual(2);
+      const centerA = centersRes.rows[0].id;
+      const superAdminRes = await pgClient.query(
+        "SELECT id FROM profiles WHERE role = 'super_admin' AND center_id IS NULL LIMIT 1",
+      );
+      expect(superAdminRes.rows.length).toBe(1);
+      const superAdminId = superAdminRes.rows[0].id;
+      const staffAId = 'a0000000-0000-0000-0000-000000000002';
+
+      await pgClient.query('BEGIN');
+      try {
+        await pgClient.query(`
+          INSERT INTO auth.users (id, email) VALUES ('${staffAId}', 'staffA2@example.com') ON CONFLICT (id) DO NOTHING;
+          INSERT INTO profiles (id, center_id, full_name, role, active)
+          VALUES ('${staffAId}', '${centerA}', 'Staff A2', 'staff', true)
+          ON CONFLICT (id) DO UPDATE SET center_id = '${centerA}', role = 'staff', active = true;
+        `);
+
+        // 1. Staff query under RLS: constrained to centerA
+        await pgClient.query('SET ROLE authenticated');
+        await pgClient.query(
+          `SET request.jwt.claims = '{"sub":"${staffAId}","role":"authenticated","app_metadata":{"role":"staff","center_id":"${centerA}"}}'`,
+        );
+        const staffCenters = await pgClient.query('SELECT id FROM centers');
+        expect(staffCenters.rows.length).toBe(1);
+        expect(staffCenters.rows[0].id).toBe(centerA);
+
+        // 2. Super Admin query under RLS: can view all centers
+        await pgClient.query(
+          `SET request.jwt.claims = '{"sub":"${superAdminId}","role":"authenticated","app_metadata":{"role":"super_admin"}}'`,
+        );
+        const superCenters = await pgClient.query('SELECT id FROM centers');
+        expect(superCenters.rows.length).toBeGreaterThanOrEqual(2);
+      } finally {
+        await pgClient.query('ROLLBACK').catch(() => {});
+        await pgClient.query('RESET ROLE').catch(() => {});
+      }
     });
   });
 });

@@ -1,8 +1,35 @@
-import { db, type LocalEntry } from '$lib/db';
+import { db, type LocalEntry, type LocalOutboxOp } from '$lib/db';
 import { getOrGenerateDeviceId } from '$lib/auth/device';
 import { supabase } from '$lib/supabase/client';
+import { session } from '$lib/auth/session.svelte';
 import { computeJcsSha256 } from './canonical';
 import { handleOpRejection } from './recovery';
+
+function resolveActiveSuperCenter(): string | null {
+  if (session.user?.role !== 'super_admin' || typeof sessionStorage === 'undefined') {
+    return null;
+  }
+  try {
+    const activeCenter = sessionStorage.getItem('clt_super_center');
+    return activeCenter && activeCenter !== 'all' ? activeCenter : null;
+  } catch {
+    return null;
+  }
+}
+
+function getOpCenterId(op: LocalOutboxOp): string | null {
+  if (typeof op.payload.centerId === 'string' && op.payload.centerId) {
+    return op.payload.centerId;
+  }
+  const replacement = op.payload.replacement;
+  if (replacement && typeof replacement === 'object') {
+    const replacementCenter = (replacement as Record<string, unknown>).centerId;
+    if (typeof replacementCenter === 'string' && replacementCenter) {
+      return replacementCenter;
+    }
+  }
+  return typeof op.centerId === 'string' && op.centerId ? op.centerId : null;
+}
 
 export interface PushResultItem {
   opId: string;
@@ -55,38 +82,69 @@ export async function flushOutboxPush(): Promise<{
 
   // Retrieve active session token and user ID
   const {
-    data: { session },
+    data: { session: sbSession },
   } = await supabase.auth.getSession();
-  if (!session?.user?.id) {
+  if (!sbSession?.user?.id) {
     // CLT-R-015: no Supabase session means signed out, not a sync failure. The
     // caller sends the user to /login instead of showing a generic error.
     return { success: false, pushedCount: 0, reason: 'no_session' };
   }
-  const currentUserId = session.user.id;
-  let token = session.access_token;
+  const currentUserId = sbSession.user.id;
+  let token = sbSession.access_token;
 
   while (iterations < MAX_ITERATIONS) {
     iterations++;
 
-    // Only select pending ops created by the currently logged-in user
+    // Shift-handover flush (CLT-T-075): exact pending ops of the current user,
+    // plus this center's ops left by a previous shift on the same tablet.
+    const currentCenterId = session.user?.centerId ?? null;
+    const activeSuperCenter = resolveActiveSuperCenter();
+    const matchCenterId = currentCenterId ?? activeSuperCenter;
     const pendingOps = await db.outbox
       .where('status')
       .equals('pending')
-      .and((op) => op.userId === currentUserId)
+      .and(
+        (op) =>
+          op.userId === currentUserId || (matchCenterId !== null && op.centerId === matchCenterId),
+      )
       .sortBy('clientCreatedAt');
 
     if (pendingOps.length === 0) {
       break;
     }
 
-    const batch = pendingOps.slice(0, 50);
+    let batch: LocalOutboxOp[];
+    let batchCenterId: string | null = currentCenterId;
+    if (currentCenterId !== null) {
+      batch = pendingOps.slice(0, 50);
+    } else {
+      const batchOpCenterId = getOpCenterId(pendingOps[0]);
+      batchCenterId = batchOpCenterId ?? activeSuperCenter;
+      batch = pendingOps
+        .filter((op) => {
+          const opCenterId = getOpCenterId(op);
+          return opCenterId === null || opCenterId === batchCenterId;
+        })
+        .slice(0, 50);
+    }
     const deviceId = getOrGenerateDeviceId();
 
     const preparedOps = await Promise.all(
       batch.map(async (op) => {
+        // Every pushed payload carries centerId when resolved so the server's tenant
+        // IDOR check can adjudicate; unrecoverable null-center ops are rejected by server.
+        const opDeclaredCenter =
+          typeof op.payload.centerId === 'string' && op.payload.centerId
+            ? op.payload.centerId
+            : null;
+        const resolvedOpCenter = opDeclaredCenter ?? batchCenterId;
+        const payloadWithCenter =
+          opDeclaredCenter || resolvedOpCenter === null
+            ? op.payload
+            : { ...op.payload, centerId: resolvedOpCenter };
         const canonicalObj = {
           type: op.type,
-          payload: op.payload,
+          payload: payloadWithCenter,
           supersedesRejectedOpId: op.supersedesRejectedOpId ?? null,
           clientCreatedAt: op.clientCreatedAt,
           maxKnownRateVersion: op.maxKnownRateVersion,
@@ -95,7 +153,7 @@ export async function flushOutboxPush(): Promise<{
         return {
           opId: op.opId,
           type: op.type,
-          payload: op.payload,
+          payload: payloadWithCenter,
           clientCreatedAt: op.clientCreatedAt,
           payloadHash: hash,
           supersedesRejectedOpId: op.supersedesRejectedOpId ?? undefined,
@@ -104,7 +162,11 @@ export async function flushOutboxPush(): Promise<{
       }),
     );
 
-    const body = JSON.stringify({ deviceId, ops: preparedOps });
+    const body = JSON.stringify({
+      deviceId,
+      ops: preparedOps,
+      ...(batchCenterId !== null ? { centerId: batchCenterId } : {}),
+    });
     let res = await postPush(body, token);
 
     // Handle token expiration: attempt automatic refresh once
@@ -117,6 +179,17 @@ export async function flushOutboxPush(): Promise<{
     }
 
     if (!res.ok) {
+      if (res.status === 400) {
+        const err = await res.json().catch(() => ({}));
+        const errCode = err.error || err.message;
+        if (errCode === 'missing_tenant_context') {
+          const serverDateHeader = res.headers.get('Date') || undefined;
+          for (const op of batch) {
+            await handleOpRejection(op.opId, 'missing_tenant_context', serverDateHeader);
+          }
+          continue;
+        }
+      }
       if (res.status === 403) {
         const err = await res.json().catch(() => ({}));
         const errCode = err.error || err.message;

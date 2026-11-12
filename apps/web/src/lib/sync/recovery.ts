@@ -386,11 +386,13 @@ export async function retryRejectedOp(
     if (localEntry && updatedPayload.snapshot) {
       const snapshot = { ...(updatedPayload.snapshot as RateSnapshot) };
 
-      // If method changed, update chargeBp from method_rates in local cache
-      if (patchedPayload.methodId && patchedPayload.methodId !== snapshot.rateProfileId) {
+      // If method changed, update chargeBp and chargesBorneBy from method_rates in local cache
+      if (patchedPayload.methodId && patchedPayload.methodId !== localEntry.method_id) {
         const profile = await db.rateProfiles.get(snapshot.rateProfileId);
-        if (profile?.method_rates[patchedPayload.methodId as string]) {
-          snapshot.chargeBp = profile.method_rates[patchedPayload.methodId as string].fee_bp;
+        const methodRate = profile?.method_rates[patchedPayload.methodId as string];
+        if (methodRate) {
+          snapshot.chargeBp = methodRate.fee_bp;
+          snapshot.chargesBorneBy = methodRate.charges_borne_by;
         }
       }
 
@@ -436,6 +438,7 @@ export async function retryRejectedOp(
       updatedPayload.snapshot = snapshot;
 
       await db.entries.update(entryId as string, {
+        ...(patchedPayload.methodId ? { method_id: patchedPayload.methodId as string } : {}),
         gross_poisha: calcResult.grossPoisha.toString(),
         vat_poisha: calcResult.vatPoisha.toString(),
         commission_poisha: calcResult.commissionPoisha.toString(),

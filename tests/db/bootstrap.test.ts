@@ -1,141 +1,71 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import dotenv from 'dotenv';
+import path from 'node:path';
 import pg from 'pg';
-import { createClient } from '@supabase/supabase-js';
 import { bootstrap } from '../../scripts/bootstrap';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: false });
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: false });
 
 const { Pool } = pg;
 
-const BOOTSTRAP_EMAIL = 'owner@cosmoledger.local';
-
-// Financial/config wipe so Role Profile v1 and canonical rows are seeded by
-// bootstrap() even on batched suite runs where earlier suites left their own
-// (different) seed record. Profiles and audit_log are deliberately kept:
-// audit_log.actor FKs pin test profile IDs forever (Hard Rule 5).
-async function wipeSeededData(pool: pg.Pool): Promise<void> {
-  await pool.query(`
-    DELETE FROM statement_lines;
-    DELETE FROM statement_payables;
-    DELETE FROM statements;
-    ALTER TABLE settlement_payments DISABLE TRIGGER trg_settlement_payments_immutable;
-    DELETE FROM settlement_payments;
-    ALTER TABLE settlement_payments ENABLE TRIGGER trg_settlement_payments_immutable;
-    DELETE FROM settlements;
-    DELETE FROM entry_reconciliation_exceptions;
-    DELETE FROM month_close_events;
-    DELETE FROM month_closes;
-    DELETE FROM sync_ops;
-    DELETE FROM devices;
-    ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
-    DELETE FROM entries;
-    ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
-    ALTER TABLE method_rates DISABLE TRIGGER trg_method_rates_draft_publish_lock;
-    ALTER TABLE rate_profiles DISABLE TRIGGER trg_rate_profiles_draft_publish_lock;
-    DELETE FROM method_rates;
-    DELETE FROM rate_profiles;
-    ALTER TABLE method_rates ENABLE TRIGGER trg_method_rates_draft_publish_lock;
-    ALTER TABLE rate_profiles ENABLE TRIGGER trg_rate_profiles_draft_publish_lock;
-    DELETE FROM payables;
-    DELETE FROM payment_methods;
-  `);
-}
-
-// This suite drives the real Supabase Auth Admin API, so it can only run
-// against the shared stack's database - it cannot use the throwaway clt_test
-// database. It stays opt-in so a plain `pnpm test` never wipes local data
-// (CLT-R-025). Run it deliberately with CLT_BOOTSTRAP_DB_TEST=1 when the dev
-// database holds nothing worth keeping.
+// This suite drives the real Supabase Auth Admin API against a clean, empty
+// Supabase database matching SUPABASE_URL (e.g. an isolated e2e stack via
+// supabase db reset). It stays opt-in so a plain `pnpm test` never touches
+// local data (CLT-R-025). Run deliberately with CLT_BOOTSTRAP_DB_TEST=1.
 const BOOTSTRAP_DB_TEST = process.env.CLT_BOOTSTRAP_DB_TEST === '1';
 
 describe.skipIf(!BOOTSTRAP_DB_TEST)(
   'Bootstrap Runbook and Seeding Verification (PRD §7.4, §17 M0)',
   () => {
-    let pool: pg.Pool;
+    let pool: pg.Pool | undefined;
+
+    function db(): pg.Pool {
+      if (!pool) {
+        throw new Error('Database pool was not initialized');
+      }
+      return pool;
+    }
 
     beforeAll(async () => {
-      pool = new Pool({
+      const candidatePool = new Pool({
         connectionString:
           process.env.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
       });
-      await wipeSeededData(pool);
-
-      // Create the bootstrap owner via the Auth Admin API when it does not exist
-      // yet (batched suite runs: earlier suites' placeholder owners exist, GoTrue
-      // provisioned the profile as 'staff'). On a fresh DB this is the first user.
-      const { rows: cosmo } = await pool.query(
-        'SELECT id FROM auth.users WHERE lower(email) = lower($1)',
-        [BOOTSTRAP_EMAIL],
-      );
-      if (cosmo.length === 0) {
-        const admin = createClient(
-          process.env.SUPABASE_URL || 'http://127.0.0.1:54321',
-          process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-          { auth: { autoRefreshToken: false, persistSession: false } },
+      try {
+        const { rows } = await candidatePool.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM centers',
         );
-        // Retry: db:reset cycles the auth container and the first call during
-        // its warm-up window can transiently fail.
-        // Role 'staff' at creation: the sole-active-owner partial index forbids a
-        // second 'owner' profile while a placeholder owner still exists; the
-        // atomic demote-before-promote swap below assigns the owner slot.
-        let createError: string | null = null;
-        for (let attempt = 0; attempt < 5; attempt++) {
-          const { error } = await admin.auth.admin.createUser({
-            email: BOOTSTRAP_EMAIL,
-            password: process.env.BOOTSTRAP_OWNER_PASSWORD || 'bootstrap-local-pass-1',
-            email_confirm: true,
-            app_metadata: { role: 'staff' },
-          });
-          if (!error) {
-            createError = null;
-            break;
-          }
-          createError = error.message;
-          await new Promise((r) => setTimeout(r, 2000));
-        }
-        if (createError) {
+        if (rows[0].n > 0) {
           throw new Error(
-            `test beforeAll could not create bootstrap owner in Auth: ${createError}`,
+            `bootstrap.test.ts requires a clean empty Supabase database (e.g. isolated e2e stack via supabase db reset); found ${rows[0].n} existing center(s).`,
           );
         }
+        pool = candidatePool;
+      } catch (err) {
+        await candidatePool.end();
+        throw err;
       }
 
-      // Atomic owner swap (demote-before-promote; deferred zero-owner constraint
-      // evaluates post-transaction): placeholder test owners become admins, the
-      // bootstrap account owns the sole active owner slot. pg's prepared
-      // statements accept one command per query, so the swap is a client-side
-      // transaction of three single-statement calls.
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query(
-          "UPDATE profiles SET role = 'admin', updated_at = now() WHERE role = 'owner' AND id != (SELECT id FROM auth.users WHERE lower(email) = lower($1))",
-          [BOOTSTRAP_EMAIL],
-        );
-        await client.query(
-          "UPDATE profiles SET role = 'owner', active = true WHERE id = (SELECT id FROM auth.users WHERE lower(email) = lower($1))",
-          [BOOTSTRAP_EMAIL],
-        );
-        await client.query('COMMIT');
-      } catch (e) {
-        try {
-          await client.query('ROLLBACK');
-        } catch {}
-        throw e;
-      } finally {
-        client.release();
-      }
-
-      // Ensure clean database has executed bootstrap before assertions
+      // Ensure clean database has executed bootstrap before assertions.
+      // bootstrap() creates the platform super_admin profile and provisions
+      // the MHK and RMP franchise centers; it does NOT perform an owner swap
+      // (the bootstrap owner is the platform super_admin, not a center owner).
       await bootstrap();
     }, 60000);
 
     afterAll(async () => {
-      await pool.end();
+      if (pool) {
+        await pool.end();
+      }
     });
 
-    it('verifies all 18 public tables exist in database', async () => {
+    it('verifies all 20 public tables exist in database', async () => {
       const expectedTables = [
         'app_settings',
         'audit_log',
+        'center_counters',
+        'centers',
         'devices',
         'entries',
         'entry_reconciliation_exceptions',
@@ -154,113 +84,147 @@ describe.skipIf(!BOOTSTRAP_DB_TEST)(
         'sync_ops',
       ].sort();
 
-      const res = await pool.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-      ORDER BY table_name;
-    `);
+      const res = await db().query(`
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        ORDER BY table_name;
+      `);
 
-      const tables = res.rows.map((r) => r.table_name).sort();
+      const tables = res.rows
+        .map((r) => r.table_name)
+        .filter((t) => t !== 'clt_test_schema')
+        .sort();
       expect(tables).toEqual(expectedTables);
     });
 
-    it('verifies primary owner account exists in profiles with role owner', async () => {
-      const res = await pool.query("SELECT role, active FROM profiles WHERE role = 'owner'");
-      expect(res.rows.length).toBe(1);
-      expect(res.rows[0].role).toBe('owner');
-      expect(res.rows[0].active).toBe(true);
-    });
-
-    it('verifies 5 canonical payment methods seeded and active', async () => {
-      const res = await pool.query('SELECT code, active FROM payment_methods ORDER BY sort_order');
-      expect(res.rows.length).toBe(5);
-      const codes = res.rows.map((r) => r.code);
-      expect(codes).toEqual(['cash', 'bkash', 'visa', 'mastercard', 'bank_transfer']);
-      expect(res.rows.every((r) => r.active === true)).toBe(true);
-    });
-
-    it('verifies 4 canonical payables seeded', async () => {
-      const res = await pool.query('SELECT code, kind FROM payables ORDER BY code');
-      expect(res.rows.length).toBe(4);
-      const codes = res.rows.map((r) => r.code);
-      expect(codes).toEqual([
-        'bkash_charge_payable',
-        'mastercard_charge_payable',
-        'vat_payable',
-        'visa_charge_payable',
-      ]);
-    });
-
-    it('verifies Rate Profile v1 is published and backdated to 2026-01-01', async () => {
-      const res = await pool.query(`
-      SELECT version, status, effective_from::text as eff, vat_mode, commission_bp
-      FROM rate_profiles WHERE version = 1 AND status = 'published'
-    `);
-      expect(res.rows.length).toBe(1);
-      expect(res.rows[0].status).toBe('published');
-      expect(res.rows[0].eff).toBe('2026-01-01');
-      expect(res.rows[0].vat_mode).toBe('manual');
-      expect(res.rows[0].commission_bp).toBe(4200);
-    });
-
-    it('verifies method rates for Profile v1 match operational defaults across all 5 methods', async () => {
-      const res = await pool.query(`
-      SELECT m.code, mr.charge_bp
-      FROM method_rates mr
-      JOIN payment_methods m ON m.id = mr.method_id
-      JOIN rate_profiles rp ON rp.id = mr.rate_profile_id
-      WHERE rp.version = 1 AND rp.status = 'published'
-      ORDER BY m.code
-    `);
-      expect(res.rows.length).toBe(5);
-      const rateMap = Object.fromEntries(res.rows.map((r) => [r.code, r.charge_bp]));
-      expect(rateMap.bkash).toBe(115);
-      expect(rateMap.visa).toBe(150);
-      expect(rateMap.mastercard).toBe(150);
-      expect(rateMap.cash).toBe(0);
-      expect(rateMap.bank_transfer).toBe(0);
-    });
-
-    it('verifies singleton app_settings row initialized', async () => {
-      const res = await pool.query(
-        'SELECT timezone, currency, locale, reconcile_tolerance_poisha FROM app_settings',
+    it('verifies platform super_admin profile exists', async () => {
+      const res = await db().query(
+        "SELECT role, active, full_name, center_id FROM profiles WHERE role = 'super_admin'",
       );
       expect(res.rows.length).toBe(1);
-      expect(res.rows[0].timezone).toBe('Asia/Dhaka');
-      expect(res.rows[0].currency).toBe('BDT');
-      expect(res.rows[0].locale).toBe('en-BD');
-      expect(res.rows[0].reconcile_tolerance_poisha).toBe('100');
+      expect(res.rows[0].role).toBe('super_admin');
+      expect(res.rows[0].active).toBe(true);
+      expect(res.rows[0].full_name).toBe('Platform Super Admin');
+      expect(res.rows[0].center_id).toBeNull();
     });
 
-    it('verifies initial monthly settlement rows generated for current month', async () => {
-      const res = await pool.query(`
-      SELECT count(*) as count
-      FROM settlements
-      WHERE month = date_trunc('month', (now() at time zone 'Asia/Dhaka')::date)::date
-    `);
-      expect(parseInt(res.rows[0].count, 10)).toBe(4);
+    it('verifies both franchise centers provisioned', async () => {
+      const res = await db().query('SELECT code, name FROM centers ORDER BY code');
+      expect(res.rows.length).toBe(2);
+      expect(res.rows.map((r) => r.code)).toEqual(['MHK', 'RMP']);
+    });
 
-      const states = await pool.query(`
-      SELECT s.status, s.expected_poisha, s.paid_poisha, p.code as payable_code
-      FROM settlements s
-      JOIN payables p ON p.id = s.payable_id
-      WHERE s.month = date_trunc('month', (now() at time zone 'Asia/Dhaka')::date)::date
-      ORDER BY p.code
-    `);
-      expect(states.rows.length).toBe(4);
-      for (const row of states.rows) {
-        expect(['not_applicable', 'due', 'partly_paid', 'paid', 'overpaid']).toContain(row.status);
-        expect(BigInt(row.expected_poisha)).toBeGreaterThanOrEqual(0n);
-        expect(BigInt(row.paid_poisha)).toBeGreaterThanOrEqual(0n);
+    it('verifies 5 canonical payment methods seeded and active per center', async () => {
+      const res = await db().query(`
+        SELECT c.code AS center_code, pm.code, pm.active
+        FROM payment_methods pm
+        JOIN centers c ON c.id = pm.center_id
+        ORDER BY c.code, pm.sort_order
+      `);
+      const activeRows = res.rows.filter((r) => r.active === true);
+      expect(activeRows.length).toBe(10);
+
+      for (const centerCode of ['MHK', 'RMP']) {
+        const centerRows = res.rows.filter((r) => r.center_code === centerCode);
+        expect(centerRows.length).toBe(5);
+        expect(centerRows.map((r) => r.code)).toEqual([
+          'cash',
+          'bkash',
+          'visa',
+          'mastercard',
+          'bank_transfer',
+        ]);
+        expect(centerRows.every((r) => r.active === true)).toBe(true);
+      }
+    });
+
+    it('verifies 4 canonical payables seeded per center', async () => {
+      const res = await db().query(`
+        SELECT c.code AS center_code, p.code, p.kind
+        FROM payables p
+        JOIN centers c ON c.id = p.center_id
+        ORDER BY c.code, p.code
+      `);
+      expect(res.rows.length).toBe(8);
+
+      for (const centerCode of ['MHK', 'RMP']) {
+        const centerRows = res.rows.filter((r) => r.center_code === centerCode);
+        expect(centerRows.length).toBe(4);
+        expect(centerRows.map((r) => r.code)).toEqual([
+          'bkash_charge_payable',
+          'mastercard_charge_payable',
+          'vat_payable',
+          'visa_charge_payable',
+        ]);
+      }
+    });
+
+    it('verifies Rate Profile v1 is published and backdated to 2026-01-01 per center', async () => {
+      const res = await db().query(`
+        SELECT c.code AS center_code, rp.version, rp.status, rp.effective_from::text AS eff, rp.vat_mode, rp.commission_bp
+        FROM rate_profiles rp
+        JOIN centers c ON c.id = rp.center_id
+        WHERE rp.version = 1 AND rp.status = 'published'
+        ORDER BY c.code
+      `);
+      expect(res.rows.length).toBe(2);
+      expect(res.rows.map((r) => r.center_code)).toEqual(['MHK', 'RMP']);
+      for (const row of res.rows) {
+        expect(row.status).toBe('published');
+        expect(row.eff).toBe('2026-01-01');
+        expect(row.vat_mode).toBe('manual');
+        expect(row.commission_bp).toBe(4200);
+      }
+    });
+
+    it('verifies method rates for Profile v1 match operational defaults across all 5 methods per center', async () => {
+      const res = await db().query(`
+        SELECT c.code AS center_code, m.code, mr.charge_bp
+        FROM method_rates mr
+        JOIN payment_methods m ON m.id = mr.method_id AND m.center_id = mr.center_id
+        JOIN rate_profiles rp ON rp.id = mr.rate_profile_id AND rp.center_id = mr.center_id
+        JOIN centers c ON c.id = rp.center_id
+        WHERE rp.version = 1 AND rp.status = 'published'
+        ORDER BY c.code, m.code
+      `);
+      expect(res.rows.length).toBe(10);
+
+      for (const centerCode of ['MHK', 'RMP']) {
+        const centerRows = res.rows.filter((r) => r.center_code === centerCode);
+        expect(centerRows.length).toBe(5);
+        const rateMap = Object.fromEntries(centerRows.map((r) => [r.code, r.charge_bp]));
+        expect(rateMap.bkash).toBe(115);
+        expect(rateMap.visa).toBe(150);
+        expect(rateMap.mastercard).toBe(150);
+        expect(rateMap.cash).toBe(0);
+        expect(rateMap.bank_transfer).toBe(0);
+      }
+    });
+
+    it('verifies app_settings rows initialized per center', async () => {
+      const res = await db().query(`
+        SELECT c.code AS center_code, s.timezone, s.currency, s.locale, s.reconcile_tolerance_poisha
+        FROM app_settings s
+        JOIN centers c ON c.id = s.center_id
+        ORDER BY c.code
+      `);
+      expect(res.rows.length).toBe(2);
+      expect(res.rows.map((r) => r.center_code)).toEqual(['MHK', 'RMP']);
+      for (const row of res.rows) {
+        expect(row.timezone).toBe('Asia/Dhaka');
+        expect(row.currency).toBe('BDT');
+        expect(row.locale).toBe('en-BD');
+        expect(row.reconcile_tolerance_poisha).toBe('100');
       }
     });
 
     it('verifies system.bootstrap event recorded in audit_log', async () => {
-      const res = await pool.query(
-        "SELECT action, target_table, target_id, after FROM audit_log WHERE action = 'system.bootstrap'",
+      const res = await db().query(
+        "SELECT center_id, action, target_table, target_id, after FROM audit_log WHERE action = 'system.bootstrap'",
       );
       expect(res.rows.length).toBeGreaterThanOrEqual(1);
+      expect(res.rows[0].center_id).toBeNull();
       expect(res.rows[0].action).toBe('system.bootstrap');
       expect(res.rows[0].target_table).toBe('system');
       expect(res.rows[0].target_id).toBe('bootstrap');
@@ -273,20 +237,29 @@ describe.skipIf(!BOOTSTRAP_DB_TEST)(
       await expect(bootstrap()).resolves.not.toThrow();
 
       // Verify invariants remain intact
-      const ownerRes = await pool.query(
-        "SELECT count(*) as count FROM profiles WHERE role = 'owner'",
+      const superAdminRes = await db().query(
+        "SELECT count(*)::int AS count FROM profiles WHERE role = 'super_admin'",
       );
-      expect(parseInt(ownerRes.rows[0].count, 10)).toBe(1);
+      expect(superAdminRes.rows[0].count).toBe(1);
 
-      const methodsRes = await pool.query(
-        'SELECT count(*) as count FROM payment_methods WHERE active = true',
-      );
-      expect(parseInt(methodsRes.rows[0].count, 10)).toBe(5);
+      const centersRes = await db().query('SELECT count(*)::int AS count FROM centers');
+      expect(centersRes.rows[0].count).toBe(2);
 
-      const profilesRes = await pool.query(
-        "SELECT count(*) as count FROM rate_profiles WHERE version = 1 AND status = 'published'",
+      const methodsRes = await db().query(
+        'SELECT count(*)::int AS count FROM payment_methods WHERE active = true',
       );
-      expect(parseInt(profilesRes.rows[0].count, 10)).toBe(1);
+      expect(methodsRes.rows[0].count).toBe(10);
+
+      const payablesRes = await db().query('SELECT count(*)::int AS count FROM payables');
+      expect(payablesRes.rows[0].count).toBe(8);
+
+      const profilesRes = await db().query(
+        "SELECT count(*)::int AS count FROM rate_profiles WHERE version = 1 AND status = 'published'",
+      );
+      expect(profilesRes.rows[0].count).toBe(2);
+
+      const settingsRes = await db().query('SELECT count(*)::int AS count FROM app_settings');
+      expect(settingsRes.rows[0].count).toBe(2);
     });
   },
 );

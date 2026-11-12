@@ -36,6 +36,23 @@ const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+// Resolve the center for fixture accounts. `E2E_FIXTURE_CENTER_CODE` pins the
+// account to a named center, which the multi-center isolation spec needs: it
+// signs in as one staff member per center. Without it the first center created
+// (bootstrap provisions MHK before RMP) is used, preserving earlier behaviour.
+const centerCode = process.env.E2E_FIXTURE_CENTER_CODE;
+let centerQuery = admin.from('centers').select('id, code');
+if (centerCode) centerQuery = centerQuery.eq('code', centerCode);
+const { data: centerRows, error: centerError } = await centerQuery
+  .order('center_number', { ascending: true })
+  .order('id', { ascending: true })
+  .limit(1);
+if (centerError) throw centerError;
+const centerId = centerRows?.[0]?.id ?? null;
+if (centerCode && !centerId) {
+  throw new Error(`E2E_FIXTURE_CENTER_CODE=${centerCode} matched no center`);
+}
+
 const existing = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
 if (existing.error) throw existing.error;
 
@@ -45,17 +62,17 @@ if (found) {
   const { error } = await admin.auth.admin.updateUserById(found.id, {
     password,
     email_confirm: true,
-    app_metadata: { role },
+    app_metadata: { role, center_id: centerId },
   });
   if (error) throw error;
-  console.log(`${role} fixture updated: ${email}`);
+  console.info(`${role} fixture updated: ${email} (center: ${centerId})`);
 } else {
   const { error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    app_metadata: { role },
+    app_metadata: { role, center_id: centerId },
   });
   if (error) throw error;
-  console.log(`${role} fixture created: ${email}`);
+  console.info(`${role} fixture created: ${email} (center: ${centerId})`);
 }

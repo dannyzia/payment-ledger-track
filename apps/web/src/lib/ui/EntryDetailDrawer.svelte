@@ -4,12 +4,12 @@
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import type { ChipVariant } from '$lib/ledger/types';
-  import { formatPoishaToBdt } from '@clt/shared';
+  import { formatPoishaToBdt, type UserRole } from '@clt/shared';
 
   interface Props {
     entry: LocalEntry | null;
     allEntries: LocalEntry[];
-    role: 'staff' | 'admin' | 'owner';
+    role: UserRole;
     currentUserId: string;
     methodsMap: Record<string, CachedPaymentMethod>;
     profilesMap: Record<string, CachedProfile>;

@@ -28,6 +28,11 @@ export const POST: RequestHandler = async (event) => {
     );
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   let body: unknown;
   try {
     body = await event.request.json();
@@ -67,6 +72,7 @@ export const POST: RequestHandler = async (event) => {
   // Plan 005 create_statement has 9 parameters:
   // (p_kind, p_month, p_source, p_file_storage_path, p_file_sha256, p_statement_total_poisha, p_payable_ids, p_lines, p_actor_id)
   const rpcArgs = {
+    p_center_id: centerId,
     p_kind: parsed.data.kind,
     p_month: parsed.data.month,
     p_source: parsed.data.source,

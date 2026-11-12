@@ -14,6 +14,11 @@ export const POST: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'owner_only_operation' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const body = await event.request.json();
   const parsed = transferSchema.safeParse(body);
   if (!parsed.success) {
@@ -27,6 +32,7 @@ export const POST: RequestHandler = async (event) => {
 
   const supabase = getServiceSupabase();
   const { error } = await supabase.rpc('transfer_ownership', {
+    p_center_id: centerId,
     p_new_owner_id: parsed.data.newOwnerId,
     p_caller_id: caller.userId,
   });

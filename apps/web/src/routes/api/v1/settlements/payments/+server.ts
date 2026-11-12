@@ -30,6 +30,11 @@ export const POST: RequestHandler = async (event) => {
     );
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   let body: unknown;
   try {
     body = await event.request.json();
@@ -72,6 +77,7 @@ export const POST: RequestHandler = async (event) => {
   // Generated Supabase types type the text/uuid params as non-nullable `string`, but the Postgres
   // function params accept SQL NULL at runtime (no STRICT). Postgres validates the actual values.
   const rpcArgs = {
+    p_center_id: centerId,
     p_settlement_id: parsed.data.settlementId,
     p_amount_poisha: amountNumber,
     p_paid_on: parsed.data.paidOn,
@@ -105,6 +111,7 @@ export const POST: RequestHandler = async (event) => {
     .from('settlements')
     .select('*')
     .eq('id', parsed.data.settlementId)
+    .eq('center_id', centerId)
     .single();
 
   const { data: createdPayment } = await supabase
@@ -113,6 +120,7 @@ export const POST: RequestHandler = async (event) => {
       'id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path, note, is_reversal, reverses_payment_id, recorded_by, created_at',
     )
     .eq('id', data)
+    .eq('center_id', centerId)
     .single();
 
   return new Response(
@@ -150,12 +158,18 @@ export const GET: RequestHandler = async (event) => {
     );
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const supabase = getServiceSupabase();
 
   const { data: settlement } = await supabase
     .from('settlements')
     .select('*')
     .eq('id', settlementId)
+    .eq('center_id', centerId)
     .single();
 
   const { data: payments, error } = await supabase
@@ -164,6 +178,7 @@ export const GET: RequestHandler = async (event) => {
       'id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path, note, is_reversal, reverses_payment_id, recorded_by, created_at',
     )
     .eq('settlement_id', settlementId)
+    .eq('center_id', centerId)
     .order('paid_on', { ascending: false });
 
   if (error) {

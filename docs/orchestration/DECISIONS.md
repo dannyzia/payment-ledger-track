@@ -46,6 +46,92 @@ Still open before this can be answered: the roster table in `ORCHESTRATOR.md`
 §5 is `<fill>` for every role. `LEDGER.md`, `RISKS.md` and this file now exist,
 so the "ledger created" criterion is met.
 
+### CLT-D-033 — Multi-Tenant Migration, Bootstrap & Test Harness Remediation (Post-076 Drift)
+
+```
+Status: CONFIRMED
+Date: 2026-11-11
+Decided by: Orchestrator (technical remediation; no business-policy change)
+Options: Keep Nov 10 bolt-on patches (008_center_provisioning_v2.sql, session-wide
+         row_security=off in 006, current_user='postgres' clauses in 004, dummy
+         auth.users insert in bootstrap.ts);
+         or fold canonical PRD §7.4 methods/payables cleanly into 007, remove 008 and
+         RLS workarounds, remove dummy SQL auth inserts from bootstrap.ts, and fix
+         schema/bootstrap/view_parity test harnesses cleanly
+Outcome: Fold canonical 5-method / 4-payable seed cleanly into 007; remove 008, RLS
+         workarounds, and bootstrap dummy auth SQL insert; fix schema, bootstrap, and
+         view_parity test harnesses and verify on clean throwaway/isolated stacks
+Scope: supabase/migrations/2026102900000{4,6,7}_*.sql, deletion of 008 and
+       scripts/clt-bootstrap-verify.ts, scripts/bootstrap.ts, tests/db/{schema,bootstrap}.test.ts,
+       apps/web/tests/reports/view_parity.test.ts
+Reason: 1) Migration 007's single `card_charge` payable (linked to visa only) left
+       mastercard un-payable in generate_monthly_settlements and broke combined_card code
+       matching in tolerance.ts; folding PRD §7.4's 5 methods (cash, bkash, visa,
+       mastercard, bank_transfer) and 4 payables (vat_payable, bkash_charge_payable,
+       visa_charge_payable, mastercard_charge_payable) into uncommitted baseline 007 honors
+       CLT-D-030's clean declarative baseline without bolt-on 008 patch debt.
+       2) postgres holds rolbypassrls = true in Postgres/Supabase, making session-level
+       set_config('row_security', 'off', false) in 006 (connection-pool poisoning) and
+       `OR current_user = 'postgres'` clauses on TO authenticated policies in 004 unnecessary.
+       3) scripts/bootstrap.ts must rely strictly on Supabase Auth Admin API without dummy
+       auth.users SQL inserts; bootstrap.test.ts verifies real Auth+DB cleanly against an
+       empty/isolated Supabase stack with 2-center assertions.
+       4) view_parity.test.ts uses role 'staff' instead of 'owner' so running against any
+       center with an existing active owner never violates uq_one_owner.
+```
+
+### CLT-D-034 — Remediation of Multi-Center Regressions Found in CLT-T-077 Audit
+
+```
+Status: CONFIRMED
+Date: 2026-11-11
+Decided by: Orchestrator (following A-AUD-1 CHANGES REQUESTED audit on CLT-T-077)
+Options: Option A — Restore canonical HEAD / PRD / API contracts inside 004 and 006 plus
+         database.types.ts and settlement_recon.test.ts / schema.test.ts before accepting
+         remediation. Option B — Alter SvelteKit API routes and UI recovery map to adopt the
+         mutated 006 signatures/error codes and weaken security rules.
+Outcome: Option A — Restore canonical PRD, HEAD, and SvelteKit API contracts
+Scope: supabase/migrations/20261029000004_security_and_rls.sql,
+       supabase/migrations/20261029000006_functions_settlement_recon_month.sql,
+       apps/web/src/lib/database.types.ts,
+       tests/db/settlement_recon.test.ts,
+       tests/db/schema.test.ts
+Reason: Independent Auditor A-AUD-1 found 2 Blockers and 4 Majors left over from earlier
+        multi-center rewrites and confirmed against HEAD and /api/v1/* handlers:
+        1) reopen_month in 006 permitted 'admin' instead of Owner-only (PRD §3/§7.3 +
+           months/reopen/+server.ts) and dropped statements/statement_payables reopening.
+        2) review_entry_reconciliation_exception changed to a 7-arg signature and dropped
+           active-entry and payable-applicability guards, breaking POST /api/v1/reconcile/exceptions
+           at runtime (masked in TS by an `as unknown as` cast against stale database.types.ts).
+        3) reconcile_statement dropped Mode A expected_poisha/lines checks and Mode B Assertion 1
+           (invalid_matched_entry) & Assertion 3 (unmatched_entries_without_approved_exceptions),
+           and renamed variance_exceeds_tolerance to reconciliation_tolerance_exceeded
+           (breaking sync/recovery.ts and reconcile/statements/reconcile/+server.ts).
+        4) close_month dropped early idempotent return, renamed unapproved_overpaid_settlement to
+           409 overpayment_pending_approval (breaking months/close/+server.ts), and checked
+           an unreachable status = 'pending' on entry_reconciliation_exceptions.
+        5) audit_log_select_policy in 004 exposed center audit_log rows to staff (PRD §3/§7.1).
+        6) tests/db/settlement_recon.test.ts had weakened assertions matching the broken 006.
+```
+
+### CLT-D-032 — Admin Routes Alignment with Multi-Center RPC Signatures
+
+```
+Status: CONFIRMED
+Date: 2026-11-09
+Decided by: Orchestrator (authorized scope expansion during CLT-T-073 verification)
+Options: Expand CLT-T-073 scope to include 8 admin routes (settings, devices, methods,
+         payables, rates/draft, rates/publish, users, users/invite) passing p_center_id;
+         or revert database.types.ts and leave admin RPCs broken until Phase 4
+Outcome: Expand scope to align all 8 admin endpoints with multi-center RPC signatures
+Scope: apps/web/src/routes/api/v1/admin/{settings, devices, methods, payables, rates/draft,
+       rates/publish, users, users/invite}/+server.ts
+Reason: Regenerating database.types.ts from the local PostgreSQL schema made p_center_id
+       a required argument across all database procedures. Leaving admin handlers untouched
+       prevented apps/web from typechecking. All 8 endpoints now resolve caller.centerId
+       and pass p_center_id, achieving 0 errors and 0 warnings on svelte-check.
+```
+
 ### CLT-D-030 — Multi-Center Row-Level Multi-Tenancy Architecture (V1 Baseline)
 
 ```
@@ -157,6 +243,8 @@ when answered.
 
 | Rev | Date | Change |
 |---|---|---|
+| 5 | 2026-11-11 | `CLT-D-034` recorded: restore Owner-only `reopen_month` + statement invalidation, 6-arg `review_entry_reconciliation_exception` + `database.types.ts`, full `reconcile_statement` Mode A/B guards and canonical error codes, `close_month` idempotency + `unapproved_overpaid_settlement`, and Admin/Owner/super_admin restriction on `audit_log_select_policy`. |
+| 4 | 2026-11-11 | `CLT-D-033` recorded: technical remediation removing Nov 10 session RLS workarounds (`004`/`006`), folding PRD §7.4 5-method / 4-payable seed cleanly into `007` and removing `008`, removing dummy `auth.users` insert from `scripts/bootstrap.ts`, and fixing `schema.test.ts`, `bootstrap.test.ts`, and `view_parity.test.ts`. |
 | 3 | 2026-11-08 | `CLT-D-029` recorded: the app's display name is **Kumon Ledger Track**, matching the KUMON artwork. Applied to Capacitor, the PWA manifest (`short_name` "Kumon Ledger"), titles, brand strings and the Android `app_name`; package id and Dexie database name deliberately untouched. |
 | 1 | 2026-11-06 | File created. `CLT-D-026` (G0) opened as PENDING; decisions recorded in AGENTS.md and root `DECISIONS.md` indexed in §3; three decision requests listed in §4. No approval is fabricated: nothing here is marked accepted. |
 | 2 | 2026-11-08 | `CLT-D-028` recorded: on Zia's chat decision, the unrelated `origin/main` history (six commits, root `a4cc8ae`) was replaced by this clone's `main` (`83b3764`) with `--force-with-lease`, after pinning the discarded tip as `backup/origin-main-20261108`. The ID space note is unchanged: the record states what was done and why, it does not create a task. |

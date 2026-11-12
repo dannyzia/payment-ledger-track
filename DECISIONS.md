@@ -383,3 +383,26 @@ Hard deletion stays correct only for accounts with no audit history — the
 earlier sweep accounts qualified, these do not. This is a property of the
 schema, not a tooling gap: deleting the profile would either break the foreign
 key or require rewriting the audit log.
+
+## CLT-D-032 — A centerless session pulls even when its push cannot succeed
+
+Date: 2026-11-11. PRD §9.1 orders the client to flush `/api/v1/sync/push` to
+completion **before** calling `/api/v1/sync/pull` `(AGENTS.md` §4). A platform
+super-admin carries no `center_id`, and the push route refuses entry ops without
+a tenant (`400 missing_tenant_context`), so every cycle failed the push and
+returned before the pull. Two consequences the PRD does not cover: Head Office
+configuration never refreshed while ops stayed queued, and the prune for
+replaced payment methods lives inside the pull (`CLT-R-026`), so stale methods
+survived until the device cache was cleared.
+
+Decision: when the authenticated session carries no center, a failed push no
+longer blocks the pull. The pull runs, and the runner still reports `error` so
+the queued ops are not papered over as a clean sync. Every account that can
+record an entry carries a center, so push-before-pull ordering is unchanged
+where it matters; only a session that can never push is exempted.
+
+Alternatives rejected: skipping the push for that session type outright (would
+report `synced` while ops sat queued), and pulling after any push failure
+(breaks the ordering guarantee for franchise users, whose retry can succeed).
+Covered by `apps/web/src/lib/sync/runner.test.ts`: the centerless branch pulls
+and stays `error`; the centered branch still refuses to pull.

@@ -49,6 +49,11 @@ export const POST: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const body = await event.request.json();
   const parsed = managePayableSchema.safeParse(body);
   if (!parsed.success) {
@@ -62,6 +67,7 @@ export const POST: RequestHandler = async (event) => {
   // p_id/p_method_id default to NULL; CLI-generated types omit the null union (CLT-D-012).
   const NULL_TEXT = null as unknown as string;
   const { data, error } = await supabase.rpc('admin_manage_payable', {
+    p_center_id: centerId,
     p_action: action,
     p_id: parsed.data.id ?? NULL_TEXT,
     p_kind: parsed.data.kind,

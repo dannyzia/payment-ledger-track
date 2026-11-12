@@ -1,13 +1,18 @@
 import { supabase } from '$lib/supabase/client';
+import { db } from '$lib/db';
 import { goto } from '$app/navigation';
 import { isAuthRoute } from '$lib/auth/routes';
 import type { Session } from '@supabase/supabase-js';
+import type { UserRole } from '@clt/shared';
 
 export interface UserSessionProfile {
   id: string;
   email: string;
-  role: 'staff' | 'admin' | 'owner';
+  role: UserRole;
   active: boolean;
+  centerId?: string | null;
+  centerCode?: string | null;
+  centerName?: string | null;
   fullName?: string | undefined;
 }
 
@@ -131,14 +136,15 @@ export class SessionStore {
 
     const userId = sbSession.user.id;
     const email = sbSession.user.email ?? '';
-    const initialRole = (sbSession.user.app_metadata?.role ??
-      'staff') as UserSessionProfile['role'];
+    const initialRole = (sbSession.user.app_metadata?.role ?? 'staff') as UserRole;
+    const initialCenterId = (sbSession.user.app_metadata?.center_id as string | undefined) ?? null;
 
     this.setLocalSession({
       id: userId,
       email,
       role: initialRole,
       active: true,
+      centerId: initialCenterId,
       fullName: sbSession.user.user_metadata?.full_name,
     });
 
@@ -179,6 +185,9 @@ export class SessionStore {
             ...this.user,
             role: data.role,
             active: data.active,
+            centerId: data.centerId ?? this.user.centerId ?? null,
+            centerCode: data.centerCode ?? this.user.centerCode ?? null,
+            centerName: data.centerName ?? this.user.centerName ?? null,
             fullName: data.fullName ?? this.user.fullName,
           });
         }
@@ -188,7 +197,30 @@ export class SessionStore {
     }
   }
 
-  async signOut(): Promise<void> {
+  /**
+   * CLT-T-075 shift-handover protection: signing out with pending offline ops warns
+   * and leaves the outbox untouched on disk, so the next shift can finish the upload.
+   * clearLocalSession only drops in-memory state and the profile cache.
+   */
+  async signOut(force: boolean = false): Promise<boolean> {
+    if (!force && typeof window !== 'undefined') {
+      let pendingCount = 0;
+      try {
+        pendingCount = await db.outbox.where('status').equals('pending').count();
+      } catch {
+        // Cannot read the outbox; do not block the sign-out on a read failure.
+        pendingCount = 0;
+      }
+      if (pendingCount > 0 && typeof window.confirm === 'function') {
+        const proceed = window.confirm(
+          `${pendingCount} payments pending sync. Keep tablet connected to finish upload before signing out. Sign out anyway?`,
+        );
+        if (!proceed) {
+          return false;
+        }
+      }
+    }
+
     try {
       await supabase.auth.signOut();
     } catch {
@@ -199,6 +231,7 @@ export class SessionStore {
         goto('/login');
       }
     }
+    return true;
   }
 }
 

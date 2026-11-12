@@ -22,6 +22,11 @@ export const POST: RequestHandler = async (event) => {
     );
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   let body: unknown;
   try {
     body = await event.request.json();
@@ -41,6 +46,7 @@ export const POST: RequestHandler = async (event) => {
 
   const supabase = getServiceSupabase();
   const rpcArgs = {
+    p_center_id: centerId,
     p_month: parsed.data.month,
     p_reason: parsed.data.reason,
     p_actor_id: caller.userId,

@@ -204,23 +204,23 @@ body {
 }
 [data-theme='dark'] .btn--commission {
   --c1: #14b89a;
-  --c2: #0d947b;
+  --c2: #16b09f;
 }
 [data-theme='dark'] .btn--vat {
   --c1: #f5b041;
-  --c2: #d99525;
+  --c2: #e09f30;
 }
 [data-theme='dark'] .btn--bkash {
-  --c1: #f75990;
-  --c2: #d43870;
+  --c1: #ff6ba0;
+  --c2: #f75990;
 }
 [data-theme='dark'] .btn--visa {
-  --c1: #64a0ff;
-  --c2: #3e7be0;
+  --c1: #75adff;
+  --c2: #5898ff;
 }
 [data-theme='dark'] .btn--mastercard {
-  --c1: #ff8c42;
-  --c2: #e06b22;
+  --c1: #ff944d;
+  --c2: #f07828;
 }
 
 .tabular-nums {

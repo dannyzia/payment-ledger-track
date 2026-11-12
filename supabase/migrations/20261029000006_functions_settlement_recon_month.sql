@@ -1,5 +1,11 @@
 -- Migration: 20261029000006_functions_settlement_recon_month.sql
--- Description: Settlement lifecycle, statement reconciliation, and month close procedures
+-- Description: Settlement lifecycle, statement reconciliation, and month close procedures.
+-- Multi-center baseline: every routine takes p_center_id, validates it, and scopes
+-- every read/write plus every advisory lock to that tenant.
+
+-- 0. Schema extension: add due_date to settlements (PRD §7.3; used by close_month)
+ALTER TABLE settlements ADD COLUMN IF NOT EXISTS due_date date;
+CREATE INDEX IF NOT EXISTS idx_settlements_center_month_due ON settlements (center_id, month) WHERE due_date IS NOT NULL;
 
 -- 1. Pure Calculation Function: calc_settlement_status (PRD §7.3 lines 601-610, F50)
 create or replace function calc_settlement_status(
@@ -35,10 +41,11 @@ begin
       NEW.overpayment_approved_at := null;
 
       perform log_audit_event(
+        NEW.center_id,
         coalesce(
           nullif(current_setting('clt.audit_actor', true), '')::uuid,
           (select sp.recorded_by from settlement_payments sp
-           where sp.settlement_id = NEW.id and sp.is_reversal = false
+           where sp.center_id = NEW.center_id and sp.settlement_id = NEW.id and sp.is_reversal = false
            order by sp.paid_on desc, sp.created_at desc limit 1),
           '00000000-0000-0000-0000-000000000000'::uuid),
         'settlement.overpayment_invalidated',
@@ -59,33 +66,39 @@ before update of expected_poisha, paid_poisha on settlements
 for each row execute function fn_settlements_recalc_status_and_overpayment();
 
 -- 3. Procedure: generate_monthly_settlements (PRD §7.3 lines 1091-1120)
-create or replace function generate_monthly_settlements(p_month date)
+create or replace function generate_monthly_settlements(p_center_id uuid, p_month date)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_month date := date_trunc('month', p_month)::date;
   v_payable_id uuid;
   v_expected bigint;
   v_rec record;
+  v_center_number int;
 begin
-  -- 1. Month Advisory Lock (Class 1001)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  -- 1. Month Advisory Lock (Class 1001, this center)
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
   -- 2. Skip if month is closed
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     return;
   end if;
 
   -- Stream 1: Government VAT
   select s.payable_id into v_payable_id
   from settlements s
-  join payables p on p.id = s.payable_id
-  where s.month = v_month and p.kind = 'vat'
+  join payables p on p.id = s.payable_id and p.center_id = s.center_id
+  where s.center_id = p_center_id and s.month = v_month and p.kind = 'vat'
   limit 1;
 
   if v_payable_id is null then
     select id into v_payable_id
     from payables
-    where kind = 'vat'
+    where center_id = p_center_id and kind = 'vat'
     order by active desc, created_at desc
     limit 1;
   end if;
@@ -93,35 +106,51 @@ begin
   if v_payable_id is not null then
     select coalesce(sum(vat_poisha), 0) into v_expected
     from entries
-    where date_trunc('month', entry_date)::date = v_month and status = 'active';
+    where center_id = p_center_id
+      and date_trunc('month', entry_date)::date = v_month and status = 'active';
 
-    insert into settlements (payable_id, month, expected_poisha, paid_poisha, status)
-    values (v_payable_id, v_month, v_expected, 0, calc_settlement_status(v_expected, 0))
-    on conflict (payable_id, month) do update
+    insert into settlements (center_id, payable_id, month, expected_poisha, paid_poisha, status)
+    values (p_center_id, v_payable_id, v_month, v_expected, 0, calc_settlement_status(v_expected, 0))
+    on conflict (center_id, payable_id, month) do update
     set expected_poisha = EXCLUDED.expected_poisha, updated_at = now()
-    where not exists (select 1 from month_closes mc where mc.month = v_month and mc.status = 'closed');
+    where not exists (
+      select 1 from month_closes mc
+      where mc.center_id = p_center_id and mc.month = v_month and mc.status = 'closed'
+    );
   end if;
 
   -- Stream 2: Method Charges for distinct liability streams
   for v_rec in (
     select distinct id as method_id
     from payment_methods
-    where active = true
-       or id in (select method_id from entries where date_trunc('month', entry_date)::date = v_month and status = 'active')
-       or id in (select p.method_id from settlements s join payables p on p.id = s.payable_id where s.month = v_month and p.kind = 'method_charge')
+    where center_id = p_center_id
+      and (
+        active = true
+        or id in (
+          select method_id from entries
+          where center_id = p_center_id
+            and date_trunc('month', entry_date)::date = v_month and status = 'active'
+        )
+        or id in (
+          select p.method_id from settlements s
+          join payables p on p.id = s.payable_id and p.center_id = s.center_id
+          where s.center_id = p_center_id and s.month = v_month and p.kind = 'method_charge'
+        )
+      )
   ) loop
     v_payable_id := null;
 
     select s.payable_id into v_payable_id
     from settlements s
-    join payables p on p.id = s.payable_id
-    where s.month = v_month and p.kind = 'method_charge' and p.method_id = v_rec.method_id
+    join payables p on p.id = s.payable_id and p.center_id = s.center_id
+    where s.center_id = p_center_id
+      and s.month = v_month and p.kind = 'method_charge' and p.method_id = v_rec.method_id
     limit 1;
 
     if v_payable_id is null then
       select id into v_payable_id
       from payables
-      where kind = 'method_charge' and method_id = v_rec.method_id
+      where center_id = p_center_id and kind = 'method_charge' and method_id = v_rec.method_id
       order by active desc, created_at desc
       limit 1;
     end if;
@@ -129,13 +158,18 @@ begin
     if v_payable_id is not null then
       select coalesce(sum(business_charge_poisha), 0) into v_expected
       from entries
-      where date_trunc('month', entry_date)::date = v_month and method_id = v_rec.method_id and status = 'active';
+      where center_id = p_center_id
+        and date_trunc('month', entry_date)::date = v_month
+        and method_id = v_rec.method_id and status = 'active';
 
-      insert into settlements (payable_id, month, expected_poisha, paid_poisha, status)
-      values (v_payable_id, v_month, v_expected, 0, calc_settlement_status(v_expected, 0))
-      on conflict (payable_id, month) do update
+      insert into settlements (center_id, payable_id, month, expected_poisha, paid_poisha, status)
+      values (p_center_id, v_payable_id, v_month, v_expected, 0, calc_settlement_status(v_expected, 0))
+      on conflict (center_id, payable_id, month) do update
       set expected_poisha = EXCLUDED.expected_poisha, updated_at = now()
-      where not exists (select 1 from month_closes mc where mc.month = v_month and mc.status = 'closed');
+      where not exists (
+        select 1 from month_closes mc
+        where mc.center_id = p_center_id and mc.month = v_month and mc.status = 'closed'
+      );
     end if;
   end loop;
 end;
@@ -161,12 +195,15 @@ begin
 
   -- Iterate through affected months in ascending order (preventing lock-inversion deadlocks)
   for v_month_item in select distinct m from unnest(array[v_new_month, v_old_month]) m where m is not null order by m asc loop
-    -- Process only open months
-    if not exists (select 1 from month_closes where month = v_month_item and status = 'closed') then
-      perform generate_monthly_settlements(v_month_item);
+    -- Process only open months of this center
+    if not exists (
+      select 1 from month_closes
+      where center_id = NEW.center_id and month = v_month_item and status = 'closed'
+    ) then
+      perform generate_monthly_settlements(NEW.center_id, v_month_item);
 
       -- Cascade statement expected poisha recalculation and invalidation back to 'open'
-      -- Scoped strictly to statements covering affected liability streams:
+      -- Scoped strictly to statements of this center covering affected liability streams:
       -- VAT if (NEW.vat_poisha > 0 or OLD.vat_poisha > 0)
       -- Method Charge if method matches NEW.method_id or OLD.method_id
       update statements s
@@ -179,17 +216,19 @@ begin
           end
         ), 0)
         from statement_payables sp
-        join payables p on p.id = sp.payable_id
-        join entries e on date_trunc('month', e.entry_date)::date = v_month_item and e.status = 'active'
+        join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+        join entries e on e.center_id = NEW.center_id
+          and date_trunc('month', e.entry_date)::date = v_month_item and e.status = 'active'
         where sp.statement_id = s.id
       ),
       status = 'open',
       updated_at = now()
-      where s.month = v_month_item
+      where s.center_id = NEW.center_id
+        and s.month = v_month_item
         and s.status in ('open', 'reconciled')
         and exists (
           select 1 from statement_payables sp
-          join payables p on p.id = sp.payable_id
+          join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
           where sp.statement_id = s.id
             and (
               (p.kind = 'vat' and (NEW.vat_poisha > 0 or (TG_OP = 'UPDATE' and OLD.vat_poisha > 0)))
@@ -200,11 +239,12 @@ begin
 
       update statement_payables sp
       set status = 'open'
-      where sp.month = v_month_item
+      where sp.center_id = NEW.center_id
+        and sp.month = v_month_item
         and sp.status = 'reconciled'
         and exists (
           select 1 from statements s
-          where s.id = sp.statement_id and s.status = 'open'
+          where s.id = sp.statement_id and s.center_id = sp.center_id and s.status = 'open'
         );
     end if;
   end loop;
@@ -241,16 +281,19 @@ declare
   v_new_paid bigint;
 begin
   -- Lock hierarchy: payables (FOR KEY SHARE) -> settlements (FOR UPDATE)
-  select payable_id into v_payable_id from settlements where id = NEW.settlement_id;
+  select payable_id into v_payable_id
+  from settlements where id = NEW.settlement_id and center_id = NEW.center_id;
   if v_payable_id is not null then
-    perform id from payables where id = v_payable_id for key share;
+    perform id from payables where id = v_payable_id and center_id = NEW.center_id for key share;
   end if;
-  perform id from settlements where id = NEW.settlement_id for update;
+  perform id from settlements where id = NEW.settlement_id and center_id = NEW.center_id for update;
 
   if NEW.is_reversal then
     select amount_poisha, settlement_id, is_reversal
     into v_target_amount, v_target_settlement_id, v_target_is_reversal
-    from settlement_payments where id = NEW.reverses_payment_id for update;
+    from settlement_payments
+    where id = NEW.reverses_payment_id and center_id = NEW.center_id
+    for update;
 
     if v_target_amount is null then
       raise exception '422 payment_not_found';
@@ -265,7 +308,9 @@ begin
     -- Query prior existing reversals excluding the current newly-inserted row (prevents double counting)
     select coalesce(sum(amount_poisha), 0) into v_existing_reversals
     from settlement_payments
-    where reverses_payment_id = NEW.reverses_payment_id and is_reversal = true
+    where center_id = NEW.center_id
+      and reverses_payment_id = NEW.reverses_payment_id
+      and is_reversal = true
       and id != NEW.id;
 
     if (v_existing_reversals + NEW.amount_poisha) > v_target_amount then
@@ -277,10 +322,10 @@ begin
   select coalesce(sum(amount_poisha * (case when is_reversal then -1 else 1 end)), 0)
   into v_new_paid
   from settlement_payments
-  where settlement_id = NEW.settlement_id;
+  where settlement_id = NEW.settlement_id and center_id = NEW.center_id;
 
   update settlements set paid_poisha = v_new_paid, updated_at = now()
-  where id = NEW.settlement_id;
+  where id = NEW.settlement_id and center_id = NEW.center_id;
 
   return NEW;
 end;
@@ -302,25 +347,30 @@ begin
     -- Cascade parent statements from reconciled to open
     update statements s
     set status = 'open', updated_at = now()
-    where s.status = 'reconciled'
+    where s.center_id = NEW.center_id
+      and s.status = 'reconciled'
       and exists (
         select 1 from statement_lines sl
-        where sl.statement_id = s.id and sl.matched_entry_id = NEW.id and sl.is_active_match = true
+        where sl.statement_id = s.id and sl.center_id = s.center_id
+          and sl.matched_entry_id = NEW.id and sl.is_active_match = true
       );
 
     -- Cascade covered statement_payables from reconciled to open
     update statement_payables sp
     set status = 'open'
     from statements s
-    where sp.statement_id = s.id and s.status = 'open' and sp.status = 'reconciled'
+    where sp.statement_id = s.id and sp.center_id = s.center_id
+      and s.center_id = NEW.center_id
+      and s.status = 'open' and sp.status = 'reconciled'
       and exists (
         select 1 from statement_lines sl
-        where sl.statement_id = s.id and sl.matched_entry_id = NEW.id and sl.is_active_match = true
+        where sl.statement_id = s.id and sl.center_id = s.center_id
+          and sl.matched_entry_id = NEW.id and sl.is_active_match = true
       );
 
     update statement_lines
     set match_status = 'unmatched', matched_entry_id = null, is_active_match = false, updated_at = now()
-    where matched_entry_id = NEW.id and is_active_match = true;
+    where center_id = NEW.center_id and matched_entry_id = NEW.id and is_active_match = true;
   end if;
 
   return NEW;
@@ -335,26 +385,27 @@ for each row execute function fn_entries_unmatch_statement_lines();
 create or replace function fn_entry_exceptions_invalidate_reconciliation()
 returns trigger language plpgsql as $$
 declare
-  v_entry_id uuid;
   v_payable_id uuid;
   v_month date;
+  v_center_id uuid;
 begin
   -- Filter evaluated inside function body (avoids invalid TG_OP/OLD in trigger WHEN clause)
   if not (OLD.status = 'approved' and (TG_OP = 'DELETE' or NEW.status != 'approved')) then
     return coalesce(NEW, OLD);
   end if;
 
-  v_entry_id := OLD.entry_id;
+  v_center_id := OLD.center_id;
   v_payable_id := OLD.payable_id;
   v_month := OLD.month;
 
   update statements s
   set status = 'open', updated_at = now()
-  where s.month = v_month
+  where s.center_id = v_center_id
+    and s.month = v_month
     and s.status = 'reconciled'
     and exists (
       select 1 from statement_payables sp
-      where sp.statement_id = s.id
+      where sp.statement_id = s.id and sp.center_id = s.center_id
         and sp.payable_id = v_payable_id
     );
 
@@ -362,11 +413,13 @@ begin
   update statement_payables sp
   set status = 'open'
   from statements s
-  where sp.statement_id = s.id and s.month = v_month
+  where sp.statement_id = s.id and sp.center_id = s.center_id
+    and s.center_id = v_center_id and s.month = v_month
     and sp.status = 'reconciled'
     and exists (
       select 1 from statement_payables sp2
-      where sp2.statement_id = s.id and sp2.payable_id = v_payable_id
+      where sp2.statement_id = s.id and sp2.center_id = s.center_id
+        and sp2.payable_id = v_payable_id
     );
 
   return coalesce(NEW, OLD);
@@ -379,6 +432,7 @@ for each row execute function fn_entry_exceptions_invalidate_reconciliation();
 
 -- 8. RPC: record_settlement_payment (PRD §7.3 lines 1121-1144)
 create or replace function record_settlement_payment(
+  p_center_id uuid,
   p_settlement_id uuid,
   p_amount_poisha bigint,
   p_paid_on date,
@@ -391,6 +445,7 @@ create or replace function record_settlement_payment(
 ) returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_payable_id uuid;
   v_expected bigint;
@@ -402,10 +457,17 @@ declare
   v_target_is_reversal boolean;
   v_existing_reversals bigint;
 begin
-
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
@@ -415,7 +477,7 @@ begin
 
   select s.month, s.payable_id, s.expected_poisha, s.paid_poisha
   into v_month, v_payable_id, v_expected, v_current_paid
-  from settlements s where s.id = p_settlement_id;
+  from settlements s where s.id = p_settlement_id and s.center_id = p_center_id;
 
   if v_month is null then
     raise exception '422 settlement_not_found';
@@ -432,16 +494,16 @@ begin
   end if;
 
   -- 1. Advisory Month Lock First (Class 1001)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
   -- 2. Row Locks in Trigger-Aligned Order: payables (KEY SHARE) -> settlements (FOR UPDATE)
-  perform id from payables where id = v_payable_id for key share;
+  perform id from payables where id = v_payable_id and center_id = p_center_id for key share;
   select id, expected_poisha, paid_poisha
   into v_settlement_id, v_expected, v_current_paid
-  from settlements where id = p_settlement_id for update;
+  from settlements where id = p_settlement_id and center_id = p_center_id for update;
 
   -- Closed-Month Payout Policy (PRD §7.3 lines 1126-1131, Item 3)
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     if coalesce(p_is_reversal, false) then
       raise exception '422 month_closed';
     end if;
@@ -457,7 +519,9 @@ begin
 
     select amount_poisha, settlement_id, is_reversal
     into v_target_amount, v_target_settlement_id, v_target_is_reversal
-    from settlement_payments where id = p_reverses_id for update;
+    from settlement_payments
+    where id = p_reverses_id and center_id = p_center_id
+    for update;
 
     if v_target_amount is null then
       raise exception '422 payment_not_found';
@@ -471,7 +535,7 @@ begin
 
     select coalesce(sum(amount_poisha), 0) into v_existing_reversals
     from settlement_payments
-    where reverses_payment_id = p_reverses_id and is_reversal = true;
+    where center_id = p_center_id and reverses_payment_id = p_reverses_id and is_reversal = true;
 
     if (v_existing_reversals + p_amount_poisha) > v_target_amount then
       raise exception '422 reversals_exceed_original_amount';
@@ -480,15 +544,15 @@ begin
 
   v_payment_id := gen_random_uuid();
   insert into settlement_payments (
-    id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path,
+    id, center_id, settlement_id, amount_poisha, paid_on, reference, receipt_storage_path,
     note, is_reversal, reverses_payment_id, recorded_by
   ) values (
-    v_payment_id, p_settlement_id, p_amount_poisha, p_paid_on, p_reference,
+    v_payment_id, p_center_id, p_settlement_id, p_amount_poisha, p_paid_on, p_reference,
     p_receipt_path, p_note, coalesce(p_is_reversal, false), p_reverses_id, p_actor_id
   );
 
   perform log_audit_event(
-    p_actor_id, 'settlement.payment', 'settlement_payments', v_payment_id::text, null,
+    p_center_id, p_actor_id, 'settlement.payment', 'settlement_payments', v_payment_id::text, null,
     jsonb_build_object(
       'settlement_id', p_settlement_id, 'amount', p_amount_poisha,
       'paid_on', p_paid_on, 'is_reversal', coalesce(p_is_reversal, false),
@@ -502,12 +566,14 @@ $$;
 
 -- 9. RPC: approve_settlement_overpayment (PRD §7.3 lines 1145-1161)
 create or replace function approve_settlement_overpayment(
+  p_center_id uuid,
   p_settlement_id uuid,
   p_reason text,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_payable_id uuid;
   v_settlement record;
@@ -515,8 +581,17 @@ declare
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role != 'owner' then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is distinct from 'owner' then
     raise exception '403 unauthorized';
   end if;
 
@@ -525,7 +600,7 @@ begin
   end if;
 
   select s.month, s.payable_id into v_month, v_payable_id
-  from settlements s where s.id = p_settlement_id;
+  from settlements s where s.id = p_settlement_id and s.center_id = p_center_id;
 
   if v_month is null then
     raise exception '422 settlement_not_found';
@@ -534,15 +609,16 @@ begin
   v_month := date_trunc('month', v_month)::date;
 
   -- 1. Advisory Month Lock First (Class 1001)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
   -- 2. Row Locks: payables (KEY SHARE) -> settlements (FOR UPDATE)
-  perform id from payables where id = v_payable_id for key share;
-  select * into v_settlement from settlements where id = p_settlement_id for update;
+  perform id from payables where id = v_payable_id and center_id = p_center_id for key share;
+  select * into v_settlement
+  from settlements where id = p_settlement_id and center_id = p_center_id for update;
 
   if v_settlement.status != 'overpaid' or v_settlement.paid_poisha <= v_settlement.expected_poisha then
     raise exception '422 settlement_not_overpaid';
@@ -557,10 +633,10 @@ begin
       overpayment_approved_by = p_actor_id,
       overpayment_approved_at = now(),
       updated_at = now()
-  where id = p_settlement_id;
+  where id = p_settlement_id and center_id = p_center_id;
 
   perform log_audit_event(
-    p_actor_id, 'settlement.overpayment_approved', 'settlements', p_settlement_id::text,
+    p_center_id, p_actor_id, 'settlement.overpayment_approved', 'settlements', p_settlement_id::text,
     jsonb_build_object('overpayment_status', v_settlement.overpayment_review_status),
     jsonb_build_object('overpayment_status', 'approved', 'approved_amount', v_current_surplus, 'reason', p_reason)
   );
@@ -569,6 +645,7 @@ $$;
 
 -- 10. Internal Matching Procedure: perform_statement_auto_match (Finding B5, Items 1 & 2)
 create or replace function perform_statement_auto_match(
+  p_center_id uuid,
   p_statement_id uuid,
   p_month date
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
@@ -580,14 +657,16 @@ begin
     with candidate_entries as (
       select e.id, upper(trim(e.txn_ref)) as norm_ref
       from entries e
-      where date_trunc('month', e.entry_date)::date = p_month
+      where e.center_id = p_center_id
+        and date_trunc('month', e.entry_date)::date = p_month
         and e.status = 'active'
         and e.txn_ref is not null
         and length(trim(e.txn_ref)) > 0
         and exists (
           select 1 from statement_payables sp
-          join payables p on p.id = sp.payable_id
+          join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
           where sp.statement_id = p_statement_id
+            and sp.center_id = p_center_id
             and (
               (p.kind = 'vat' and e.vat_poisha > 0)
               or (p.kind = 'method_charge' and p.method_id = e.method_id and e.business_charge_poisha > 0)
@@ -596,6 +675,7 @@ begin
         and not exists (
           select 1 from statement_lines sl2
           where sl2.statement_id = p_statement_id
+            and sl2.center_id = p_center_id
             and sl2.matched_entry_id = e.id
             and sl2.is_active_match = true
         )
@@ -611,6 +691,7 @@ begin
       select id, upper(trim(reference)) as norm_ref
       from statement_lines
       where statement_id = p_statement_id
+        and center_id = p_center_id
         and match_status = 'unmatched'
         and reference is not null
         and length(trim(reference)) > 0
@@ -628,7 +709,7 @@ begin
   ) loop
     update statement_lines
     set matched_entry_id = v_rec.entry_id, match_status = 'matched', is_active_match = true, updated_at = now()
-    where id = v_rec.line_id and match_status = 'unmatched';
+    where id = v_rec.line_id and center_id = p_center_id and match_status = 'unmatched';
   end loop;
 
   -- Fallback Pass: Unique Date + Gross matching with 1-to-1 Uniqueness
@@ -636,12 +717,14 @@ begin
     with candidate_entries as (
       select e.id, e.entry_date, e.gross_poisha
       from entries e
-      where date_trunc('month', e.entry_date)::date = p_month
+      where e.center_id = p_center_id
+        and date_trunc('month', e.entry_date)::date = p_month
         and e.status = 'active'
         and exists (
           select 1 from statement_payables sp
-          join payables p on p.id = sp.payable_id
+          join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
           where sp.statement_id = p_statement_id
+            and sp.center_id = p_center_id
             and (
               (p.kind = 'vat' and e.vat_poisha > 0)
               or (p.kind = 'method_charge' and p.method_id = e.method_id and e.business_charge_poisha > 0)
@@ -650,6 +733,7 @@ begin
         and not exists (
           select 1 from statement_lines sl2
           where sl2.statement_id = p_statement_id
+            and sl2.center_id = p_center_id
             and sl2.matched_entry_id = e.id
             and sl2.is_active_match = true
         )
@@ -665,6 +749,7 @@ begin
       select id, line_date, gross_poisha
       from statement_lines
       where statement_id = p_statement_id
+        and center_id = p_center_id
         and match_status = 'unmatched'
         and line_date is not null
         and gross_poisha is not null
@@ -682,13 +767,14 @@ begin
   ) loop
     update statement_lines
     set matched_entry_id = v_rec.entry_id, match_status = 'matched', is_active_match = true, updated_at = now()
-    where id = v_rec.line_id and match_status = 'unmatched';
+    where id = v_rec.line_id and center_id = p_center_id and match_status = 'unmatched';
   end loop;
 end;
 $$;
 
 -- 11. RPC: create_statement (PRD §7.3 lines 1162-1177)
 create or replace function create_statement(
+  p_center_id uuid,
   p_kind text,
   p_month date,
   p_source text,
@@ -701,6 +787,7 @@ create or replace function create_statement(
 ) returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date := date_trunc('month', p_month)::date;
   v_statement_id uuid;
   v_expected bigint := 0;
@@ -709,8 +796,16 @@ declare
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
@@ -733,7 +828,7 @@ begin
     raise exception '422 duplicate_payable_ids';
   end if;
 
-  if (select count(*) from payables where id = any(p_payable_ids) and active = true) != array_length(p_payable_ids, 1) then
+  if (select count(*) from payables where center_id = p_center_id and id = any(p_payable_ids) and active = true) != array_length(p_payable_ids, 1) then
     raise exception '422 invalid_or_inactive_payable';
   end if;
 
@@ -760,20 +855,21 @@ begin
   end if;
 
   -- 1. Advisory Month Lock First (Class 1001)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
   -- 2. Lock Hierarchy: payables FOR KEY SHARE
-  perform id from payables where id = any(p_payable_ids) for key share;
+  perform id from payables where center_id = p_center_id and id = any(p_payable_ids) for key share;
 
   -- Overlap Check: Assert no payable is already covered by an active (open/reconciled) statement for this month
   if exists (
     select 1 from statement_payables sp
-    join statements s on s.id = sp.statement_id
-    where sp.payable_id = any(p_payable_ids)
+    join statements s on s.id = sp.statement_id and s.center_id = sp.center_id
+    where sp.center_id = p_center_id
+      and sp.payable_id = any(p_payable_ids)
       and sp.month = v_month
       and s.status in ('open', 'reconciled')
   ) then
@@ -789,39 +885,40 @@ begin
     end
   ), 0) into v_expected
   from unnest(p_payable_ids) pid
-  join payables p on p.id = pid
-  join entries e on date_trunc('month', e.entry_date)::date = v_month and e.status = 'active';
+  join payables p on p.id = pid and p.center_id = p_center_id
+  join entries e on e.center_id = p_center_id
+    and date_trunc('month', e.entry_date)::date = v_month and e.status = 'active';
 
   v_statement_id := gen_random_uuid();
   insert into statements (
-    id, kind, month, source, file_storage_path, file_sha256,
+    id, center_id, kind, month, source, file_storage_path, file_sha256,
     statement_total_poisha, expected_poisha, status, created_by
   ) values (
-    v_statement_id, p_kind, v_month, p_source, p_file_storage_path, p_file_sha256,
+    v_statement_id, p_center_id, p_kind, v_month, p_source, p_file_storage_path, p_file_sha256,
     p_statement_total_poisha, v_expected, 'open', p_actor_id
   );
 
   foreach v_payable_id in array p_payable_ids loop
-    insert into statement_payables (statement_id, payable_id, month, status)
-    values (v_statement_id, v_payable_id, v_month, 'open');
+    insert into statement_payables (center_id, statement_id, payable_id, month, status)
+    values (p_center_id, v_statement_id, v_payable_id, v_month, 'open');
   end loop;
 
   if p_source = 'file' and p_lines is not null and jsonb_array_length(p_lines) > 0 then
     for v_line in select * from jsonb_array_elements(p_lines) loop
       insert into statement_lines (
-        statement_id, line_date, reference, gross_poisha, fee_poisha, raw, match_status, is_active_match
+        center_id, statement_id, line_date, reference, gross_poisha, fee_poisha, raw, match_status, is_active_match
       ) values (
-        v_statement_id, (v_line->>'lineDate')::date, nullif(upper(trim(v_line->>'reference')), ''),
+        p_center_id, v_statement_id, (v_line->>'lineDate')::date, nullif(upper(trim(v_line->>'reference')), ''),
         (v_line->>'grossPoisha')::bigint, (v_line->>'feePoisha')::bigint, v_line, 'unmatched', true
       );
     end loop;
 
     -- Execute automated 1-to-1 matching passes
-    perform perform_statement_auto_match(v_statement_id, v_month);
+    perform perform_statement_auto_match(p_center_id, v_statement_id, v_month);
   end if;
 
   perform log_audit_event(
-    p_actor_id, 'statement.create', 'statements', v_statement_id::text, null,
+    p_center_id, p_actor_id, 'statement.create', 'statements', v_statement_id::text, null,
     jsonb_build_object('kind', p_kind, 'month', v_month, 'source', p_source, 'total', p_statement_total_poisha)
   );
 
@@ -831,6 +928,7 @@ $$;
 
 -- 12. RPC: supersede_statement (PRD §7.3 lines 1178-1192)
 create or replace function supersede_statement(
+  p_center_id uuid,
   p_original_statement_id uuid,
   p_file_storage_path text,
   p_file_sha256 text,
@@ -841,6 +939,7 @@ create or replace function supersede_statement(
 ) returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_orig record;
   v_new_id uuid;
@@ -849,8 +948,16 @@ declare
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
@@ -859,7 +966,8 @@ begin
   end if;
 
   -- 1. Read month without lock
-  select month into v_month from statements where id = p_original_statement_id;
+  select month into v_month
+  from statements where id = p_original_statement_id and center_id = p_center_id;
   if v_month is null then
     raise exception '422 statement_not_found';
   end if;
@@ -867,22 +975,23 @@ begin
   v_month := date_trunc('month', v_month)::date;
 
   -- 2. Advisory Month Lock First
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
   -- 2b. Row lock payables in trigger-aligned order FOR KEY SHARE
   perform p.id
   from statement_payables sp
-  join payables p on p.id = sp.payable_id
-  where sp.statement_id = p_original_statement_id
+  join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+  where sp.statement_id = p_original_statement_id and sp.center_id = p_center_id
   order by p.id asc
   for key share;
 
   -- 3. Row lock original statement AFTER month lock and payables lock
-  select * into v_orig from statements where id = p_original_statement_id for update;
+  select * into v_orig
+  from statements where id = p_original_statement_id and center_id = p_center_id for update;
   if v_orig.status = 'superseded' then
     raise exception '422 cannot_supersede_already_superseded';
   end if;
@@ -910,51 +1019,55 @@ begin
     end
   ), 0) into v_expected
   from statement_payables sp
-  join payables p on p.id = sp.payable_id
-  join entries e on date_trunc('month', e.entry_date)::date = v_month and e.status = 'active'
-  where sp.statement_id = p_original_statement_id;
+  join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+  join entries e on e.center_id = p_center_id
+    and date_trunc('month', e.entry_date)::date = v_month and e.status = 'active'
+  where sp.statement_id = p_original_statement_id and sp.center_id = p_center_id;
 
   v_new_id := gen_random_uuid();
 
   -- Insert replacement statement row first
   insert into statements (
-    id, kind, month, source, file_storage_path, file_sha256,
+    id, center_id, kind, month, source, file_storage_path, file_sha256,
     statement_total_poisha, expected_poisha, status, note, created_by
   ) values (
-    v_new_id, v_orig.kind, v_month, v_orig.source, p_file_storage_path, p_file_sha256,
+    v_new_id, p_center_id, v_orig.kind, v_month, v_orig.source, p_file_storage_path, p_file_sha256,
     p_statement_total_poisha, v_expected, 'open', p_note, p_actor_id
   );
 
   -- Mark original statement_payables superseded first to satisfy uq_active_statement_coverage
-  update statement_payables set status = 'superseded' where statement_id = p_original_statement_id;
+  update statement_payables set status = 'superseded'
+  where statement_id = p_original_statement_id and center_id = p_center_id;
 
   -- Copy covered payables to replacement statement
-  insert into statement_payables (statement_id, payable_id, month, status)
-  select v_new_id, payable_id, month, 'open'
-  from statement_payables where statement_id = p_original_statement_id;
+  insert into statement_payables (center_id, statement_id, payable_id, month, status)
+  select p_center_id, v_new_id, payable_id, month, 'open'
+  from statement_payables
+  where statement_id = p_original_statement_id and center_id = p_center_id;
 
   update statements
   set status = 'superseded', superseded_by = v_new_id, updated_at = now()
-  where id = p_original_statement_id;
+  where id = p_original_statement_id and center_id = p_center_id;
 
-  update statement_lines set is_active_match = false where statement_id = p_original_statement_id;
+  update statement_lines set is_active_match = false
+  where statement_id = p_original_statement_id and center_id = p_center_id;
 
   if v_orig.source = 'file' and p_lines is not null and jsonb_array_length(p_lines) > 0 then
     for v_line in select * from jsonb_array_elements(p_lines) loop
       insert into statement_lines (
-        statement_id, line_date, reference, gross_poisha, fee_poisha, raw, match_status, is_active_match
+        center_id, statement_id, line_date, reference, gross_poisha, fee_poisha, raw, match_status, is_active_match
       ) values (
-        v_new_id, (v_line->>'lineDate')::date, nullif(upper(trim(v_line->>'reference')), ''),
+        p_center_id, v_new_id, (v_line->>'lineDate')::date, nullif(upper(trim(v_line->>'reference')), ''),
         (v_line->>'grossPoisha')::bigint, (v_line->>'feePoisha')::bigint, v_line, 'unmatched', true
       );
     end loop;
 
     -- Execute automated 1-to-1 matching passes
-    perform perform_statement_auto_match(v_new_id, v_month);
+    perform perform_statement_auto_match(p_center_id, v_new_id, v_month);
   end if;
 
   perform log_audit_event(
-    p_actor_id, 'statement.supersede', 'statements', p_original_statement_id::text,
+    p_center_id, p_actor_id, 'statement.supersede', 'statements', p_original_statement_id::text,
     jsonb_build_object('status', v_orig.status), jsonb_build_object('status', 'superseded', 'superseded_by', v_new_id)
   );
 
@@ -964,12 +1077,14 @@ $$;
 
 -- 13. RPC: match_statement_line (PRD §7.3 lines 1193-1213)
 create or replace function match_statement_line(
+  p_center_id uuid,
   p_line_id uuid,
   p_entry_id uuid,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_statement_id uuid;
   v_stmt_status text;
@@ -981,15 +1096,23 @@ declare
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
   select s.month, s.status, sl.statement_id into v_month, v_stmt_status, v_statement_id
   from statement_lines sl
-  join statements s on s.id = sl.statement_id
-  where sl.id = p_line_id;
+  join statements s on s.id = sl.statement_id and s.center_id = sl.center_id
+  where sl.id = p_line_id and sl.center_id = p_center_id;
 
   if v_month is null then
     raise exception '422 line_not_found';
@@ -1000,26 +1123,26 @@ begin
   end if;
 
   -- 1. Advisory Month Lock First (Class 1001)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
   -- 2. Sequence Advisory Lock (Class 1002) before acquiring entry row lock
-  perform pg_advisory_xact_lock(1002, 1);
+  perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
 
   -- 3. Row Locks in Trigger-Aligned Order: payables (KEY SHARE) -> entries (FOR UPDATE) -> statements (FOR UPDATE) -> statement_lines (FOR UPDATE)
   perform p.id
   from statement_payables sp
-  join payables p on p.id = sp.payable_id
-  where sp.statement_id = v_statement_id
+  join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+  where sp.statement_id = v_statement_id and sp.center_id = p_center_id
   order by p.id asc
   for key share;
 
   select date_trunc('month', entry_date)::date, status, method_id, vat_poisha, business_charge_poisha
   into v_entry_month, v_entry_status, v_entry_method_id, v_entry_vat, v_entry_charge
-  from entries where id = p_entry_id for update;
+  from entries where id = p_entry_id and center_id = p_center_id for update;
 
   if v_entry_status is null then
     raise exception '422 entry_not_found';
@@ -1031,13 +1154,13 @@ begin
     raise exception '422 entry_month_mismatch';
   end if;
 
-  perform id from statements where id = v_statement_id for update;
-  perform id from statement_lines where id = p_line_id for update;
+  perform id from statements where id = v_statement_id and center_id = p_center_id for update;
+  perform id from statement_lines where id = p_line_id and center_id = p_center_id for update;
 
   if not exists (
     select 1 from statement_payables sp
-    join payables p on p.id = sp.payable_id
-    where sp.statement_id = v_statement_id
+    join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+    where sp.statement_id = v_statement_id and sp.center_id = p_center_id
       and (
         (p.kind = 'vat' and v_entry_vat > 0)
         or (p.kind = 'method_charge' and p.method_id = v_entry_method_id and v_entry_charge > 0)
@@ -1048,7 +1171,7 @@ begin
 
   update statement_lines
   set matched_entry_id = p_entry_id, match_status = 'matched', is_active_match = true, updated_at = now()
-  where id = p_line_id and match_status = 'unmatched';
+  where id = p_line_id and center_id = p_center_id and match_status = 'unmatched';
 
   if not found then
     raise exception '422 line_already_matched';
@@ -1056,16 +1179,18 @@ begin
 
   -- Invalidation cascade if statement was reconciled
   if v_stmt_status = 'reconciled' then
-    update statements set status = 'open', updated_at = now() where id = v_statement_id;
-    update statement_payables set status = 'open' where statement_id = v_statement_id and status = 'reconciled';
+    update statements set status = 'open', updated_at = now()
+    where id = v_statement_id and center_id = p_center_id;
+    update statement_payables set status = 'open'
+    where statement_id = v_statement_id and center_id = p_center_id and status = 'reconciled';
     perform log_audit_event(
-      p_actor_id, 'statement.invalidate', 'statements', v_statement_id::text,
+      p_center_id, p_actor_id, 'statement.invalidate', 'statements', v_statement_id::text,
       jsonb_build_object('status', 'reconciled'), jsonb_build_object('status', 'open', 'reason', 'statement_line_modified')
     );
   end if;
 
   perform log_audit_event(
-    p_actor_id, 'statement.match_line', 'statement_lines', p_line_id::text,
+    p_center_id, p_actor_id, 'statement.match_line', 'statement_lines', p_line_id::text,
     jsonb_build_object('match_status', 'unmatched'),
     jsonb_build_object('match_status', 'matched', 'matched_entry_id', p_entry_id)
   );
@@ -1074,20 +1199,30 @@ $$;
 
 -- 14. RPC: unmatch_statement_line (PRD §7.3 lines 1214-1226, H4)
 create or replace function unmatch_statement_line(
+  p_center_id uuid,
   p_line_id uuid,
   p_reason text,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_statement_id uuid;
   v_stmt_status text;
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
@@ -1097,8 +1232,8 @@ begin
 
   select s.month, s.status, sl.statement_id into v_month, v_stmt_status, v_statement_id
   from statement_lines sl
-  join statements s on s.id = sl.statement_id
-  where sl.id = p_line_id;
+  join statements s on s.id = sl.statement_id and s.center_id = sl.center_id
+  where sl.id = p_line_id and sl.center_id = p_center_id;
 
   if v_month is null then
     raise exception '422 line_not_found';
@@ -1108,18 +1243,18 @@ begin
     raise exception '422 cannot_modify_superseded_statement';
   end if;
 
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
-  perform id from statements where id = v_statement_id for update;
-  perform id from statement_lines where id = p_line_id for update;
+  perform id from statements where id = v_statement_id and center_id = p_center_id for update;
+  perform id from statement_lines where id = p_line_id and center_id = p_center_id for update;
 
   update statement_lines
   set match_status = 'unmatched', matched_entry_id = null, is_active_match = false, updated_at = now()
-  where id = p_line_id and match_status = 'matched';
+  where id = p_line_id and center_id = p_center_id and match_status = 'matched';
 
   if not found then
     raise exception '422 line_not_matched';
@@ -1127,16 +1262,18 @@ begin
 
   -- Cascading invalidation to 'open'
   if v_stmt_status = 'reconciled' then
-    update statements set status = 'open', updated_at = now() where id = v_statement_id;
-    update statement_payables set status = 'open' where statement_id = v_statement_id and status = 'reconciled';
+    update statements set status = 'open', updated_at = now()
+    where id = v_statement_id and center_id = p_center_id;
+    update statement_payables set status = 'open'
+    where statement_id = v_statement_id and center_id = p_center_id and status = 'reconciled';
     perform log_audit_event(
-      p_actor_id, 'statement.invalidate', 'statements', v_statement_id::text,
+      p_center_id, p_actor_id, 'statement.invalidate', 'statements', v_statement_id::text,
       jsonb_build_object('status', 'reconciled'), jsonb_build_object('status', 'open', 'reason', 'statement_line_unmatched')
     );
   end if;
 
   perform log_audit_event(
-    p_actor_id, 'statement.unmatch_line', 'statement_lines', p_line_id::text,
+    p_center_id, p_actor_id, 'statement.unmatch_line', 'statement_lines', p_line_id::text,
     jsonb_build_object('match_status', 'matched'), jsonb_build_object('match_status', 'unmatched', 'reason', p_reason)
   );
 end;
@@ -1144,20 +1281,30 @@ $$;
 
 -- 15. RPC: accept_statement_line (PRD §7.3 lines 1026-1034)
 create or replace function accept_statement_line(
+  p_center_id uuid,
   p_line_id uuid,
   p_review_note text,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_statement_id uuid;
   v_stmt_status text;
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
@@ -1167,8 +1314,8 @@ begin
 
   select s.month, s.status, sl.statement_id into v_month, v_stmt_status, v_statement_id
   from statements s
-  join statement_lines sl on sl.statement_id = s.id
-  where sl.id = p_line_id;
+  join statement_lines sl on sl.statement_id = s.id and sl.center_id = s.center_id
+  where sl.id = p_line_id and s.center_id = p_center_id;
 
   if v_month is null then
     raise exception '422 line_not_found';
@@ -1178,35 +1325,37 @@ begin
     raise exception '422 cannot_modify_superseded_statement';
   end if;
 
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
-  perform id from statements where id = v_statement_id for update;
-  perform id from statement_lines where id = p_line_id for update;
+  perform id from statements where id = v_statement_id and center_id = p_center_id for update;
+  perform id from statement_lines where id = p_line_id and center_id = p_center_id for update;
 
   update statement_lines
   set match_status = 'accepted', review_note = p_review_note,
       reviewed_by = p_actor_id, reviewed_at = now(), updated_at = now()
-  where id = p_line_id and match_status = 'unmatched' and matched_entry_id is null;
+  where id = p_line_id and center_id = p_center_id and match_status = 'unmatched' and matched_entry_id is null;
 
   if not found then
     raise exception '422 cannot_accept_line';
   end if;
 
   if v_stmt_status = 'reconciled' then
-    update statements set status = 'open', updated_at = now() where id = v_statement_id;
-    update statement_payables set status = 'open' where statement_id = v_statement_id and status = 'reconciled';
+    update statements set status = 'open', updated_at = now()
+    where id = v_statement_id and center_id = p_center_id;
+    update statement_payables set status = 'open'
+    where statement_id = v_statement_id and center_id = p_center_id and status = 'reconciled';
     perform log_audit_event(
-      p_actor_id, 'statement.invalidate', 'statements', v_statement_id::text,
+      p_center_id, p_actor_id, 'statement.invalidate', 'statements', v_statement_id::text,
       jsonb_build_object('status', 'reconciled'), jsonb_build_object('status', 'open', 'reason', 'statement_line_accepted')
     );
   end if;
 
   perform log_audit_event(
-    p_actor_id, 'statement_line.accept', 'statement_lines', p_line_id::text,
+    p_center_id, p_actor_id, 'statement_line.accept', 'statement_lines', p_line_id::text,
     jsonb_build_object('match_status', 'unmatched'),
     jsonb_build_object('match_status', 'accepted', 'review_note', p_review_note)
   );
@@ -1215,6 +1364,7 @@ $$;
 
 -- 16. RPC: review_entry_reconciliation_exception (PRD §7.3 lines 1001-1016)
 create or replace function review_entry_reconciliation_exception(
+  p_center_id uuid,
   p_entry_id uuid,
   p_payable_id uuid,
   p_action text,
@@ -1223,6 +1373,7 @@ create or replace function review_entry_reconciliation_exception(
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date;
   v_entry_status entry_status;
   v_entry_method_id uuid;
@@ -1230,10 +1381,17 @@ declare
   v_payable_method_id uuid;
   v_exception_id uuid;
 begin
-
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
@@ -1245,32 +1403,31 @@ begin
     raise exception '422 reason_required';
   end if;
 
-  select date_trunc('month', entry_date)::date into v_month from entries where id = p_entry_id;
+  select date_trunc('month', entry_date)::date into v_month
+  from entries where id = p_entry_id and center_id = p_center_id;
   if v_month is null then
     raise exception '422 entry_not_found';
   end if;
 
   -- 1. Advisory Month Lock First (Class 1001)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
-  -- 2. Sequence Advisory Lock (Class 1002)
-  perform pg_advisory_xact_lock(1002, 1);
+  -- 2. Sequence Advisory Lock (Class 1002) before row locks
+  perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
 
-  -- 3. Row Locks in Order: payables (KEY SHARE) -> entries (FOR UPDATE)
+  -- 3. Row Locks in Order: payables (KEY SHARE) -> entries (FOR UPDATE) -> entry_reconciliation_exceptions
   select kind, method_id into v_payable_kind, v_payable_method_id
-  from payables where id = p_payable_id for key share;
-
+  from payables where id = p_payable_id and center_id = p_center_id for key share;
   if v_payable_kind is null then
     raise exception '422 payable_not_found';
   end if;
 
   select status, method_id into v_entry_status, v_entry_method_id
-  from entries where id = p_entry_id for update;
-
+  from entries where id = p_entry_id and center_id = p_center_id for update;
   if v_entry_status != 'active' then
     raise exception '422 cannot_except_non_active_entry';
   end if;
@@ -1278,78 +1435,100 @@ begin
   -- Assert payable applicability
   if not (
     (v_payable_kind = 'vat')
-    or
-    (v_payable_kind = 'method_charge' and v_payable_method_id = v_entry_method_id)
+    or (v_payable_kind = 'method_charge' and v_payable_method_id = v_entry_method_id)
   ) then
     raise exception '422 payable_not_applicable_to_entry';
   end if;
 
   insert into entry_reconciliation_exceptions (
-    entry_id, payable_id, month, status, reason, reviewed_by, reviewed_at, updated_at
+    center_id, entry_id, payable_id, month, status, reason, reviewed_by, reviewed_at, updated_at
   ) values (
-    p_entry_id, p_payable_id, v_month, p_action, p_reason, p_actor_id, now(), now()
-  ) on conflict (entry_id, payable_id, month) do update
-  set status = p_action, reason = p_reason, reviewed_by = p_actor_id, reviewed_at = now(), updated_at = now()
+    p_center_id, p_entry_id, p_payable_id, v_month, p_action, p_reason, p_actor_id, now(), now()
+  )
+  on conflict (center_id, entry_id, payable_id, month) do update
+  set status = p_action,
+      reason = p_reason,
+      reviewed_by = p_actor_id,
+      reviewed_at = now(),
+      updated_at = now()
   returning id into v_exception_id;
 
   perform log_audit_event(
-    p_actor_id, 'entry.reconciliation_exception', 'entry_reconciliation_exceptions',
+    p_center_id, p_actor_id, 'entry.reconciliation_exception', 'entry_reconciliation_exceptions',
     v_exception_id::text,
     null,
-    jsonb_build_object('action', p_action, 'reason', p_reason, 'entry_id', p_entry_id, 'payable_id', p_payable_id, 'month', v_month)
+    jsonb_build_object(
+      'action', p_action, 'reason', p_reason,
+      'entry_id', p_entry_id, 'payable_id', p_payable_id, 'month', v_month
+    )
   );
 end;
 $$;
 
--- 17. RPC: reconcile_statement (PRD §7.3 lines 1056-1077, Finding A1, Blocker B7)
+-- 17. RPC: reconcile_statement (PRD §7.3 lines 1056-1077)
 create or replace function reconcile_statement(
+  p_center_id uuid,
   p_statement_id uuid,
   p_note text,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
-  v_stmt record;
+  v_center_number int;
   v_month date;
+  v_stmt record;
   v_tol bigint;
   v_live_expected bigint;
   v_invalid_lines int;
   v_unmatched_count int;
   v_uncovered_entries int;
 begin
-
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role not in ('admin', 'owner') then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is null or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
   -- 1. Read month without row lock to respect global lock hierarchy
-  select month into v_month from statements where id = p_statement_id;
+  select month into v_month
+  from statements where id = p_statement_id and center_id = p_center_id;
   if v_month is null then
     raise exception '422 statement_not_found';
   end if;
 
   v_month := date_trunc('month', v_month)::date;
 
-  -- 2. Advisory Month Lock First (Lock Hierarchy Step 1)
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  -- 2. Advisory Month Lock First (Class 1001)
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
-  -- 3. Row lock statement after advisory lock
-  select * into v_stmt from statements where id = p_statement_id for update;
+  -- 3. Row Locks: payables (KEY SHARE) -> statements (FOR UPDATE)
+  perform p.id
+  from statement_payables sp
+  join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+  where sp.statement_id = p_statement_id and sp.center_id = p_center_id
+  order by p.id asc
+  for key share;
+
+  select * into v_stmt
+  from statements where id = p_statement_id and center_id = p_center_id for update;
 
   if v_stmt.status != 'open' then
     raise exception '422 cannot_reconcile_non_open_statement';
   end if;
 
-  select coalesce(reconcile_tolerance_poisha, 100) into v_tol from app_settings where id = true;
-  if v_tol is null then
-    v_tol := 100;
-  end if;
+  v_tol := coalesce((select reconcile_tolerance_poisha from app_settings where center_id = p_center_id), 100);
 
   -- Compute live expected_poisha from active entries across covered payables
   select coalesce(sum(
@@ -1360,13 +1539,16 @@ begin
     end
   ), 0) into v_live_expected
   from statement_payables sp
-  join payables p on p.id = sp.payable_id
-  join entries e on date_trunc('month', e.entry_date)::date = v_month and e.status = 'active'
-  where sp.statement_id = p_statement_id;
+  join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+  join entries e on e.center_id = p_center_id
+    and date_trunc('month', e.entry_date)::date = v_month
+    and e.status = 'active'
+  where sp.statement_id = p_statement_id
+    and sp.center_id = p_center_id;
 
   if v_stmt.source = 'manual_total' then
     -- Mode A: Totals-only
-    if (select count(*) from statement_lines where statement_id = p_statement_id) > 0 then
+    if (select count(*) from statement_lines where statement_id = p_statement_id and center_id = p_center_id) > 0 then
       raise exception '422 manual_total_has_lines';
     end if;
 
@@ -1374,21 +1556,24 @@ begin
       raise exception '422 expected_poisha_mismatch';
     end if;
   else
-    -- Mode B: File-based line matching (PRD §7.3 lines 1069-1076, Blocker B7)
+    -- Mode B: File-based line matching (PRD §7.3 lines 1069-1076)
     -- Assertion 1: Line Integrity: Every matched line references an active entry in v_month
-    -- that satisfies covered payable applicability for this statement
+    -- within p_center_id that satisfies covered payable applicability for this statement
     select count(*) into v_invalid_lines
     from statement_lines sl
-    join entries e on e.id = sl.matched_entry_id
+    left join entries e on e.id = sl.matched_entry_id and e.center_id = sl.center_id
     where sl.statement_id = p_statement_id
+      and sl.center_id = p_center_id
       and sl.match_status = 'matched'
       and (
-        e.status != 'active'
+        e.id is null
+        or e.status != 'active'
         or date_trunc('month', e.entry_date)::date != v_month
         or not exists (
           select 1 from statement_payables sp
-          join payables p on p.id = sp.payable_id
+          join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
           where sp.statement_id = p_statement_id
+            and sp.center_id = p_center_id
             and (
               (p.kind = 'vat' and e.vat_poisha > 0)
               or (p.kind = 'method_charge' and p.method_id = e.method_id and e.business_charge_poisha > 0)
@@ -1404,6 +1589,7 @@ begin
     select count(*) into v_unmatched_count
     from statement_lines
     where statement_id = p_statement_id
+      and center_id = p_center_id
       and match_status = 'unmatched';
 
     if v_unmatched_count > 0 then
@@ -1411,26 +1597,31 @@ begin
     end if;
 
     -- Assertion 3: Entry-side coverage assertion (PRD §7.3 lines 1069-1076)
-    -- Every active entry in v_month generating liability for this statement's payables
+    -- Every active entry in p_center_id and v_month generating liability for this statement's payables
     -- must be either matched to an active line in THIS statement OR have an approved row in entry_reconciliation_exceptions
     select count(*) into v_uncovered_entries
     from statement_payables sp
-    join payables p on p.id = sp.payable_id
-    join entries e on date_trunc('month', e.entry_date)::date = v_month and e.status = 'active'
+    join payables p on p.id = sp.payable_id and p.center_id = sp.center_id
+    join entries e on e.center_id = p_center_id
+      and date_trunc('month', e.entry_date)::date = v_month
+      and e.status = 'active'
     where sp.statement_id = p_statement_id
+      and sp.center_id = p_center_id
       and (
         (p.kind = 'vat' and e.vat_poisha > 0)
         or (p.kind = 'method_charge' and p.method_id = e.method_id and e.business_charge_poisha > 0)
       )
       and not exists (
         select 1 from statement_lines sl
-        where sl.statement_id = p_statement_id
+        where sl.center_id = p_center_id
+          and sl.statement_id = p_statement_id
           and sl.matched_entry_id = e.id
           and sl.is_active_match = true
       )
       and not exists (
         select 1 from entry_reconciliation_exceptions ere
-        where ere.entry_id = e.id
+        where ere.center_id = p_center_id
+          and ere.entry_id = e.id
           and ere.payable_id = p.id
           and ere.month = v_month
           and ere.status = 'approved'
@@ -1447,118 +1638,175 @@ begin
   end if;
 
   update statements
-  set status = 'reconciled', expected_poisha = v_live_expected, note = coalesce(p_note, note),
-      reconciled_by = p_actor_id, reconciled_at = now(), updated_at = now()
-  where id = p_statement_id;
+  set status = 'reconciled',
+      expected_poisha = v_live_expected,
+      note = coalesce(nullif(p_note, ''), note),
+      reconciled_by = p_actor_id,
+      reconciled_at = now(),
+      updated_at = now()
+  where id = p_statement_id and center_id = p_center_id;
 
-  update statement_payables set status = 'reconciled' where statement_id = p_statement_id;
+  update statement_payables
+  set status = 'reconciled'
+  where statement_id = p_statement_id and center_id = p_center_id;
 
   perform log_audit_event(
-    p_actor_id, 'statement.reconcile', 'statements', p_statement_id::text,
-    jsonb_build_object('status', v_stmt.status), jsonb_build_object('status', 'reconciled', 'note', p_note)
+    p_center_id, p_actor_id, 'statement.reconcile', 'statements', p_statement_id::text,
+    jsonb_build_object('status', v_stmt.status),
+    jsonb_build_object('status', 'reconciled', 'note', p_note)
   );
 end;
 $$;
 
--- 18. RPC: close_month (PRD §3, §5, §7.3 lines 1035-1047, §8.4, §16.3)
+-- 18. RPC: close_month (PRD §7.3 lines 1035-1047)
 create or replace function close_month(
+  p_center_id uuid,
   p_month date,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date := date_trunc('month', p_month)::date;
-  v_unreconciled_count int;
-  v_unapproved_overpaid int;
-  v_flagged_stale int;
+  v_payable record;
+  v_due_date date;
+  v_total_gross bigint;
+  v_total_net bigint;
 begin
-
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role != 'owner' then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is distinct from 'owner' then
     raise exception '403 unauthorized';
   end if;
 
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  -- 1. Advisory Month Lock First (Class 1001)
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
   -- Idempotent return if already closed
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     return;
   end if;
 
-  -- Generate monthly settlements guarantee
-  perform generate_monthly_settlements(v_month);
+  -- 2. Lock payables (KEY SHARE) before settlements rebuild/updates
+  perform id from payables where center_id = p_center_id order by id asc for key share;
+
+  -- 3. Rebuild settlements for the month from active entries
+  perform generate_monthly_settlements(p_center_id, v_month);
+
+  -- 4. Apply admin-configured fixed monthly due dates
+  for v_payable in
+    select p.id, p.due_day
+    from payables p
+    where p.center_id = p_center_id and p.active = true
+    order by p.id asc
+  loop
+    v_due_date := (v_month + make_interval(days => (coalesce(v_payable.due_day, 15) - 1)))::date;
+    update settlements
+    set due_date = v_due_date, updated_at = now()
+    where center_id = p_center_id and month = v_month and payable_id = v_payable.id
+      and due_date is distinct from v_due_date;
+  end loop;
 
   -- Gate 1: Check pending stale review entries (>50k flagged)
-  select count(*) into v_flagged_stale
-  from entries
-  where date_trunc('month', entry_date)::date = v_month
-    and status = 'active'
-    and stale_review_status = 'flagged';
-
-  if v_flagged_stale > 0 then
+  if exists (
+    select 1 from entries
+    where center_id = p_center_id
+      and date_trunc('month', entry_date)::date = v_month
+      and status = 'active'
+      and stale_review_status = 'flagged'
+  ) then
     raise exception '422 stale_review_pending';
   end if;
 
   -- Gate 2: Check all payables are reconciled or not_applicable
-  -- Invariant: Both child statement_payables AND parent statements must be reconciled
-  select count(*) into v_unreconciled_count
-  from settlements s
-  where s.month = v_month
-    and s.status != 'not_applicable'
-    and not exists (
-      select 1 from statement_payables sp
-      join statements st on st.id = sp.statement_id
-      where sp.payable_id = s.payable_id
-        and sp.month = v_month
-        and sp.status = 'reconciled'
-        and st.status = 'reconciled'
-    );
-
-  if v_unreconciled_count > 0 then
+  if exists (
+    select 1 from settlements s
+    where s.center_id = p_center_id
+      and s.month = v_month
+      and s.status != 'not_applicable'
+      and not exists (
+        select 1 from statement_payables sp
+        join statements st on st.id = sp.statement_id and st.center_id = sp.center_id
+        where sp.payable_id = s.payable_id
+          and sp.center_id = p_center_id
+          and sp.month = v_month
+          and sp.status = 'reconciled'
+          and st.status = 'reconciled'
+      )
+  ) then
     raise exception '422 unreconciled_payables_exist';
   end if;
 
   -- Gate 3: Check unapproved overpaid settlements
-  select count(*) into v_unapproved_overpaid
-  from settlements s
-  where s.month = v_month
-    and s.status = 'overpaid'
-    and (s.overpayment_review_status != 'approved' or s.overpayment_approved_amount_poisha is distinct from (s.paid_poisha - s.expected_poisha));
-
-  if v_unapproved_overpaid > 0 then
+  if exists (
+    select 1 from settlements s
+    where s.center_id = p_center_id
+      and s.month = v_month
+      and s.status = 'overpaid'
+      and (s.overpayment_review_status != 'approved' or s.overpayment_approved_amount_poisha is distinct from (s.paid_poisha - s.expected_poisha))
+  ) then
     raise exception '422 unapproved_overpaid_settlement';
   end if;
 
-  insert into month_closes (month, status, closed_by, closed_at, created_at, updated_at)
-  values (v_month, 'closed', p_actor_id, now(), now(), now())
-  on conflict (month) do update
-  set status = 'closed', closed_by = p_actor_id, closed_at = now(), reopen_reason = null, updated_at = now();
+  -- Record the close
+  select coalesce(sum(gross_poisha), 0), coalesce(sum(net_poisha), 0)
+  into v_total_gross, v_total_net
+  from entries
+  where center_id = p_center_id
+    and date_trunc('month', entry_date)::date = v_month and status = 'active';
 
-  insert into month_close_events (month, action, actor)
-  values (v_month, 'close', p_actor_id);
+  insert into month_closes (center_id, month, status, closed_by, closed_at)
+  values (p_center_id, v_month, 'closed', p_actor_id, now())
+  on conflict (center_id, month) do update
+  set status = 'closed',
+      closed_by = EXCLUDED.closed_by,
+      closed_at = EXCLUDED.closed_at,
+      reopened_by = null,
+      reopened_at = null,
+      reopen_reason = null,
+      updated_at = now();
+
+  insert into month_close_events (center_id, month, action, actor, reason)
+  values (p_center_id, v_month, 'close', p_actor_id, null);
 
   perform log_audit_event(
-    p_actor_id, 'month.close', 'month_closes', v_month::text,
-    jsonb_build_object('status', 'open'), jsonb_build_object('status', 'closed')
+    p_center_id, p_actor_id, 'month.close', 'month_closes', v_month::text,
+    null, jsonb_build_object('month', v_month, 'total_gross', v_total_gross, 'total_net', v_total_net)
   );
 end;
 $$;
 
 -- 19. RPC: reopen_month (PRD §7.3 lines 1048-1055)
 create or replace function reopen_month(
+  p_center_id uuid,
   p_month date,
   p_reason text,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
+  v_center_number int;
   v_month date := date_trunc('month', p_month)::date;
 begin
-
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role into v_caller_role from profiles where id = p_actor_id and active = true;
-  if v_caller_role != 'owner' then
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role into v_caller_role
+  from profiles where id = p_actor_id and center_id = p_center_id and active = true;
+  if v_caller_role is distinct from 'owner' then
     raise exception '403 unauthorized';
   end if;
 
@@ -1566,29 +1814,46 @@ begin
     raise exception '422 reason_required';
   end if;
 
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  -- 1. Advisory Month Lock First (Class 1001)
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if not exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if not exists (
+    select 1 from month_closes
+    where center_id = p_center_id and month = v_month and status = 'closed'
+  ) then
     raise exception '422 month_not_closed';
   end if;
 
   update month_closes
-  set status = 'open', reopened_by = p_actor_id, reopened_at = now(), reopen_reason = p_reason, updated_at = now()
-  where month = v_month;
+  set status = 'open',
+      reopened_by = p_actor_id,
+      reopened_at = now(),
+      reopen_reason = p_reason,
+      updated_at = now()
+  where center_id = p_center_id and month = v_month;
 
-  update statements set status = 'open', updated_at = now() where month = v_month and status = 'reconciled';
-  update statement_payables set status = 'open' where month = v_month and status = 'reconciled';
+  update statements set status = 'open', updated_at = now()
+  where center_id = p_center_id and month = v_month and status = 'reconciled';
 
-  insert into month_close_events (month, action, actor, reason)
-  values (v_month, 'reopen', p_actor_id, p_reason);
+  update statement_payables set status = 'open'
+  where center_id = p_center_id and month = v_month and status = 'reconciled';
+
+  insert into month_close_events (center_id, month, action, actor, reason)
+  values (p_center_id, v_month, 'reopen', p_actor_id, p_reason);
 
   perform log_audit_event(
-    p_actor_id, 'month.reopen', 'month_closes', v_month::text,
+    p_center_id, p_actor_id, 'month.reopen', 'month_closes', v_month::text,
     jsonb_build_object('status', 'closed'), jsonb_build_object('status', 'open', 'reason', p_reason)
   );
 end;
 $$;
 
--- Revoke routine execution from public/anon/authenticated and grant exclusively to service_role
-revoke execute on all routines in schema public from public, anon, authenticated;
-grant execute on all routines in schema public to service_role;
+-- 20. Security Privilege Revocations for the routines in this migration
+-- (Hard Rule 7, Gate 1, Test #22). Every routine created above defaults to
+-- EXECUTE for PUBLIC, so the sweep is repeated after the last definition.
+REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA public FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON ALL ROUTINES IN SCHEMA public TO service_role;
+
+-- The GoTrue provisioning triggers stay callable by supabase_auth_admin.
+grant execute on function fn_auth_users_create_profile() to supabase_auth_admin;
+grant execute on function fn_auth_users_sync_profile_role() to supabase_auth_admin;

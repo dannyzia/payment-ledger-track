@@ -1,8 +1,10 @@
 import Dexie, { type Table } from 'dexie';
 import type { RateSnapshot } from '@clt/calc';
+import { session } from '$lib/auth/session.svelte';
 
 export interface LocalEntry {
   id: string; // UUID
+  center_id?: string | undefined;
   entry_number?: string | undefined; // Formatted E-YYYYMM-XXXXXX or null pre-sync
   local_id: string; // #LOCAL-xxxx badge
   entry_date: string; // YYYY-MM-DD (Asia/Dhaka)
@@ -39,6 +41,7 @@ export interface LocalEntry {
 export interface LocalOutboxOp {
   opId: string;
   userId: string; // Required for multi-user outbox partitioning (Plan 011, Test #62)
+  centerId?: string | undefined; // Tenant scope for shift-handover flush (CLT-T-075)
   type:
     'create_entry' | 'request_void' | 'void_entry' | 'supersede_entry' | 'discard_rejected_entry';
   payload: Record<string, unknown>;
@@ -55,6 +58,7 @@ export interface LocalOutboxOp {
 
 export interface CachedRateProfile {
   id: string;
+  center_id?: string | undefined;
   version: number;
   status: 'draft' | 'published';
   effective_from: string; // YYYY-MM-DD
@@ -69,6 +73,7 @@ export interface CachedRateProfile {
 
 export interface CachedPaymentMethod {
   id: string;
+  center_id?: string | undefined;
   code: string;
   name: string;
   requires_txn_ref: boolean;
@@ -78,6 +83,7 @@ export interface CachedPaymentMethod {
 
 export interface CachedPayable {
   id: string;
+  center_id?: string | undefined;
   name: string; // Aligned with DDL column name
   kind: 'vat' | 'method_charge';
   method_id?: string | undefined;
@@ -101,6 +107,7 @@ export interface CachedProfile {
 
 export interface CachedSettlement {
   id: string;
+  center_id?: string | undefined;
   month: string; // YYYY-MM-01
   payable_id: string;
   expected_poisha: string;
@@ -133,6 +140,7 @@ export interface CachedSettlementPayment {
 
 export interface CachedStatement {
   id: string;
+  center_id?: string | undefined;
   month: string;
   kind: 'single_payable' | 'combined_card';
   source: 'manual_total' | 'file';
@@ -194,6 +202,7 @@ export interface CachedMeta {
 
 export interface CachedAppSettings {
   id: string | boolean;
+  center_id?: string | undefined;
   net_label: string;
   reconcile_tolerance_poisha: string;
   timezone?: string | undefined;
@@ -222,8 +231,8 @@ export class CosmoDatabase extends Dexie {
   meta!: Table<CachedMeta, string>;
   appSettings!: Table<CachedAppSettings, string | boolean>;
 
-  constructor() {
-    super('CosmoLedgerTrackDB');
+  constructor(databaseName: string = 'CosmoLedgerTrackDB') {
+    super(databaseName);
 
     // Dexie Indexing Invariant (PRD §9.1):
     // NO indexes on string monetary amounts (lexicographical sorting bug prevention).
@@ -247,4 +256,36 @@ export class CosmoDatabase extends Dexie {
   }
 }
 
-export const db = new CosmoDatabase();
+/**
+ * Multi-center client isolation (CLT-T-075): every franchise center gets its own
+ * physical IndexedDB database (KumonLedger_<centerId>), so a shared counter tablet
+ * never leaks one center's cache into another's. A missing/empty center falls back to
+ * the legacy default database (super-admin / pre-tenant sessions).
+ */
+const dbInstances = new Map<string, CosmoDatabase>();
+
+export function getCenterDb(centerId?: string | null): CosmoDatabase {
+  const key = centerId && centerId.trim() !== '' ? `KumonLedger_${centerId}` : 'CosmoLedgerTrackDB';
+  let instance = dbInstances.get(key);
+  if (!instance) {
+    instance = new CosmoDatabase(key);
+    dbInstances.set(key, instance);
+  }
+  return instance;
+}
+
+/**
+ * Backwards-compatible `db`: a Proxy that forwards every access to the currently
+ * authenticated center's database (resolved lazily on each call), so existing UI
+ * code needs no changes. Methods are bound to the resolved instance.
+ */
+export const db: CosmoDatabase = new Proxy<CosmoDatabase>(Object.create(CosmoDatabase.prototype), {
+  get(_target: CosmoDatabase, prop: string | symbol): unknown {
+    const instance = getCenterDb(session.user?.centerId);
+    const value = Reflect.get(instance, prop, instance);
+    return typeof value === 'function' ? value.bind(instance) : value;
+  },
+  has(_target: CosmoDatabase, prop: string | symbol): boolean {
+    return Reflect.has(getCenterDb(session.user?.centerId), prop);
+  },
+});

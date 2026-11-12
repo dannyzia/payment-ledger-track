@@ -28,7 +28,7 @@ The app does **not** collect money. Staff record payments already received.
 ## 2. Environment
 
 - Project root: `/home/zia/Documents/My Projects/Cosmo_Ledger_Track`. Dev machine is Linux going by this path. Do not assume Windows or PowerShell; if another machine is used, record it here.
-- Git: repository with `origin` = `https://github.com/dannyzia/payment-ledger-track.git`, default branch `main`. No `.github/` directory exists in the working tree, so **no CI is defined**. Whether the remote has anything CI-like is UNVERIFIED.
+- Git: repository with `origin` = `https://github.com/dannyzia/payment-ledger-track.git`, default branch `main`. GitHub Actions CI is defined in `.github/workflows/ci.yml` (`Lint, Typecheck, and Test` on push/PR to `main`: `pnpm format`, `pnpm typecheck`, `pnpm lint`, `supabase start && pnpm db:reset`, `pnpm test`, `pnpm build`) and `.github/workflows/daily-backup.yml` (daily `20:00 UTC` / `02:00 Asia/Dhaka` off-Supabase encrypted backup via `scripts/ops/backup-export.ts`).
 - Languages: TypeScript (strict), SQL, PL/pgSQL.
 - **Versions & Toolchain (M0 baseline confirmed):**
   - Node.js: Node 22 Active LTS (`^22.0.0`), pinned in `.nvmrc` and root `package.json` `engines`.
@@ -252,7 +252,7 @@ Open findings / pending owner inputs:
 - Real VAT rule, the "Final" column meaning, commission structure, and who bears method charges (Q1–Q4). Historical VAT values do not fit any flat percentage.
 - Real bKash, Visa, Mastercard rates. PRD fixtures use 115 / 150 / 150 bp for testing only.
 - Formats of the bKash merchant statement, card settlement report, and VAT challan (Q14).
-- Whether any CI or hosted staging exists. Whether Rhizome is installed and available for this project.
+- Whether hosted staging exists (CI workflows exist in `.github/workflows/{ci,daily-backup}.yml`). Whether Rhizome is installed and available for this project (`rhizome-mcp` is available in MCP tools; Hub ID UNSET).
 - Supabase and Vercel current free-tier limits, pricing, pausing behaviour, and latency from Bangladesh.
 - Whether Supabase PITR (7-day) and the off-Supabase encrypted daily export are available on the plan Zia will use.
 - WCAG contrast ratios quoted in PRD §14.1 / §18 are the PRD author's measurements; re-measure before sign-off.
@@ -297,7 +297,7 @@ How they fit (drafted by the Claude session on 2026-10-29 from Zia's statement; 
 **Verification (a stage advances only after all three pillars, plus the `ORCHESTRATOR.md` §8 Definition of Done):**
 
 1. **Repo:** the change exists exactly as described; the commit contains only the intended files; the SHA exists on the remote.
-2. **CI:** green on the exact head SHA. No CI exists yet; until it does, re-run the full suite from a clean checkout and record test names and counts. A stale run on an older SHA is not verification.
+2. **CI:** green on the exact head SHA (`.github/workflows/ci.yml`: `Lint, Typecheck, and Test`). Also re-run any suites not covered by CI (e.g., `pnpm test:e2e:isolated`, DB parity/live checks) and record test names and counts. A stale run on an older SHA is not verification.
 3. **Live surface:** no deployment exists yet. Until staging exists, this pillar means: all migrations apply to a clean Postgres 15+ instance, and RLS, grants, constraint, and trigger checks (PRD §18 Gate 1) pass when run independently. Once Vercel staging exists, probe the touched `/api/v1/*` routes and confirm the deployed commit matches the verified SHA. The PRD defines no health or version endpoint; adding one needs a Decision Request. "Healthy" is not "current".
 
 **Zero-Trust Audit Rule (mandatory).** Never accept a builder's or coding model's self-report, claimed test pass, or pasted log at face value. Every step and milestone needs independent verification: re-run the tests yourself against a clean database, inspect schema, grants, and policies directly in Postgres, and use a separate audit agent. If a claim cannot be reproduced by independent execution, treat it as a failed check. Be suspicious of "all tests pass" with no test names, round numbers, and changed files outside SCOPE.

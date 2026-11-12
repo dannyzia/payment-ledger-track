@@ -54,30 +54,34 @@ async function waitForMethodCache(page: Page): Promise<void> {
   await expect
     .poll(
       async () =>
-        page.evaluate(
-          () =>
-            new Promise<number>((resolve) => {
-              const open = indexedDB.open('CosmoLedgerTrackDB');
-              open.onsuccess = () => {
-                const idb = open.result;
-                if (!Array.from(idb.objectStoreNames).includes('methods')) {
-                  idb.close();
-                  resolve(0);
-                  return;
-                }
-                const req = idb.transaction('methods', 'readonly').objectStore('methods').getAll();
-                req.onsuccess = () => {
-                  idb.close();
-                  resolve((req.result as unknown[]).length);
-                };
-                req.onerror = () => {
-                  idb.close();
-                  resolve(0);
-                };
+        page.evaluate(async () => {
+          const dbs = await indexedDB.databases();
+          const dbName = dbs.find(
+            (d) => d.name?.startsWith('KumonLedger_') || d.name === 'CosmoLedgerTrackDB',
+          )?.name;
+          if (!dbName) return 0;
+          return new Promise<number>((resolve) => {
+            const open = indexedDB.open(dbName);
+            open.onsuccess = () => {
+              const idb = open.result;
+              if (!Array.from(idb.objectStoreNames).includes('methods')) {
+                idb.close();
+                resolve(0);
+                return;
+              }
+              const req = idb.transaction('methods', 'readonly').objectStore('methods').getAll();
+              req.onsuccess = () => {
+                idb.close();
+                resolve((req.result as unknown[]).length);
               };
-              open.onerror = () => resolve(0);
-            }),
-        ),
+              req.onerror = () => {
+                idb.close();
+                resolve(0);
+              };
+            };
+            open.onerror = () => resolve(0);
+          });
+        }),
       { timeout: 45000 },
     )
     .toBeGreaterThan(0);
@@ -85,31 +89,35 @@ async function waitForMethodCache(page: Page): Promise<void> {
 
 /** Pending outbox rows; 0 means the local save has been accepted by the server. */
 async function pendingOutbox(page: Page): Promise<number> {
-  return page.evaluate(
-    () =>
-      new Promise<number>((resolve) => {
-        const open = indexedDB.open('CosmoLedgerTrackDB');
-        open.onsuccess = () => {
-          const idb = open.result;
-          if (!Array.from(idb.objectStoreNames).includes('outbox')) {
-            idb.close();
-            resolve(0);
-            return;
-          }
-          const req = idb.transaction('outbox', 'readonly').objectStore('outbox').getAll();
-          req.onsuccess = () => {
-            idb.close();
-            const rows = req.result as Array<{ status?: string }>;
-            resolve(rows.filter((row) => row.status === 'pending').length);
-          };
-          req.onerror = () => {
-            idb.close();
-            resolve(-1);
-          };
+  return page.evaluate(async () => {
+    const dbs = await indexedDB.databases();
+    const dbName = dbs.find(
+      (d) => d.name?.startsWith('KumonLedger_') || d.name === 'CosmoLedgerTrackDB',
+    )?.name;
+    if (!dbName) return -1;
+    return new Promise<number>((resolve) => {
+      const open = indexedDB.open(dbName);
+      open.onsuccess = () => {
+        const idb = open.result;
+        if (!Array.from(idb.objectStoreNames).includes('outbox')) {
+          idb.close();
+          resolve(0);
+          return;
+        }
+        const req = idb.transaction('outbox', 'readonly').objectStore('outbox').getAll();
+        req.onsuccess = () => {
+          idb.close();
+          const rows = req.result as Array<{ status?: string }>;
+          resolve(rows.filter((row) => row.status === 'pending').length);
         };
-        open.onerror = () => resolve(-1);
-      }),
-  );
+        req.onerror = () => {
+          idb.close();
+          resolve(-1);
+        };
+      };
+      open.onerror = () => resolve(-1);
+    });
+  });
 }
 
 /** Save one entry through the real form and wait until it reached the server. */
