@@ -21,6 +21,7 @@
     "db:seed:recon-month": "tsx scripts/seed-recon-month.ts",
     "db:reset": "supabase db reset && docker restart supabase_kong_ledger >/dev/null 2>&1 || true",
     "test:e2e:isolated": "tsx scripts/e2e/isolated-stack.ts",
+    "test:e2e:device": "tsx scripts/e2e/verify-device-fixtures.ts && tsx scripts/e2e/verify-owner-screens.ts && tsx scripts/e2e/verify-owner-screens.ts --expect=staff",
     "db:purge-entry": "tsx scripts/maintenance/purge-entry.ts",
     "db:prune-devices": "tsx scripts/maintenance/prune-devices.ts"
   },

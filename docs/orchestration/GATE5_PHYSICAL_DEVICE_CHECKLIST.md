@@ -325,6 +325,18 @@ them; do not assert them.
   loudly rather than silently sending credentials in clear.
   Evidence: the failure observation, or the manifest dump.
 
+- [ ] **H36 — Role access on the device (CLT-R-031).**
+  With the handset attached and the local backend reachable, run
+  `corepack pnpm test:e2e:device` (§9.1).
+  Expected: exit 0. Every fixture signs in with its declared role and centre; the owner
+  reaches `/reports`, `/settlements` and `/admin` with the menu offering all three links
+  and the seven probed endpoints answering 200 (reads) or 400 from schema validation
+  (owner-only writes, so no month is closed and no ownership is transferred) — never
+  403; a staff session renders neither privileged page, sees none of the links, and is
+  refused by all seven endpoints.
+  Evidence: the three stage summaries pasted, with the date and the commit SHA. A green
+  run is a machine result for the role gate only — it does not stand in for H5–H35.
+
 ## 6. Evidence rules
 
 1. One file per item per device: `G5-<ID>-<slot>-<desc>.png` under
@@ -377,11 +389,14 @@ them; do not assert them.
 | H33 | | | | `<s>` |
 | H34 | | | | |
 | H35 | | | | |
+| H36 | | | `test:e2e:device` output, commit `<sha>` | role gate; machine result |
 
 ## 8. Verdict and sign-off
 
 Gate 5 passes only when **every item is PASS on at least one physical device**, or an
-item has an Owner decision ID recording the accepted exception. H15/H16 cannot be
+item has an Owner decision ID recording the accepted exception. H36's evidence is a
+pasted `pnpm test:e2e:device` summary rather than an observation, and like every other
+line it is worth nothing without the output. H15/H16 cannot be
 excepted while CLT-T-050 is open — they are accessibility regressions, not polish.
 
 ```
@@ -398,7 +413,7 @@ Rule 19 deployment line: <not requested by this run>
 Signing Gate 5 does **not** authorise a deployment or a store upload. Those need the
 Rule 19 line (`ZIA-APPROVED: <release id> <environment> <date>`) and Rule 20.
 
-## 9. Machine-checkable subset (runs without a device)
+## 9. Machine-checkable subset
 
 Run these before booking device time; they catch regressions that would waste it.
 
@@ -415,13 +430,56 @@ corepack pnpm test:e2e                                                 # §16.3 
 corepack pnpm run test:gates --milestone M5                            # see caveat below
 ```
 
-**Caveat, recorded as GS-4:** outside M2, `scripts/verify-gates.ts` evaluates Gate 5 as
-"`pnpm test:e2e` exit 0". That does not test a physical device, contrast measurement,
-`prefers-contrast`, `prefers-reduced-transparency`, haptics, notifications, or the
-WebView `background-clip` fallback. So a green `--milestone M5` run is necessary but
-**not sufficient** for Gate 5; this checklist supplies the missing proof. Until the
-script is extended, the M5 gate report should state that explicitly rather than implying
-Gate 5 was machine-verified.
+### 9.1 Device-attached subset (needs the handset)
+
+One command, with the device connected, `adb reverse` in place and the dev server
+running (`docs/runbooks/DEVICE_JOURNEY.md` §3):
+
+```bash
+corepack pnpm test:e2e:device
+```
+
+It stops at the first failure and runs three checks in order:
+
+1. `verify-device-fixtures.ts` — each configured fixture still signs in through the app
+   form with the role and centre it declares, compared against the database.
+2. `verify-owner-screens.ts` — as the owner: `/reports`, `/settlements` and `/admin`
+   stay on their route and render, the menu offers the privileged links, and the four
+   admin reads answer 200 while the three owner-only writes stop at schema validation
+   (400, so nothing is closed or transferred).
+3. `verify-owner-screens.ts --expect=staff` — as staff: those two pages do not render,
+   the menu omits the links, and all seven endpoints answer 403.
+
+Checked 2026-11-12 on the connected handset: 3 fixtures pass, owner 5/5 lines, staff
+4/4 lines, exit 0. This covers the role-access item (H36) and nothing else in §5 —
+contrast, haptics, notifications, offline timing and the WebView render checks still
+need a person on the device.
+
+**GS-4, revised 2026-11-12.** Outside M2, `scripts/verify-gates.ts` used to evaluate
+Gate 5 as "`pnpm test:e2e` exit 0". It now records three entries: the browser e2e, the
+automated accessibility suite, and — separately — `pnpm test:e2e:device`
+(`Gate 5 (Physical Device)`). The device entry reports one of four statuses:
+`passed`; `not_run_no_environment` (handset, WebView/CDP or backend unavailable);
+`not_run_no_fixtures` (no `CLT_DEVICE_*` credentials); or `failed` (the checks ran and
+something on the device went wrong).
+
+The device stage runs with the browser suites' stack overrides removed
+(`DATABASE_URL`, `SUPABASE_*`, `PUBLIC_SUPABASE_*`, `PUBLIC_API_BASE`), because the
+handset talks to its own backend and the fixture rows live in *that* database —
+inheriting the isolated stack's `DATABASE_URL` makes every fixture look wrong (it did,
+on the first run of this).
+
+A `not_run_*` status does not fail the gate command — that would break every machine
+without a phone — but `allSatisfied` in the report stays `false`, the status is
+warned about on stderr, and the final line then reads "…but the Gate 5 physical
+device check was not run — Gate 5 is not signed off" instead of "all gates passed".
+Inspect the `Gate 5 (Physical Device)` entry in
+`docs/orchestration/reports/GATE*_EVIDENCE.json` before quoting a green M5 run.
+
+Even a `passed` device entry covers only the role-access item (H36). Contrast
+measurement, `prefers-contrast`, `prefers-reduced-transparency`, haptics,
+notifications and the WebView `background-clip` fallback still need a person on the
+device, so this checklist remains the proof for everything else.
 
 ## 10. Known blockers and divergences recorded on 2026-11-06
 
@@ -430,7 +488,7 @@ Gate 5 was machine-verified.
 | GS-1 | `ANDROID_HOME` unset and `adb` absent on the dev machine | P3/P4 cannot start; no install, no logcat, no screenshots | Zia (install Android SDK command-line tools + platform-tools) |
 | GS-2 | CLT-T-050 open (menu activation: `preventDefault` on bubbled Enter/Space in `FloatingMenu.svelte`; `setPointerCapture` in `draggable.ts` retargeting clicks) | H15 and H16 will fail; a hardware tap test cannot pass before the fix | Implementer (brief exists) |
 | GS-3 | Q1–Q4 unconfirmed (Rule 20): none of the `Qn: Status: CONFIRMED` marker lines exist in `DECISIONS.md` (checked 2026-11-06) | `--aab` refuses to build by design (store path only; `--apk` hardware builds are ungated); M5 sign-off needs the four confirmations | Zia (packet ready) |
-| GS-4 | Gate 5 automated check is E2E-only (§9 caveat) | A green M5 gate run can be mistaken for Gate 5 proof; state the limitation in the report | Orchestrator |
+| GS-4 | Gate 5 automated check was E2E-only (§9 caveat) | **Revised 2026-11-12:** outside `M2`, the gate report carries a `Gate 5 (Physical Device)` entry from `pnpm test:e2e:device`. A `not_run_*` entry keeps `allSatisfied: false` in `GATE*_EVIDENCE.json`, and the run warns on stderr instead of claiming all gates passed | Orchestrator |
 | GS-5 | PRD §14.5 requires screens < 640 px to "dock cleanly into a bottom sheet bar"; `draggable.ts` only clamps and dodges (`snapToEdge`, `calculateAvoidance`) — no bottom-sheet bar exists in `apps/web/src` (grep for "bottom sheet" returns nothing) | H11 passes only if dodge-away is accepted as the intended behaviour on narrow screens; otherwise this is a spec gap needing a Decision Request | Zia decision / implementer |
 | GS-6 | Performance targets (save < 100 ms, report < 1 s) unverified on low-end hardware (AGENTS.md §8) | H31/H32 measure rather than assert; results feed the §8 verdict | Tester |
 
