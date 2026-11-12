@@ -172,21 +172,34 @@ async function main(): Promise<void> {
   };
   run('pnpm', ['exec', 'tsx', 'scripts/bootstrap.ts'], stackEnv);
 
-  // A staff account the role-navigation specs can sign in as. The password is
-  // generated per run and only ever travels through the child environment.
+  // Non-owner accounts the role-based specs sign in as: a staff member for the
+  // navigation and ledger-scope assertions, and an admin so the privileged side
+  // of that scope is exercised by a role that is not the bootstrap owner. The
+  // passwords are generated per run and only travel through the child
+  // environment.
   const staffEmail = process.env.E2E_STAFF_EMAIL || 'staff.e2e@cosmoledger.local';
   const staffPassword = process.env.E2E_STAFF_PASSWORD || randomUUID();
-  console.log('→ creating the staff fixture account in the isolated stack');
+  const adminEmail = process.env.E2E_ADMIN_EMAIL || 'admin.e2e@cosmoledger.local';
+  const adminPassword = process.env.E2E_ADMIN_PASSWORD || randomUUID();
+  console.log('→ creating the staff and admin fixture accounts in the isolated stack');
   const staffEnv: NodeJS.ProcessEnv = {
     ...stackEnv,
     E2E_STAFF_EMAIL: staffEmail,
     E2E_STAFF_PASSWORD: staffPassword,
   };
   run('pnpm', ['exec', 'tsx', 'scripts/e2e/create-staff.ts'], staffEnv);
+  run('pnpm', ['exec', 'tsx', 'scripts/e2e/create-staff.ts'], {
+    ...stackEnv,
+    E2E_FIXTURE_ROLE: 'admin',
+    E2E_STAFF_EMAIL: adminEmail,
+    E2E_STAFF_PASSWORD: adminPassword,
+  });
 
   console.log(`→ running Playwright against ${status.API_URL} (app on :${APP_PORT})`);
   const playwrightEnv: NodeJS.ProcessEnv = {
     ...staffEnv,
+    E2E_ADMIN_EMAIL: adminEmail,
+    E2E_ADMIN_PASSWORD: adminPassword,
     PUBLIC_API_BASE: '',
     CLT_E2E_ISOLATED: '1',
     PLAYWRIGHT_TEST_BASE_URL: `http://localhost:${APP_PORT}`,
