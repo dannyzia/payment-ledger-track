@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { assessDeviceCheck, deviceCheckEnv, isNonBlockingDeviceStatus } from './gate-device-check';
 
 /**
  * Plan 020 §6.7 — Implementation Readiness Gate verification (PRD §18).
@@ -15,6 +16,14 @@ import * as path from 'path';
  * Haptics, WebView fallback, focus order on hardware and physical-device
  * rendering are not automatable and stay on
  * GATE5_PHYSICAL_DEVICE_CHECKLIST.md.
+ *
+ * At M5 the report also records `pnpm test:e2e:device`, which signs the connected
+ * handset in as each fixture and checks the role gates on the hardware (GS-4:
+ * `pnpm test:e2e` never touches a device). That entry distinguishes a check that
+ * ran and failed from one that could not start — a missing handset or missing
+ * fixture credentials is recorded as `not_run_*` and does not fail the gate
+ * command, but it is never written as a pass, and the run prints a warning that
+ * the report holds no device result.
  *
  * `--gate5-only` evaluates Gate 5 alone at any milestone, including the
  * accessibility suite. The other gates need the database and the full
@@ -51,6 +60,10 @@ const explicitMilestone =
 
 const milestoneArg = explicitMilestone || (gate5Only ? 'M5' : 'M2');
 
+const DEVICE_CHECK_CMD = 'pnpm test:e2e:device';
+// Three staged device checks, each with its own preflight.
+const DEVICE_CHECK_TIMEOUT_MS = 900_000;
+
 const ACCESSIBILITY_SPEC = 'tests/e2e/accessibility.spec.ts';
 const E2E_NON_A11Y_CMD = 'pnpm --filter @clt/web exec playwright test --grep-invert "CLT-R-008"';
 const ACCESSIBILITY_CMD = `pnpm --filter @clt/web exec playwright test ${ACCESSIBILITY_SPEC}`;
@@ -66,6 +79,7 @@ function runCmd(
   cmd: string,
   cwd: string = process.cwd(),
   timeoutMs: number = 120_000,
+  env: NodeJS.ProcessEnv = process.env,
 ): { success: boolean; output: string } {
   try {
     const stdout = execSync(cmd, {
@@ -73,7 +87,7 @@ function runCmd(
       cwd,
       maxBuffer: 10 * 1024 * 1024,
       timeout: timeoutMs,
-      env: { ...process.env, NODE_ENV: 'test' },
+      env: { ...env, NODE_ENV: 'test' },
     });
     return { success: true, output: stdout };
   } catch (err) {
@@ -124,6 +138,35 @@ function evaluateGate5(): GateResult {
     ]
       .filter(Boolean)
       .join(' '),
+  };
+}
+
+/**
+ * Gate 5 — the physical-device half. Recorded in its own entry so the report can
+ * never imply that a green browser run proves the handset (GS-4).
+ */
+function evaluateDeviceCheck(): GateResult {
+  const timestamp = new Date().toISOString();
+  console.info(`Evaluating Gate 5 physical device check (${DEVICE_CHECK_CMD})...`);
+  // Stripped of the browser suites' stack overrides: the handset talks to its own
+  // backend, so inheriting the isolated stack's DATABASE_URL fails every fixture.
+  const result = runCmd(
+    DEVICE_CHECK_CMD,
+    process.cwd(),
+    DEVICE_CHECK_TIMEOUT_MS,
+    deviceCheckEnv(process.env),
+  );
+  const assessment = assessDeviceCheck({ success: result.success, output: result.output });
+
+  return {
+    satisfied: assessment.satisfied,
+    status: assessment.status,
+    timestamp,
+    evidence: [
+      `[${DEVICE_CHECK_CMD}] exit ${result.success ? 0 : 1}`,
+      tailEvidence(result.output, 2000),
+    ].join('\n'),
+    note: assessment.note,
   };
 }
 
@@ -187,7 +230,16 @@ async function verifyGates(): Promise<void> {
   console.info('Evaluating Gate 5 (Accessibility & Visual Proof)...');
   gates['Gate 5 (Accessibility Proof)'] = evaluateGate5();
 
-  const allSatisfied = Object.values(gates).every((g) => g.satisfied);
+  // The device half only exists at M5; at M2 Gate 5 is deferred wholesale.
+  if (gate5Only || milestoneArg.toUpperCase() === 'M5') {
+    gates['Gate 5 (Physical Device)'] = evaluateDeviceCheck();
+  }
+
+  // A device check that could not start is a missing prerequisite, not a failing
+  // app; it is still in the report as `not_run_*` and warned about below.
+  const allSatisfied = Object.values(gates).every(
+    (g) => g.satisfied || isNonBlockingDeviceStatus(g.status),
+  );
 
   const report: GateEvidenceReport = {
     milestone: milestoneArg,
@@ -202,16 +254,39 @@ async function verifyGates(): Promise<void> {
   const reportName = gate5Only ? 'GATE5_EVIDENCE.json' : 'GATE_EVIDENCE.json';
   fs.writeFileSync(path.join(reportDir, reportName), JSON.stringify(report, null, 2));
 
+  const deviceGate = gates['Gate 5 (Physical Device)'];
+  if (deviceGate && !deviceGate.satisfied) {
+    console.warn(
+      [
+        '',
+        `⚠ Gate 5 physical device check did NOT pass (status: ${deviceGate.status}).`,
+        `  ${deviceGate.note}`,
+        `  ${path.join(reportDir, reportName)} therefore contains no device result.`,
+        '  Gate 5 sign-off needs the pasted pnpm test:e2e:device output (checklist item H36).',
+      ].join('\n'),
+    );
+  }
+
   if (!allSatisfied) {
     console.error(`Gate verification FAILED for ${milestoneArg}.`);
     process.exit(1);
   }
 
-  console.info(
-    gate5Only
-      ? 'Gate 5 automated evaluation passed (accessibility suite + browser e2e).'
-      : `All Implementation Readiness Gates passed for Milestone ${milestoneArg}.`,
-  );
+  if (deviceGate && !deviceGate.satisfied) {
+    // Never let an unrun device check sit under a blanket "passed" line: that is
+    // precisely the GS-4 misreading this entry exists to prevent.
+    console.info(
+      gate5Only
+        ? 'Gate 5 machine-checkable subset passed (accessibility suite + browser e2e), but the physical device check was not run — Gate 5 is not signed off.'
+        : `All machine-checkable gates passed for Milestone ${milestoneArg}, but the Gate 5 physical device check was not run — the milestone is not device-verified.`,
+    );
+  } else {
+    console.info(
+      gate5Only
+        ? 'Gate 5 automated evaluation passed (accessibility suite + browser e2e + physical device check).'
+        : `All Implementation Readiness Gates passed for Milestone ${milestoneArg}, including the physical device check.`,
+    );
+  }
 }
 
 verifyGates().catch((err) => {
