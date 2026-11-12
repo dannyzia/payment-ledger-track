@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'fake-indexeddb/auto';
-import { db } from './index';
+import { db, getCenterDb } from './index';
 import { saveLocalEntry } from './entries';
 import type { RateSnapshot } from '@clt/calc';
 
@@ -146,6 +146,46 @@ describe('Local-First Dexie Storage & Performance', () => {
     expect(
       (outboxOps[0].payload as unknown as Record<string, string>).netAfterDeductionsPoisha,
     ).toBe('58000');
+  });
+
+  it('maintains isolated databases per franchise center via getCenterDb', async () => {
+    const aaa = getCenterDb('center-aaa');
+    const bbb = getCenterDb('center-bbb');
+
+    const baseEntry = {
+      local_id: '#LOCAL-xxxxxx',
+      entry_date: '2026-10-29',
+      customer_name: 'Isolation Customer',
+      sub_qty: 1,
+      method_id: 'b0000000-0000-0000-0000-000000000001',
+      gross_poisha: '100000',
+      vat_poisha: '0',
+      commission_poisha: '42000',
+      charge_poisha: '1150',
+      business_charge_poisha: '1150',
+      customer_charge_poisha: '0',
+      net_poisha: '56850',
+      status: 'active' as const,
+      sync_status: 'pending' as const,
+      created_by: 'u1',
+      created_at: new Date().toISOString(),
+      stale_rates: false,
+      rate_profile_id: 'a0000000-0000-0000-0000-000000000001',
+    };
+
+    await aaa.entries.put({ ...baseEntry, id: 'entry-aaa', center_id: 'center-aaa' });
+    await bbb.entries.put({ ...baseEntry, id: 'entry-bbb', center_id: 'center-bbb' });
+
+    expect(await aaa.entries.count()).toBe(1);
+    expect(await bbb.entries.count()).toBe(1);
+    // One center's rows never leak into the other's database.
+    expect(await aaa.entries.get('entry-bbb')).toBeUndefined();
+    expect(await bbb.entries.get('entry-aaa')).toBeUndefined();
+
+    // A null/empty center id resolves to the shared default database, not a tenant DB.
+    expect(getCenterDb(null).name).toBe('CosmoLedgerTrackDB');
+    expect(getCenterDb('').name).toBe('CosmoLedgerTrackDB');
+    expect(getCenterDb('center-aaa').name).toBe('KumonLedger_center-aaa');
   });
 
   it('marks original entry locally as superseded when created in supersede mode', async () => {

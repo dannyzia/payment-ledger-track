@@ -6,6 +6,7 @@ import type { RateSnapshot } from '@clt/calc';
 export interface SaveEntryInput {
   entryDate: string;
   customerName: string;
+  centerId?: string | undefined;
   subQty: number;
   subDescription?: string | undefined;
   methodId: string;
@@ -34,6 +35,7 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
 
   const entryRecord: LocalEntry = {
     id: entryId,
+    center_id: input.centerId ?? undefined,
     local_id: localBadge,
     entry_date: input.entryDate,
     customer_name: input.customerName,
@@ -66,6 +68,7 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
   const wirePayload = {
     id: entryId, // Explicit ID required by server create_entry
     entryId,
+    centerId: input.centerId ?? null, // Server tenant IDOR check (CLT-T-073)
     entryDate: input.entryDate,
     customerName: input.customerName,
     subQty: input.subQty,
@@ -105,6 +108,7 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
       await enqueueSupersedeEntry({
         opId: crypto.randomUUID().toLowerCase(),
         userId: input.userId,
+        centerId: input.centerId,
         payload: {
           originalEntryId: input.supersedesOriginalId,
           replacement: wirePayload,
@@ -115,6 +119,7 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
       await enqueueCreateEntry({
         opId: crypto.randomUUID().toLowerCase(),
         userId: input.userId,
+        centerId: input.centerId,
         payload: wirePayload,
         maxKnownRateVersion: maxRateVersion,
       });
@@ -130,6 +135,7 @@ export async function checkDuplicate(input: {
   txnRef?: string | undefined;
   customerName: string;
   grossPoisha: bigint;
+  centerId?: string | undefined;
   excludeEntryId?: string | undefined;
 }): Promise<boolean> {
   let activeEntries = await db.entries
@@ -137,6 +143,11 @@ export async function checkDuplicate(input: {
     .equals(input.entryDate)
     .filter((e) => e.status === 'active')
     .toArray();
+
+  // Tenant-scoped duplicate detection: never match another center's entries.
+  if (input.centerId) {
+    activeEntries = activeEntries.filter((e) => e.center_id === input.centerId);
+  }
 
   if (input.excludeEntryId) {
     activeEntries = activeEntries.filter((e) => e.id !== input.excludeEntryId);

@@ -3,6 +3,7 @@ import { db, type LocalOutboxOp } from './index';
 export async function enqueueCreateEntry(op: {
   opId: string;
   userId: string;
+  centerId?: string | undefined;
   payload: Record<string, unknown>;
   maxKnownRateVersion: number;
   supersedesRejectedOpId?: string | undefined;
@@ -10,6 +11,7 @@ export async function enqueueCreateEntry(op: {
   const outboxItem: LocalOutboxOp = {
     opId: op.opId,
     userId: op.userId,
+    centerId: op.centerId ?? undefined,
     type: 'create_entry',
     payload: op.payload,
     clientCreatedAt: new Date().toISOString(),
@@ -24,6 +26,7 @@ export async function enqueueCreateEntry(op: {
 export async function enqueueSupersedeEntry(op: {
   opId: string;
   userId: string;
+  centerId?: string | undefined;
   payload: {
     originalEntryId: string;
     replacement: Record<string, unknown>;
@@ -34,6 +37,7 @@ export async function enqueueSupersedeEntry(op: {
   const outboxItem: LocalOutboxOp = {
     opId: op.opId,
     userId: op.userId,
+    centerId: op.centerId ?? undefined,
     type: 'supersede_entry',
     payload: op.payload,
     clientCreatedAt: new Date().toISOString(),

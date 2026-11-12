@@ -1,3 +1,13 @@
+import type { RequestEvent } from '@sveltejs/kit';
+
+export function getSafeClientIp(event: Pick<RequestEvent, 'getClientAddress'>): string {
+  try {
+    return event.getClientAddress?.() || 'unknown-ip';
+  } catch {
+    return 'unknown-ip';
+  }
+}
+
 interface RateLimitEntry {
   timestamps: number[];
 }

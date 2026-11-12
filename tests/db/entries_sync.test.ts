@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
-import { ensureTestDatabase, testDatabaseUrl } from './helpers/test-db';
+import { ensureTestDatabase, testDatabaseUrl, DEFAULT_CENTER_ID } from './helpers/test-db';
 
 const { Pool } = pg;
 
@@ -17,6 +17,8 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
   const METHOD_CASH_ID = '10000000-0000-0000-0000-000000000002';
   const RATE_PROFILE_V1_ID = '20000000-0000-0000-0000-000000000001';
   const DEVICE_ID = 'd0000000-0000-0000-0000-000000000001';
+
+  const _C = DEFAULT_CENTER_ID;
 
   beforeAll(async () => {
     await ensureTestDatabase();
@@ -62,39 +64,39 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
         ('${STAFF_ID}', 'staff@cosmo.local')
       ON CONFLICT (id) DO NOTHING;
 
-      INSERT INTO profiles (id, full_name, role, active) VALUES
-        ('${OWNER_ID}', 'Zia Owner', 'owner', true),
-        ('${ADMIN_ID}', 'Admin User', 'admin', true),
-        ('${STAFF_ID}', 'Staff User', 'staff', true)
-      ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, active = EXCLUDED.active;
+      INSERT INTO profiles (id, center_id, full_name, role, active) VALUES
+        ('${OWNER_ID}', '${_C}', 'Zia Owner', 'owner', true),
+        ('${ADMIN_ID}', '${_C}', 'Admin User', 'admin', true),
+        ('${STAFF_ID}', '${_C}', 'Staff User', 'staff', true)
+      ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, active = EXCLUDED.active, center_id = EXCLUDED.center_id;
 
       -- Baseline payment methods initially inactive to avoid chicken-and-egg trigger crash
-      INSERT INTO payment_methods (id, code, name, requires_txn_ref, active, sort_order) VALUES
-        ('${METHOD_BKASH_ID}', 'bkash', 'bKash', true, false, 1),
-        ('${METHOD_CASH_ID}', 'cash', 'Cash', false, false, 2)
+      INSERT INTO payment_methods (center_id, id, code, name, requires_txn_ref, active, sort_order) VALUES
+        ('${_C}', '${METHOD_BKASH_ID}', 'bkash', 'bKash', true, false, 1),
+        ('${_C}', '${METHOD_CASH_ID}', 'cash', 'Cash', false, false, 2)
       ON CONFLICT (id) DO NOTHING;
 
       -- Baseline published rate profile v1 (seeded as draft first, method rates added, then published)
       INSERT INTO rate_profiles (
-        id, version, effective_from, status, vat_mode, vat_bp,
+        center_id, id, version, effective_from, status, vat_mode, vat_bp,
         commission_base, commission_bp, charges_borne_by, created_by
       ) VALUES (
-        '${RATE_PROFILE_V1_ID}', 1, '2026-01-01', 'draft', 'manual', 0,
+        '${_C}', '${RATE_PROFILE_V1_ID}', 1, '2026-01-01', 'draft', 'manual', 0,
         'gross_minus_vat', 4200, 'business', '${OWNER_ID}'
       ) ON CONFLICT (id) DO NOTHING;
 
-      INSERT INTO method_rates (rate_profile_id, method_id, charge_bp) VALUES
-        ('${RATE_PROFILE_V1_ID}', '${METHOD_BKASH_ID}', 115),
-        ('${RATE_PROFILE_V1_ID}', '${METHOD_CASH_ID}', 0)
+      INSERT INTO method_rates (center_id, rate_profile_id, method_id, charge_bp) VALUES
+        ('${_C}', '${RATE_PROFILE_V1_ID}', '${METHOD_BKASH_ID}', 115),
+        ('${_C}', '${RATE_PROFILE_V1_ID}', '${METHOD_CASH_ID}', 0)
       ON CONFLICT (rate_profile_id, method_id) DO NOTHING;
 
       UPDATE rate_profiles set status = 'published' where id = '${RATE_PROFILE_V1_ID}';
       UPDATE payment_methods set active = true where id in ('${METHOD_BKASH_ID}', '${METHOD_CASH_ID}');
 
       -- Register initial device presence (last_rate_version is NOT NULL)
-      INSERT INTO devices (device_id, user_id, device_name, last_rate_version, revoked, last_seen_at) VALUES
-        ('${DEVICE_ID}', '${STAFF_ID}', 'Test Device', 1, false, now())
-      ON CONFLICT (device_id, user_id) DO UPDATE SET revoked = false;
+      INSERT INTO devices (id, center_id, device_id, user_id, device_name, last_rate_version, revoked, last_seen_at) VALUES
+        ('${DEVICE_ID}', '${_C}', '${DEVICE_ID}', '${STAFF_ID}', 'Test Device', 1, false, now())
+      ON CONFLICT (center_id, device_id, user_id) DO UPDATE SET revoked = false;
     `);
   }, 180_000);
 
@@ -159,12 +161,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(pushPayload),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(pushPayload)],
+    );
 
     const result = res.rows[0].result;
     expect(result.results[0].status).toBe('rejected');
@@ -228,18 +228,26 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     try {
       const [res1, res2] = await Promise.all([
-        client1.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-          DEVICE_ID,
-          STAFF_ID,
-          'staff',
-          JSON.stringify(makeOp(opId1, entryId1, 'TXN-CONC-01')),
-        ]),
-        client2.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-          DEVICE_ID,
-          STAFF_ID,
-          'staff',
-          JSON.stringify(makeOp(opId2, entryId2, 'TXN-CONC-02')),
-        ]),
+        client1.query(
+          'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+          [
+            _C,
+            DEVICE_ID,
+            STAFF_ID,
+            'staff',
+            JSON.stringify(makeOp(opId1, entryId1, 'TXN-CONC-01')),
+          ],
+        ),
+        client2.query(
+          'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+          [
+            _C,
+            DEVICE_ID,
+            STAFF_ID,
+            'staff',
+            JSON.stringify(makeOp(opId2, entryId2, 'TXN-CONC-02')),
+          ],
+        ),
       ]);
 
       expect(res1.rows[0].result.results[0].status).toBe('ok');
@@ -280,11 +288,11 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Insert active baseline entry to supersede
     await pool.query(`
       INSERT INTO entries (
-        id, entry_date, customer_name, method_id, gross_poisha,
+        id, center_id, entry_date, customer_name, method_id, gross_poisha,
         rate_profile_id, snapshot, vat_input_poisha, vat_poisha, commission_poisha, charge_poisha,
         business_charge_poisha, customer_charge_poisha, net_poisha, created_by, status
       ) VALUES (
-        '${origId}', '2026-10-15', 'Original Entry', '${METHOD_CASH_ID}', 100000,
+        '${origId}', '${_C}', '2026-10-15', 'Original Entry', '${METHOD_CASH_ID}', 100000,
         '${RATE_PROFILE_V1_ID}', '${JSON.stringify(validSnapshot)}'::jsonb, 0, 0, 42000, 0,
         0, 0, 58000, '${STAFF_ID}', 'active'
       )
@@ -313,12 +321,14 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     try {
       const results = await Promise.allSettled([
-        c1.query('SELECT rpc_supersede_entry($1, $2, $3) as res', [
+        c1.query('SELECT rpc_supersede_entry($1::uuid, $2::uuid, $3::jsonb, $4::uuid) as res', [
+          _C,
           origId,
           JSON.stringify(makeReplacement(rep1Id)),
           ADMIN_ID,
         ]),
-        c2.query('SELECT rpc_supersede_entry($1, $2, $3) as res', [
+        c2.query('SELECT rpc_supersede_entry($1::uuid, $2::uuid, $3::jsonb, $4::uuid) as res', [
+          _C,
           origId,
           JSON.stringify(makeReplacement(rep2Id)),
           ADMIN_ID,
@@ -349,8 +359,8 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Method rate insertion into published profile must be rejected
     await expect(
       pool.query(`
-       INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
-        VALUES ('${RATE_PROFILE_V1_ID}', '${METHOD_BKASH_ID}', 200)
+       INSERT INTO method_rates (center_id, rate_profile_id, method_id, charge_bp)
+        VALUES ('${_C}', '${RATE_PROFILE_V1_ID}', '${METHOD_BKASH_ID}', 200)
       `),
     ).rejects.toThrow('method_rates_published_profile_immutable');
   });
@@ -358,11 +368,19 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
   it('Test #15 & #44: Atomic Ownership Transfer & Demote-Before-Promote Order (PRD §7.3, §16.2 Test #15, #44)', async () => {
     // Attempt transfer to non-admin staff member must be rejected
     await expect(
-      pool.query('SELECT transfer_ownership($1, $2)', [STAFF_ID, OWNER_ID]),
+      pool.query('SELECT transfer_ownership($1::uuid, $2::uuid, $3::uuid)', [
+        _C,
+        STAFF_ID,
+        OWNER_ID,
+      ]),
     ).rejects.toThrow('target_user_must_be_admin');
 
     // Transfer ownership to Admin
-    await pool.query('SELECT transfer_ownership($1, $2)', [ADMIN_ID, OWNER_ID]);
+    await pool.query('SELECT transfer_ownership($1::uuid, $2::uuid, $3::uuid)', [
+      _C,
+      ADMIN_ID,
+      OWNER_ID,
+    ]);
 
     const res = await pool.query('SELECT id, role, active FROM profiles WHERE id in ($1, $2)', [
       OWNER_ID,
@@ -374,14 +392,18 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     expect(roles[OWNER_ID]).toBe('admin');
 
     // Transfer back to Zia for subsequent tests
-    await pool.query('SELECT transfer_ownership($1, $2)', [OWNER_ID, ADMIN_ID]);
+    await pool.query('SELECT transfer_ownership($1::uuid, $2::uuid, $3::uuid)', [
+      _C,
+      OWNER_ID,
+      ADMIN_ID,
+    ]);
   });
 
   it('Test #18: Discard Authorization and Provenance (PRD §9.1, §16.2 Test #18)', async () => {
     const rejectedOpId = 'a0000018-0000-0000-0000-000000000001';
     await pool.query(`
-      INSERT INTO sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status)
-      VALUES ('${rejectedOpId}', '${STAFF_ID}', '${DEVICE_ID}', 'create_entry', '{}'::jsonb, 'hash', now(), 'rejected', 'pending')
+      INSERT INTO sync_ops (center_id, op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status)
+      VALUES ('${_C}', '${rejectedOpId}', '${STAFF_ID}', '${DEVICE_ID}', 'create_entry', '{}'::jsonb, 'hash', now(), 'rejected', 'pending')
     `);
 
     const discardOp = [
@@ -397,12 +419,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(discardOp),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(discardOp)],
+    );
     expect(res.rows[0].result.results[0].status).toBe('ok');
 
     const opRes = await pool.query('SELECT resolution_status FROM sync_ops WHERE op_id = $1', [
@@ -476,12 +496,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(batch),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(batch)],
+    );
 
     const results = res.rows[0].result.results;
     expect(results[0].status).toBe('ok');
@@ -607,18 +625,14 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     try {
       const [res1, res2] = await Promise.all([
-        c1.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-          DEVICE_ID,
-          STAFF_ID,
-          'staff',
-          JSON.stringify(op1),
-        ]),
-        c2.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-          DEVICE_ID,
-          STAFF_ID,
-          'staff',
-          JSON.stringify(op2),
-        ]),
+        c1.query(
+          'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+          [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op1)],
+        ),
+        c2.query(
+          'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+          [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op2)],
+        ),
       ]);
 
       expect(res1.rows[0].result.results[0].status).toBe('ok');
@@ -649,11 +663,11 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Insert active entry
     await pool.query(`
       INSERT INTO entries (
-        id, entry_date, customer_name, method_id, gross_poisha,
+        id, center_id, entry_date, customer_name, method_id, gross_poisha,
         rate_profile_id, snapshot, vat_input_poisha, vat_poisha, commission_poisha, charge_poisha,
         business_charge_poisha, customer_charge_poisha, net_poisha, created_by, status
       ) VALUES (
-        '${entryId}', '2026-10-15', 'Original Entry', '${METHOD_CASH_ID}', 100000,
+        '${entryId}', '${_C}', '2026-10-15', 'Original Entry', '${METHOD_CASH_ID}', 100000,
         '${RATE_PROFILE_V1_ID}', '${JSON.stringify(validSnapshot)}'::jsonb, 0, 0, 42000, 0,
         0, 0, 58000, '${STAFF_ID}', 'active'
       )
@@ -678,7 +692,8 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     });
 
     // First supersede succeeds
-    await pool.query('SELECT rpc_supersede_entry($1, $2, $3)', [
+    await pool.query('SELECT rpc_supersede_entry($1::uuid, $2::uuid, $3::jsonb, $4::uuid)', [
+      _C,
       entryId,
       JSON.stringify(replacement(rep1Id)),
       ADMIN_ID,
@@ -686,7 +701,8 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     // Second supersede against already superseded entry must be rejected
     await expect(
-      pool.query('SELECT rpc_supersede_entry($1, $2, $3)', [
+      pool.query('SELECT rpc_supersede_entry($1::uuid, $2::uuid, $3::jsonb, $4::uuid)', [
+        _C,
         entryId,
         JSON.stringify(replacement(rep2Id)),
         ADMIN_ID,
@@ -698,28 +714,32 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // 1. Deduction Guard Rejection (> 100% total deductions rejected at publish time)
     const excessiveProfileId = '20000000-0000-0000-0000-000000000099';
     await pool.query(`
-      INSERT INTO rate_profiles (id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, created_by)
-      VALUES ('${excessiveProfileId}', 99, 'draft', '2026-12-01', 'percent_of_gross', 1500, 'gross', 4500, '${ADMIN_ID}');
-     INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
+      INSERT INTO rate_profiles (center_id, id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, created_by)
+      VALUES ('${_C}', '${excessiveProfileId}', 99, 'draft', '2026-12-01', 'percent_of_gross', 1500, 'gross', 4500, '${ADMIN_ID}');
+     INSERT INTO method_rates (center_id, rate_profile_id, method_id, charge_bp)
       VALUES
-        ('${excessiveProfileId}', '${METHOD_BKASH_ID}', 4500),
-        ('${excessiveProfileId}', '${METHOD_CASH_ID}', 0);
+        ('${_C}', '${excessiveProfileId}', '${METHOD_BKASH_ID}', 4500),
+        ('${_C}', '${excessiveProfileId}', '${METHOD_CASH_ID}', 0);
     `);
 
     // 1500 (VAT) + 4500 (Comm) + 4500 (bKash) = 10500 bp = 105% > 100%
     await expect(
-      pool.query('SELECT publish_rate_profile($1, $2)', [excessiveProfileId, ADMIN_ID]),
+      pool.query('SELECT publish_rate_profile($1::uuid, $2::uuid, $3::uuid)', [
+        _C,
+        excessiveProfileId,
+        ADMIN_ID,
+      ]),
     ).rejects.toThrow('deductions_exceed_100_percent');
 
     // 2. Anti-Cherry-Picking: client knows newer profile v2 but submits older profile v1
     const profileV2Id = '20000000-0000-0000-0000-000000000002';
     await pool.query(`
-      INSERT INTO rate_profiles (id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, created_by)
-      VALUES ('${profileV2Id}', 2, 'draft', '2026-10-01', 'manual', 0, 'gross_minus_vat', 4000, '${ADMIN_ID}');
-     INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
+      INSERT INTO rate_profiles (center_id, id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, created_by)
+      VALUES ('${_C}', '${profileV2Id}', 2, 'draft', '2026-10-01', 'manual', 0, 'gross_minus_vat', 4000, '${ADMIN_ID}');
+     INSERT INTO method_rates (center_id, rate_profile_id, method_id, charge_bp)
       VALUES
-        ('${profileV2Id}', '${METHOD_BKASH_ID}', 115),
-        ('${profileV2Id}', '${METHOD_CASH_ID}', 0);
+        ('${_C}', '${profileV2Id}', '${METHOD_BKASH_ID}', 115),
+        ('${_C}', '${profileV2Id}', '${METHOD_CASH_ID}', 0);
       UPDATE rate_profiles SET status = 'published' WHERE id = '${profileV2Id}';
     `);
 
@@ -761,12 +781,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(cherryPickOp),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(cherryPickOp)],
+    );
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('rate_profile_date_mismatch');
   });
@@ -809,12 +827,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(op),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op)],
+    );
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('upgrade_required');
   });
@@ -836,23 +852,22 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     // Seed flagged entry over 50k BDT (6,000,000 poisha = 60,000 BDT)
     await pool.query(`
       INSERT INTO entries (
-        id, entry_date, customer_name, method_id, gross_poisha,
+        id, center_id, entry_date, customer_name, method_id, gross_poisha,
         rate_profile_id, snapshot, vat_input_poisha, vat_poisha, commission_poisha, charge_poisha,
         business_charge_poisha, customer_charge_poisha, net_poisha, created_by,
         status, stale_rates, stale_review_status
       ) VALUES (
-        '${entryId}', '2026-10-15', 'High Value Customer', '${METHOD_CASH_ID}', 6000000,
+        '${entryId}', '${_C}', '2026-10-15', 'High Value Customer', '${METHOD_CASH_ID}', 6000000,
         '${RATE_PROFILE_V1_ID}', '${JSON.stringify(validSnapshot)}'::jsonb, 0, 0, 2520000, 0,
         0, 0, 3480000, '${STAFF_ID}', 'active', true, 'flagged'
       )
     `);
 
     // Admin approves stale review
-    const approveRes = await pool.query('SELECT admin_review_stale_entry($1, $2, $3) as res', [
-      entryId,
-      'approved',
-      ADMIN_ID,
-    ]);
+    const approveRes = await pool.query(
+      'SELECT admin_review_stale_entry($1::uuid, $2::uuid, $3::text, $4::uuid) as res',
+      [_C, entryId, 'approved', ADMIN_ID],
+    );
     expect(approveRes.rows[0].res.status).toBe('approved');
 
     const entryRes = await pool.query(
@@ -886,12 +901,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
     // Verify admin_invite_user blocks inviting an owner
     await expect(
-      pool.query('SELECT admin_invite_user($1, $2, $3, $4)', [
-        'newowner@cosmo.local',
-        'owner',
-        'New Owner',
-        OWNER_ID,
-      ]),
+      pool.query(
+        'SELECT admin_invite_user($1::uuid, $2::text, $3::user_role, $4::text, $5::uuid)',
+        [_C, 'newowner@cosmo.local', 'owner', 'New Owner', OWNER_ID],
+      ),
     ).rejects.toThrow('cannot_invite_owner');
   });
 
@@ -931,12 +944,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(op),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op)],
+    );
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('missing_rate_watermark');
   });
@@ -984,21 +995,17 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
     ];
 
     // Initial push succeeds
-    const res1 = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(makeOp('Original Customer')),
-    ]);
+    const res1 = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(makeOp('Original Customer'))],
+    );
     expect(res1.rows[0].result.results[0].status).toBe('ok');
 
     // Replay identical push: returns duplicate with sequence numbers
-    const res2 = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(makeOp('Original Customer')),
-    ]);
+    const res2 = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(makeOp('Original Customer'))],
+    );
     expect(res2.rows[0].result.results[0].status).toBe('duplicate');
     expect(res2.rows[0].result.results[0].server_seq).toBeDefined();
     expect(res2.rows[0].result.results[0].entry_number).toBeDefined();
@@ -1030,12 +1037,10 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res3 = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(tamperedOp),
-    ]);
+    const res3 = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(tamperedOp)],
+    );
     expect(res3.rows[0].result.results[0].status).toBe('rejected');
     expect(res3.rows[0].result.results[0].reason).toBe('op_id_conflict_tampered');
 
@@ -1049,7 +1054,12 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
 
   it('Test #62: Multi-User Shared Device Presence & Global Killswitch (PRD §7.3, §9.1, §16.2 Test #62)', async () => {
     // Admin revokes device
-    await pool.query('SELECT admin_manage_device($1, $2, $3)', [DEVICE_ID, 'revoke', ADMIN_ID]);
+    await pool.query('SELECT admin_manage_device($1::uuid, $2::text, $3::text, $4::uuid)', [
+      _C,
+      DEVICE_ID,
+      'revoke',
+      ADMIN_ID,
+    ]);
 
     const op = [
       {
@@ -1086,44 +1096,43 @@ describe('Core Database Procedures, Sync Push Engine, and Concurrency Tests', ()
       },
     ];
 
-    const res = await pool.query('SELECT rpc_push_sync_op($1, $2, $3, $4) as result', [
-      DEVICE_ID,
-      STAFF_ID,
-      'staff',
-      JSON.stringify(op),
-    ]);
+    const res = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) as result',
+      [_C, DEVICE_ID, STAFF_ID, 'staff', JSON.stringify(op)],
+    );
     expect(res.rows[0].result.results[0].status).toBe('rejected');
     expect(res.rows[0].result.results[0].reason).toBe('device_revoked');
 
     // Unrevoke for clean state
-    await pool.query('SELECT admin_manage_device($1, $2, $3)', [DEVICE_ID, 'unrevoke', ADMIN_ID]);
+    await pool.query('SELECT admin_manage_device($1::uuid, $2::text, $3::text, $4::uuid)', [
+      _C,
+      DEVICE_ID,
+      'unrevoke',
+      ADMIN_ID,
+    ]);
   });
 
   it('Test #63: Deactivated User Re-Invite Guard & Privilege Escalation Defense (PRD §7.3, §16.2 Test #63)', async () => {
     const deactAdminId = '00000000-0000-0000-0000-000000000063';
     await pool.query(`
       INSERT INTO auth.users (id, email) VALUES ('${deactAdminId}', 'deactadmin@cosmo.local') ON CONFLICT (id) DO NOTHING;
-      INSERT INTO profiles (id, full_name, role, active) VALUES ('${deactAdminId}', 'Deactivated Admin', 'admin', false)
+      INSERT INTO profiles (id, center_id, full_name, role, active) VALUES ('${deactAdminId}', '${_C}', 'Deactivated Admin', 'admin', false)
       ON CONFLICT (id) DO UPDATE SET active = false, role = 'admin';
     `);
 
     // Another Admin cannot reactivate an Admin account
     await expect(
-      pool.query('SELECT admin_invite_user($1, $2, $3, $4)', [
-        'deactadmin@cosmo.local',
-        'admin',
-        'Deactivated Admin',
-        ADMIN_ID,
-      ]),
+      pool.query(
+        'SELECT admin_invite_user($1::uuid, $2::text, $3::user_role, $4::text, $5::uuid)',
+        [_C, 'deactadmin@cosmo.local', 'admin', 'Deactivated Admin', ADMIN_ID],
+      ),
     ).rejects.toThrow('unauthorized');
 
     // Owner can reactivate the Admin account
-    await pool.query('SELECT admin_invite_user($1, $2, $3, $4)', [
-      'deactadmin@cosmo.local',
-      'admin',
-      'Reactivated Admin',
-      OWNER_ID,
-    ]);
+    await pool.query(
+      'SELECT admin_invite_user($1::uuid, $2::text, $3::user_role, $4::text, $5::uuid)',
+      [_C, 'deactadmin@cosmo.local', 'admin', 'Reactivated Admin', OWNER_ID],
+    );
 
     const res = await pool.query('SELECT active, role FROM profiles WHERE id = $1', [deactAdminId]);
     expect(res.rows[0].active).toBe(true);

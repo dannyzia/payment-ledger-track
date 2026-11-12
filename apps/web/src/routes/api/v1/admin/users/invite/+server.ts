@@ -15,6 +15,11 @@ export const POST: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const body = await event.request.json();
   const parsed = inviteUserSchema.safeParse(body);
   if (!parsed.success) {
@@ -32,6 +37,7 @@ export const POST: RequestHandler = async (event) => {
 
   const supabase = getServiceSupabase();
   const { error: rpcErr } = await supabase.rpc('admin_invite_user', {
+    p_center_id: centerId,
     p_email: email.toLowerCase(),
     p_role: role,
     p_full_name: fullName,

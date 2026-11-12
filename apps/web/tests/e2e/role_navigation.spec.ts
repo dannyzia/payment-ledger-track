@@ -32,6 +32,8 @@ for (const envName of ['.env.local', '.env']) {
 
 const STAFF_EMAIL = process.env.E2E_STAFF_EMAIL || '';
 const STAFF_PASSWORD = process.env.E2E_STAFF_PASSWORD || '';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
 const OWNER_EMAIL = process.env.BOOTSTRAP_OWNER_EMAIL || '';
 const OWNER_PASSWORD = process.env.BOOTSTRAP_OWNER_PASSWORD || '';
 
@@ -101,13 +103,15 @@ test.describe('CLT-T-063 role-scoped navigation', () => {
     expect(new URL(page.url()).pathname).toBe('/dashboard');
   });
 
-  test('owner still sees the Reports link (the assertion is not hiding everything)', async ({
+  test('privileged center admin or owner sees the Reports and Settlements links', async ({
     page,
   }) => {
-    test.skip(!OWNER_EMAIL || !OWNER_PASSWORD, 'owner credentials are not configured');
+    const privilegedEmail = ADMIN_EMAIL || OWNER_EMAIL;
+    const privilegedPassword = ADMIN_PASSWORD || OWNER_PASSWORD;
+    test.skip(!privilegedEmail || !privilegedPassword, 'privileged credentials are not configured');
 
     await page.setViewportSize(DESKTOP);
-    await signIn(page, OWNER_EMAIL, OWNER_PASSWORD);
+    await signIn(page, privilegedEmail, privilegedPassword);
 
     const links = await desktopNav(page);
     expect(links).toContain('/reports');

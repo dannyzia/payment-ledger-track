@@ -14,12 +14,19 @@ export const GET: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const supabase = getServiceSupabase();
-  // app_settings primary key is boolean true check (id) per PRD §7.1
+  // app_settings is keyed by center_id (one row per center); the old boolean id singleton is gone.
   const { data, error } = await supabase
     .from('app_settings')
-    .select('id, timezone, currency, locale, net_label, reconcile_tolerance_poisha, updated_at')
-    .eq('id', true)
+    .select(
+      'center_id, timezone, currency, locale, net_label, reconcile_tolerance_poisha, updated_at',
+    )
+    .eq('center_id', centerId)
     .single();
 
   if (error) {
@@ -38,6 +45,11 @@ export const PATCH: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const body = await event.request.json();
   const parsed = updateSettingsSchema.safeParse(body);
   if (!parsed.success) {
@@ -48,6 +60,7 @@ export const PATCH: RequestHandler = async (event) => {
 
   const supabase = getServiceSupabase();
   const { error } = await supabase.rpc('admin_update_settings', {
+    p_center_id: centerId,
     p_settings: {
       net_label: parsed.data.net_label,
       reconcile_tolerance_poisha: parsed.data.reconcile_tolerance_poisha,

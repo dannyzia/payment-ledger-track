@@ -50,6 +50,7 @@ export async function requestEntryVoid(
     type: 'request_void',
     payload: {
       entryId: entry.id,
+      centerId: entry.center_id ?? null,
       reason: trimmedReason,
       requestedAt,
     },
@@ -104,6 +105,7 @@ export async function executeEntryVoid(
     type: 'void_entry',
     payload: {
       entryId: entry.id,
+      centerId: entry.center_id ?? null,
       reason: trimmedReason,
       voidedAt,
     },

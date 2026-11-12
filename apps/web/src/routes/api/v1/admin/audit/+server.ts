@@ -4,7 +4,7 @@ import { getServiceSupabase } from '$lib/server/supabase';
 
 export const GET: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
-  if (caller.role !== 'admin' && caller.role !== 'owner') {
+  if (caller.role !== 'admin' && caller.role !== 'owner' && caller.role !== 'super_admin') {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
   }
 
@@ -20,6 +20,15 @@ export const GET: RequestHandler = async (event) => {
 
   const supabase = getServiceSupabase();
   let query = supabase.from('audit_log').select('*').order('id', { ascending: false }).limit(limit);
+
+  // Tenant isolation (Hard Rule 9): only a super_admin may view another center's
+  // audit rows, and only by explicitly selecting that center.
+  if (caller.role === 'super_admin') {
+    const filterCenter = event.url.searchParams.get('centerId');
+    if (filterCenter) query = query.eq('center_id', filterCenter);
+  } else if (caller.centerId) {
+    query = query.eq('center_id', caller.centerId);
+  }
 
   if (table) query = query.eq('target_table', table);
   if (action) query = query.ilike('action', `%${action}%`);

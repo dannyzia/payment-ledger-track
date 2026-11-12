@@ -13,6 +13,9 @@ export class SyncRunner {
   private timer: number | null = null;
   private isBusy = false;
   private isRunning = false;
+  private activeRunPromise: Promise<void> | null = null;
+  private queuedBeforeSync: Array<() => Promise<void>> = [];
+  private needsAnotherRun = false;
   private channel: BroadcastChannel | null = null;
   private onlineListener: (() => void) | null = null;
   private offlineListener: (() => void) | null = null;
@@ -107,6 +110,42 @@ export class SyncRunner {
   }
 
   async triggerCycle(): Promise<void> {
+    if (this.activeRunPromise) return;
+    await this.syncNow();
+  }
+
+  /**
+   * Coordinates an immediate sync cycle serialized against any active cycle.
+   * When an optional `beforeSync` hook (e.g., center-switch cache reset) is passed,
+   * any currently running cycle is awaited before running the hook and fresh sync.
+   */
+  async syncNow(beforeSync?: () => Promise<void>): Promise<void> {
+    if (beforeSync) {
+      this.queuedBeforeSync.push(beforeSync);
+    }
+    this.needsAnotherRun = true;
+
+    if (!this.activeRunPromise) {
+      this.activeRunPromise = this.drainSyncQueue().finally(() => {
+        this.activeRunPromise = null;
+      });
+    }
+
+    await this.activeRunPromise;
+  }
+
+  private async drainSyncQueue(): Promise<void> {
+    while (this.needsAnotherRun || this.queuedBeforeSync.length > 0) {
+      this.needsAnotherRun = false;
+      const preTasks = this.queuedBeforeSync.splice(0, this.queuedBeforeSync.length);
+      for (const task of preTasks) {
+        await task();
+      }
+      await this.executeCycleOnce();
+    }
+  }
+
+  private async executeCycleOnce(): Promise<void> {
     if (typeof navigator === 'undefined' || !navigator.onLine) {
       this.updateStatus('offline');
       return;
@@ -127,12 +166,24 @@ export class SyncRunner {
           this.updateStatus('signed_out');
           return;
         }
+        // A session with no center has nothing it can push: the server rejects
+        // entry ops without a tenant, and the centerless platform super-admin is
+        // the normal case. Gating the pull behind that push left Head Office
+        // configuration stale for as long as the ops stayed queued, and the prune
+        // for replaced payment methods only runs inside the pull (CLT-R-026).
+        // Pull anyway, but keep reporting the error so the stuck ops are not
+        // hidden. Every account that can record an entry carries a center, so
+        // PRD §9.1's push-before-pull ordering still holds where it matters.
+        if (!session.user?.centerId) {
+          await this.pullAndReport('error');
+          return;
+        }
+
         this.updateStatus('error');
         return;
       }
 
-      await executeIncrementalPull();
-      this.updateStatus('synced');
+      await this.pullAndReport('synced');
     } catch (err) {
       if (err instanceof Error && err.message === 'network_offline') {
         this.updateStatus('offline');
@@ -141,6 +192,18 @@ export class SyncRunner {
       }
     } finally {
       this.isBusy = false;
+    }
+  }
+
+  /** Runs the pull, then reports `status` unless the pull itself failed. */
+  private async pullAndReport(status: SyncState): Promise<void> {
+    try {
+      await executeIncrementalPull();
+      this.updateStatus(status);
+    } catch (err) {
+      this.updateStatus(
+        err instanceof Error && err.message === 'network_offline' ? 'offline' : 'error',
+      );
     }
   }
 }

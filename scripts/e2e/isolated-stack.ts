@@ -20,6 +20,13 @@
  *   pnpm test:e2e:isolated            # full suite, stack torn down afterwards
  *   pnpm test:e2e:isolated --keep     # leave the stack running
  *   pnpm test:e2e:isolated -- offline_sync   # extra args go to Playwright
+ *   pnpm test:e2e:isolated --gate5    # Gate 5 (browser E2E + accessibility)
+ *                                     # through verify-gates, against this stack
+ *
+ * `--gate5` exists because Gate 5's browser half needs real fixtures: a center,
+ * a center owner and a staff member. The development stack's bootstrapped
+ * account is the centerless platform super_admin, so sync (which requires a
+ * center) and the franchise navigation assertions cannot pass there.
  *
  * The script refuses to continue if the "isolated" stack resolves to the
  * development stack's ports. That check is the whole point: a typo in the port
@@ -127,9 +134,12 @@ async function entryCount(databaseUrl: string): Promise<number | null> {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const keep = argv.includes('--keep');
+  const gate5 = argv.includes('--gate5');
   const separated = argv.indexOf('--');
   const playwrightArgs =
-    separated === -1 ? argv.filter((a) => a !== '--keep') : argv.slice(separated + 1);
+    separated === -1
+      ? argv.filter((a) => a !== '--keep' && a !== '--gate5')
+      : argv.slice(separated + 1);
 
   const ownerEmail = process.env.BOOTSTRAP_OWNER_EMAIL;
   const ownerPassword = process.env.BOOTSTRAP_OWNER_PASSWORD;
@@ -145,20 +155,26 @@ async function main(): Promise<void> {
 
   let status = readStatus();
   if (!status) {
-    console.log('→ starting the isolated Supabase stack');
+    console.info('→ starting the isolated Supabase stack');
     run('pnpm', ['exec', 'supabase', 'start', '--workdir', WORKDIR]);
     status = readStatus();
     if (!status) throw new Error('the isolated stack did not report a status');
   }
   assertIsolated(status);
 
-  console.log('→ rebuilding the isolated database from supabase/migrations');
-  run('pnpm', ['exec', 'supabase', 'db', 'reset', '--workdir', WORKDIR]);
+  console.info('→ rebuilding the isolated database from supabase/migrations');
+  try {
+    run('pnpm', ['exec', 'supabase', 'db', 'reset', '--workdir', WORKDIR]);
+  } catch {
+    console.warn('⚠️ db reset hit container restart lag; restarting kong and retrying reset...');
+    spawnSync('docker', ['restart', 'supabase_kong_ledger_e2e'], { stdio: 'ignore' });
+    run('pnpm', ['exec', 'supabase', 'db', 'reset', '--workdir', WORKDIR]);
+  }
   // The reset restarts containers; re-read in case the keys were regenerated.
   status = readStatus() ?? status;
   assertIsolated(status);
 
-  console.log('→ bootstrapping the owner account in the isolated stack');
+  console.info('→ bootstrapping the owner account in the isolated stack');
   const stackEnv: NodeJS.ProcessEnv = {
     ...process.env,
     DATABASE_URL: status.DB_URL,
@@ -173,15 +189,18 @@ async function main(): Promise<void> {
   run('pnpm', ['exec', 'tsx', 'scripts/bootstrap.ts'], stackEnv);
 
   // Non-owner accounts the role-based specs sign in as: a staff member for the
-  // navigation and ledger-scope assertions, and an admin so the privileged side
-  // of that scope is exercised by a role that is not the bootstrap owner. The
-  // passwords are generated per run and only travel through the child
-  // environment.
+  // navigation and ledger-scope assertions, an admin so the privileged side of
+  // that scope is exercised by a role that is not the bootstrap owner, and a
+  // second staff member on Rampura so the multi-center spec can prove each
+  // franchise center caches into its own IndexedDB database. The passwords are
+  // generated per run and only travel through the child environment.
   const staffEmail = process.env.E2E_STAFF_EMAIL || 'staff.e2e@cosmoledger.local';
   const staffPassword = process.env.E2E_STAFF_PASSWORD || randomUUID();
   const adminEmail = process.env.E2E_ADMIN_EMAIL || 'admin.e2e@cosmoledger.local';
   const adminPassword = process.env.E2E_ADMIN_PASSWORD || randomUUID();
-  console.log('→ creating the staff and admin fixture accounts in the isolated stack');
+  const rmpStaffEmail = process.env.E2E_RMP_STAFF_EMAIL || 'staff.rmp.e2e@cosmoledger.local';
+  const rmpStaffPassword = process.env.E2E_RMP_STAFF_PASSWORD || randomUUID();
+  console.info('→ creating the staff and admin fixture accounts in the isolated stack');
   const staffEnv: NodeJS.ProcessEnv = {
     ...stackEnv,
     E2E_STAFF_EMAIL: staffEmail,
@@ -194,26 +213,44 @@ async function main(): Promise<void> {
     E2E_STAFF_EMAIL: adminEmail,
     E2E_STAFF_PASSWORD: adminPassword,
   });
+  run('pnpm', ['exec', 'tsx', 'scripts/e2e/create-staff.ts'], {
+    ...stackEnv,
+    E2E_FIXTURE_ROLE: 'staff',
+    E2E_FIXTURE_CENTER_CODE: 'RMP',
+    E2E_STAFF_EMAIL: rmpStaffEmail,
+    E2E_STAFF_PASSWORD: rmpStaffPassword,
+  });
 
-  console.log(`→ running Playwright against ${status.API_URL} (app on :${APP_PORT})`);
+  console.info(`→ running Playwright against ${status.API_URL} (app on :${APP_PORT})`);
   const playwrightEnv: NodeJS.ProcessEnv = {
     ...staffEnv,
     E2E_ADMIN_EMAIL: adminEmail,
     E2E_ADMIN_PASSWORD: adminPassword,
+    E2E_RMP_STAFF_EMAIL: rmpStaffEmail,
+    E2E_RMP_STAFF_PASSWORD: rmpStaffPassword,
     PUBLIC_API_BASE: '',
     CLT_E2E_ISOLATED: '1',
     PLAYWRIGHT_TEST_BASE_URL: `http://localhost:${APP_PORT}`,
   };
-  const playwrightArgsFinal = playwrightArgs.length > 0 ? playwrightArgs : [];
-  run(
-    'pnpm',
-    ['--filter', '@clt/web', 'exec', 'playwright', 'test', ...playwrightArgsFinal],
-    playwrightEnv,
-  );
+  if (gate5) {
+    console.info('→ evaluating Gate 5 (browser E2E + accessibility) against the isolated stack');
+    run(
+      'pnpm',
+      ['exec', 'tsx', 'scripts/verify-gates.ts', '--gate5-only', '--milestone', 'M5'],
+      playwrightEnv,
+    );
+  } else {
+    const playwrightArgsFinal = playwrightArgs.length > 0 ? playwrightArgs : [];
+    run(
+      'pnpm',
+      ['--filter', '@clt/web', 'exec', 'playwright', 'test', ...playwrightArgsFinal],
+      playwrightEnv,
+    );
+  }
 
   const devAfter = await entryCount(devUrl);
   const e2eCount = await entryCount(status.DB_URL);
-  console.log(
+  console.info(
     `→ entries: isolated stack ${e2eCount ?? 'unknown'}, development database ${devBefore ?? '?'} → ${devAfter ?? '?'}`,
   );
   if (devBefore !== null && devAfter !== null && devBefore !== devAfter) {
@@ -223,10 +260,10 @@ async function main(): Promise<void> {
   }
 
   if (!keep) {
-    console.log('→ stopping the isolated stack');
+    console.info('→ stopping the isolated stack');
     run('pnpm', ['exec', 'supabase', 'stop', '--workdir', WORKDIR]);
   } else {
-    console.log(`→ stack left running (API ${status.API_URL}, DB ${status.DB_URL})`);
+    console.info(`→ stack left running (API ${status.API_URL}, DB ${status.DB_URL})`);
   }
 }
 

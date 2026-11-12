@@ -13,6 +13,12 @@ export default tseslint.config(
       '**/.vercel/**',
       '**/output/**',
       'supabase/.temp/**',
+      'e2e/supabase/.temp/**',
+      'apps/web/android/**',
+      'apps/web/test-results/**',
+      'apps/web/playwright-report/**',
+      'test-results/**',
+      'playwright-report/**',
     ],
   },
   {

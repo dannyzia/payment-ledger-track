@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getCallerContext } from '$lib/server/auth';
 import { getServiceSupabase } from '$lib/server/supabase';
 import type { Json } from '$lib/database.types';
-import { checkRateLimit } from '$lib/server/ratelimit';
+import { checkRateLimit, getSafeClientIp } from '$lib/server/ratelimit';
 import { computeJcsSha256 } from '$lib/sync/canonical';
 import { calculateEntry, type RateSnapshot } from '@clt/calc';
 
@@ -34,7 +34,7 @@ const pushRequestSchema = z.object({
 });
 
 export const POST: RequestHandler = async (event) => {
-  const clientIp = event.getClientAddress?.() || 'unknown-ip';
+  const clientIp = getSafeClientIp(event);
 
   // 1. Caller Authentication and Active Account Verification (PRD §9.1 Step 1 & 2)
   const caller = await getCallerContext(event);
@@ -45,6 +45,32 @@ export const POST: RequestHandler = async (event) => {
   const rawBody = await event.request.json().catch(() => null);
   if (!rawBody) {
     return new Response(JSON.stringify({ error: 'invalid_json' }), { status: 400 });
+  }
+
+  // Tenant context (Hard Rule 9): the caller's verified center, falling back to the
+  // body-declared center only for callers without one (super_admin). The resolved
+  // center is used for every query and the p_center_id RPC argument below.
+  const effectiveCenterId: string | null =
+    caller.centerId ?? ((rawBody as { centerId?: unknown }).centerId as string | undefined) ?? null;
+  if (!effectiveCenterId) {
+    return new Response(JSON.stringify({ error: 'missing_tenant_context' }), { status: 400 });
+  }
+
+  // Tenant IDOR protection: an op payload that names a different center is rejected.
+  for (const op of (rawBody.ops as Array<{ payload?: Record<string, unknown> }> | undefined) ??
+    []) {
+    const candidates: unknown[] = [op.payload?.centerId];
+    const replacement = op.payload?.replacement;
+    if (replacement && typeof replacement === 'object') {
+      candidates.push((replacement as Record<string, unknown>).centerId);
+    }
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate !== effectiveCenterId) {
+        return new Response(JSON.stringify({ error: 'forbidden_tenant_mismatch' }), {
+          status: 403,
+        });
+      }
+    }
   }
 
   // 2. Batch Size Limit Check (PRD §9.1: max 50 ops per request; HTTP 413)
@@ -89,7 +115,8 @@ export const POST: RequestHandler = async (event) => {
   const { data: deviceRows } = await supabase
     .from('devices')
     .select('revoked')
-    .eq('device_id', parsed.data.deviceId);
+    .eq('device_id', parsed.data.deviceId)
+    .eq('center_id', effectiveCenterId);
 
   if (deviceRows && deviceRows.some((d) => d.revoked)) {
     return new Response(JSON.stringify({ error: 'device_revoked' }), { status: 403 });
@@ -113,6 +140,7 @@ export const POST: RequestHandler = async (event) => {
     if (!op.maxKnownRateVersion) {
       await supabase.from('sync_ops').insert({
         op_id: op.opId,
+        center_id: effectiveCenterId,
         actor_id: caller.userId,
         device_id: parsed.data.deviceId,
         op_type: op.type,
@@ -164,6 +192,7 @@ export const POST: RequestHandler = async (event) => {
       const { data: profileRows } = await supabase
         .from('rate_profiles')
         .select('*, method_rates(*)')
+        .eq('center_id', effectiveCenterId)
         .eq('status', 'published')
         .lte('effective_from', entryDate)
         .order('effective_from', { ascending: false })
@@ -257,6 +286,7 @@ export const POST: RequestHandler = async (event) => {
       } catch {
         await supabase.from('sync_ops').insert({
           op_id: op.opId,
+          center_id: effectiveCenterId,
           actor_id: caller.userId,
           device_id: parsed.data.deviceId,
           op_type: op.type,
@@ -271,6 +301,7 @@ export const POST: RequestHandler = async (event) => {
         });
 
         await supabase.from('audit_log').insert({
+          center_id: effectiveCenterId,
           actor: caller.userId,
           action: 'sync.calc_mismatch',
           target_table: 'sync_ops',
@@ -300,6 +331,7 @@ export const POST: RequestHandler = async (event) => {
   // 6. Execute Database RPC for Valid Operations (PRD §9.1 Step 5 & 6)
   if (validOpsForRpc.length > 0) {
     const { data: rpcResults, error } = await supabase.rpc('rpc_push_sync_op', {
+      p_center_id: effectiveCenterId,
       p_device_id: parsed.data.deviceId,
       p_caller_id: caller.userId,
       p_caller_role: caller.role,

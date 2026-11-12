@@ -1,4 +1,7 @@
 -- Migration 000005: Core Database Functions, Triggers, and Stored Procedures (PRD §7.2, §7.3, §15.1)
+-- Multi-center baseline: every routine takes p_center_id, validates it against
+-- centers, and scopes reads/writes to that tenant. Advisory locks use the
+-- 64-bit injective coordinate scheme (class << 16 | center_number, target).
 
 create extension if not exists pgcrypto;
 
@@ -15,7 +18,9 @@ returns bigint language sql immutable strict parallel safe as $$
 $$;
 
 -- 2. Audit Log Append Helper (PLAN-DERIVED)
+-- center_id is NULL only for platform (super_admin) events.
 create or replace function log_audit_event(
+  p_center_id uuid,
   p_actor_id uuid,
   p_event_name text,
   p_target_table text,
@@ -25,20 +30,50 @@ create or replace function log_audit_event(
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   insert into audit_log (
-    actor, action, target_table, target_id, before, after
+    center_id, actor, action, target_table, target_id, before, after
   ) values (
-    p_actor_id, p_event_name, p_target_table, p_target_id, p_old_values, p_new_values
+    p_center_id, p_actor_id, p_event_name, p_target_table, p_target_id, p_old_values, p_new_values
   );
 end;
 $$;
 
 -- 3. Trigger: Sole Authoritative Sequence Allocator (F3, F54, PRD §7.2)
+-- server_seq stays globally monotonic; entry_number is allocated from the
+-- center's own counter under the center's sequence lock.
 create or replace function fn_entries_server_seq()
 returns trigger language plpgsql as $$
+declare
+  v_center_number int;
+  v_next bigint;
 begin
-  -- Sequence lock must be held to guarantee monotonic order without skips
-  perform pg_advisory_xact_lock(1002, 1);
-  NEW.server_seq := nextval('entry_seq');
+  if TG_OP = 'INSERT' then
+    select center_number into v_center_number from centers where id = NEW.center_id;
+    if v_center_number is null then
+      raise exception '422 center_not_found';
+    end if;
+
+    -- Sequence lock must be held to guarantee monotonic order without skips
+    perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
+    NEW.server_seq := nextval('entry_seq');
+
+    if NEW.entry_number is null then
+      update center_counters
+      set next_entry_number = next_entry_number + 1
+      where center_id = NEW.center_id
+      returning next_entry_number - 1 into v_next;
+
+      if v_next is null then
+        insert into center_counters (center_id, next_entry_number)
+        values (NEW.center_id, 2)
+        on conflict (center_id) do update
+        set next_entry_number = center_counters.next_entry_number + 1
+        returning next_entry_number - 1 into v_next;
+      end if;
+
+      NEW.entry_number := v_next;
+    end if;
+  end if;
+
   NEW.updated_at := now();
   return NEW;
 end;
@@ -62,8 +97,9 @@ begin
       raise exception '403 cannot_reactivate_voided_or_superseded_entry';
     end if;
 
-    -- Block modification of primary key, financial fields, and immutable metadata
+    -- Block modification of tenant, primary key, financial fields, and immutable metadata
     if OLD.id != NEW.id
+       or OLD.center_id != NEW.center_id
        or OLD.entry_date != NEW.entry_date
        or OLD.customer_name != NEW.customer_name
        or coalesce(OLD.txn_ref, '') != coalesce(NEW.txn_ref, '')
@@ -154,6 +190,9 @@ begin
   if OLD.code != NEW.code then
     raise exception '403 payment_method_code_immutable';
   end if;
+  if OLD.center_id != NEW.center_id then
+    raise exception '403 payment_method_center_immutable';
+  end if;
   return NEW;
 end;
 $$;
@@ -162,7 +201,7 @@ create trigger trg_payment_methods_immutable_code
 before update on payment_methods
 for each row execute function fn_payment_methods_immutable_code();
 
--- 7. Trigger: Payment Method Active Rate Check (F53)
+-- 7. Trigger: Payment Method Active Rate Check (F53), scoped to the center
 create or replace function fn_payment_methods_active_rate_check()
 returns trigger language plpgsql as $$
 declare
@@ -172,7 +211,8 @@ begin
   if NEW.active = true then
     select id into v_latest_profile_id
     from rate_profiles
-    where status = 'published'
+    where center_id = NEW.center_id
+      and status = 'published'
       and effective_from <= (now() at time zone 'Asia/Dhaka')::date
     order by effective_from desc, version desc
     limit 1;
@@ -183,7 +223,9 @@ begin
 
     select exists (
       select 1 from method_rates
-      where rate_profile_id = v_latest_profile_id and method_id = NEW.id
+      where center_id = NEW.center_id
+        and rate_profile_id = v_latest_profile_id
+        and method_id = NEW.id
     ) into v_covered;
 
     if not v_covered then
@@ -201,19 +243,25 @@ for each row execute function fn_payment_methods_active_rate_check();
 -- 8. Trigger: User Profile Provisioning on Auth User Creation (C1, A7)
 -- SECURITY DEFINER: provisioning the profile happens as postgres with a pinned
 -- search_path, per this file's standard function hardening (see CLT-D-009 note).
+-- center_id and role are derived strictly from raw_app_meta_data.
 create or replace function fn_auth_users_create_profile()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_role user_role := 'staff';
   v_claimed_role text;
+  v_center_id uuid;
   v_full_name text;
 begin
-  -- Privilege escalation defense: derive role strictly from raw_app_meta_data
   v_claimed_role := NEW.raw_app_meta_data->>'role';
-  if v_claimed_role in ('admin', 'staff', 'owner') then
+  if v_claimed_role in ('admin', 'staff', 'owner', 'super_admin') then
     v_role := v_claimed_role::user_role;
   else
     v_role := 'staff';
+  end if;
+
+  v_center_id := nullif(NEW.raw_app_meta_data->>'center_id', '')::uuid;
+  if v_role = 'super_admin' then
+    v_center_id := null;
   end if;
 
   v_full_name := coalesce(
@@ -222,10 +270,11 @@ begin
     split_part(NEW.email, '@', 1)
   );
 
-  insert into public.profiles (id, full_name, role, active)
-  values (NEW.id, v_full_name, v_role, true)
+  insert into public.profiles (id, center_id, full_name, role, active)
+  values (NEW.id, v_center_id, v_full_name, v_role, true)
   on conflict (id) do update
-  set role = EXCLUDED.role,
+  set center_id = EXCLUDED.center_id,
+      role = EXCLUDED.role,
       full_name = coalesce(profiles.full_name, EXCLUDED.full_name),
       updated_at = now();
 
@@ -242,22 +291,33 @@ create trigger trg_auth_users_create_profile
 after insert on auth.users
 for each row execute function fn_auth_users_create_profile();
 
--- 7b. Trigger: Role Re-derivation on App Metadata Update (C1, CLT-D-009)
+-- 7b. Trigger: Role/Center Re-derivation on App Metadata Update (C1, CLT-D-009)
 -- GoTrue persists raw_app_meta_data in a later UPDATE, not at row insert, so a
 -- provisioned profile starts 'staff' even for the bootstrap owner payload. Role
--- is derived strictly from raw_app_meta_data (admin-managed; users cannot modify
--- it), so re-deriving on update is the faithful model. Absence/invalidity of a
--- role key must NOT demote (GoTrue writes provider-only metadata on OAuth flows).
+-- and center are derived strictly from raw_app_meta_data (admin-managed; users
+-- cannot modify it), so re-deriving on update is the faithful model. Absence of
+-- a role key must NOT demote (GoTrue writes provider-only metadata on OAuth flows).
 create or replace function fn_auth_users_sync_profile_role()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_claimed text;
+  v_center_id uuid;
 begin
   v_claimed := NEW.raw_app_meta_data->>'role';
-  if v_claimed in ('admin', 'staff', 'owner') then
+  v_center_id := nullif(NEW.raw_app_meta_data->>'center_id', '')::uuid;
+
+  if v_claimed in ('super_admin') then
     update public.profiles p
-    set role = v_claimed::user_role, updated_at = now()
-    where p.id = NEW.id and p.role is distinct from v_claimed::user_role;
+    set role = 'super_admin', center_id = null, updated_at = now()
+    where p.id = NEW.id and (p.role is distinct from 'super_admin'::user_role or p.center_id is not null);
+  elsif v_claimed in ('admin', 'staff', 'owner') then
+    update public.profiles p
+    set role = v_claimed::user_role,
+        center_id = coalesce(v_center_id, p.center_id),
+        updated_at = now()
+    where p.id = NEW.id
+      and (p.role is distinct from v_claimed::user_role
+           or p.center_id is distinct from coalesce(v_center_id, p.center_id));
   end if;
   return NEW;
 end;
@@ -270,37 +330,37 @@ for each row execute function fn_auth_users_sync_profile_role();
 -- The GoTrue DB role must be able to run both provisioning triggers.
 grant execute on function fn_auth_users_sync_profile_role() to supabase_auth_admin;
 
--- 9. Trigger: Deferrable Constraint Invariant: Minimum 1 Owner (F11, F15)
--- Evaluated deferred at commit time, supporting atomic demote-before-promote in transfer_ownership
+-- 9. Trigger: Deferrable Constraint Invariant: Minimum 1 Owner per center (F11, F15)
+-- Evaluated deferred at commit time, supporting atomic demote-before-promote in transfer_ownership.
 create or replace function fn_prevent_zero_owners()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
-  -- Invariant: no mutation may REMOVE the last active owner. Pure INSERTs
-  -- cannot remove anything (and GoTrue provisions an auth user's profile row
-  -- as 'staff' before app metadata is applied, so an insert-time count would
-  -- falsely trap day-zero provisioning); role changes on UPDATE and DELETE
-  -- are the only paths that can eliminate an owner (CLT-D-009).
-  declare
-    v_owner_count int;
-  begin
-    if TG_OP = 'UPDATE' then
-      if OLD.role = 'owner' and OLD.active is true
-         and not (NEW.role = 'owner' and NEW.active is true) then
-        select count(*) into v_owner_count
-        from public.profiles where role = 'owner' and active = true;
-        if v_owner_count < 1 then
-          raise exception '422 exactly_one_owner_required';
-        end if;
-      end if;
-    elsif TG_OP = 'DELETE' then
+  v_owner_count int;
+begin
+  -- Invariant: no mutation may REMOVE the last active owner of a center. Pure
+  -- INSERTs cannot remove anything (and GoTrue provisions an auth user's
+  -- profile row before app metadata is applied). Role changes on UPDATE and
+  -- DELETE are the only paths that can eliminate an owner (CLT-D-009).
+  if TG_OP = 'UPDATE' then
+    if OLD.role = 'owner' and OLD.active is true and OLD.center_id is not null
+       and not (NEW.role = 'owner' and NEW.active is true and NEW.center_id = OLD.center_id) then
       select count(*) into v_owner_count
-      from public.profiles where role = 'owner' and active = true;
+      from public.profiles where role = 'owner' and active = true and center_id = OLD.center_id;
       if v_owner_count < 1 then
         raise exception '422 exactly_one_owner_required';
       end if;
     end if;
-    return null;
-  end;
+  elsif TG_OP = 'DELETE' then
+    if OLD.role = 'owner' and OLD.active is true and OLD.center_id is not null then
+      select count(*) into v_owner_count
+      from public.profiles where role = 'owner' and active = true and center_id = OLD.center_id;
+      if v_owner_count < 1 then
+        raise exception '422 exactly_one_owner_required';
+      end if;
+    end if;
+  end if;
+  return null;
+end;
 $$;
 
 create constraint trigger trg_prevent_zero_owners
@@ -322,20 +382,22 @@ for each row execute function fn_audit_log_immutability();
 
 -- 12. RPC: upsert_device_sync_state (PRD §7.3, H3, M4, H4)
 create or replace function upsert_device_sync_state(
+  p_center_id uuid,
   p_device_id text,
   p_user_id uuid,
   p_rate_version int default null
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  insert into devices (device_id, user_id, last_seen_at, last_rate_version, last_rate_version_at)
+  insert into devices (center_id, device_id, user_id, last_seen_at, last_rate_version, last_rate_version_at)
   values (
+    p_center_id,
     p_device_id,
     p_user_id,
     now(),
     coalesce(p_rate_version, 0), -- columns are NOT NULL DEFAULT 0; explicit null must not bypass the default
     now()
   )
-  on conflict (device_id, user_id) do update
+  on conflict (center_id, device_id, user_id) do update
   set last_seen_at = now(),
       last_rate_version = coalesce(EXCLUDED.last_rate_version, devices.last_rate_version),
       last_rate_version_at = case
@@ -347,6 +409,7 @@ $$;
 
 -- 13. RPC: admin_manage_device (PRD §7.3, H3, M4)
 create or replace function admin_manage_device(
+  p_center_id uuid,
   p_device_id text,
   p_action text,
   p_actor_id uuid
@@ -356,27 +419,29 @@ declare
   v_caller_active boolean;
   v_old_revoked boolean;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
-  select revoked into v_old_revoked from devices where device_id = p_device_id limit 1;
+  select revoked into v_old_revoked
+  from devices where center_id = p_center_id and device_id = p_device_id limit 1;
   if v_old_revoked is null then
     raise exception '404 device_not_found';
   end if;
 
   if p_action = 'revoke' then
-    update devices set revoked = true where device_id = p_device_id;
+    update devices set revoked = true where center_id = p_center_id and device_id = p_device_id;
     perform log_audit_event(
-      p_actor_id, 'device.revoke', 'devices', p_device_id,
+      p_center_id, p_actor_id, 'device.revoke', 'devices', p_device_id,
       jsonb_build_object('revoked', v_old_revoked),
       jsonb_build_object('revoked', true, 'reason', 'admin_killswitch')
     );
   elsif p_action = 'unrevoke' then
-    update devices set revoked = false where device_id = p_device_id;
+    update devices set revoked = false where center_id = p_center_id and device_id = p_device_id;
     perform log_audit_event(
-      p_actor_id, 'device.unrevoke', 'devices', p_device_id,
+      p_center_id, p_actor_id, 'device.unrevoke', 'devices', p_device_id,
       jsonb_build_object('revoked', v_old_revoked),
       jsonb_build_object('revoked', false)
     );
@@ -388,6 +453,7 @@ $$;
 
 -- 14. RPC: transfer_ownership (PRD §7.3, Findings B7, F15)
 create or replace function transfer_ownership(
+  p_center_id uuid,
   p_new_owner_id uuid,
   p_caller_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
@@ -397,12 +463,14 @@ declare
   v_target_role user_role;
   v_target_active boolean;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_caller_id for update;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_caller_id and center_id = p_center_id for update;
   if v_caller_role is null or v_caller_active is not true or v_caller_role != 'owner' then
     raise exception '403 unauthorized';
   end if;
 
-  select role, active into v_target_role, v_target_active from profiles where id = p_new_owner_id for update;
+  select role, active into v_target_role, v_target_active
+  from profiles where id = p_new_owner_id and center_id = p_center_id for update;
   if v_target_role is null or v_target_active is not true then
     raise exception '422 target_user_inactive';
   end if;
@@ -412,11 +480,13 @@ begin
   end if;
 
   -- Atomic two-step role swap (demote caller before promoting target)
-  update profiles set role = 'admin', updated_at = now() where id = p_caller_id and role = 'owner';
-  update profiles set role = 'owner', updated_at = now() where id = p_new_owner_id;
+  update profiles set role = 'admin', updated_at = now()
+  where id = p_caller_id and center_id = p_center_id and role = 'owner';
+  update profiles set role = 'owner', updated_at = now()
+  where id = p_new_owner_id and center_id = p_center_id;
 
   perform log_audit_event(
-    p_caller_id, 'user.ownership_transfer', 'profiles', p_new_owner_id::text,
+    p_center_id, p_caller_id, 'user.ownership_transfer', 'profiles', p_new_owner_id::text,
     jsonb_build_object('owner', p_caller_id),
     jsonb_build_object('owner', p_new_owner_id)
   );
@@ -425,6 +495,7 @@ $$;
 
 -- 15. RPC: admin_invite_user (PRD §7.3, C1, A7, H-2)
 create or replace function admin_invite_user(
+  p_center_id uuid,
   p_email text,
   p_role user_role,
   p_full_name text,
@@ -436,8 +507,10 @@ declare
   v_existing_id uuid;
   v_existing_role user_role;
   v_existing_active boolean;
+  v_existing_center uuid;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
 
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
@@ -447,16 +520,24 @@ begin
     raise exception '403 cannot_invite_owner';
   end if;
 
+  if p_role = 'super_admin' then
+    raise exception '403 cannot_invite_super_admin';
+  end if;
+
   if v_caller_role = 'admin' and p_role != 'staff' then
     raise exception '403 unauthorized';
   end if;
 
-  select u.id, p.role, p.active into v_existing_id, v_existing_role, v_existing_active
+  select u.id, p.role, p.active, p.center_id into v_existing_id, v_existing_role, v_existing_active, v_existing_center
   from auth.users u
   left join profiles p on p.id = u.id
   where lower(u.email) = lower(p_email);
 
   if v_existing_id is not null then
+    if v_existing_center is not null and v_existing_center <> p_center_id then
+      raise exception '409 user_belongs_to_another_center';
+    end if;
+
     if v_existing_active = true then
       raise exception '409 user_already_exists';
     else
@@ -466,16 +547,17 @@ begin
       end if;
 
       update auth.users
-      set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', p_role)
+      set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+        || jsonb_build_object('role', p_role, 'center_id', p_center_id)
       where id = v_existing_id;
 
-      insert into profiles (id, full_name, role, active)
-      values (v_existing_id, p_full_name, p_role, true)
+      insert into profiles (id, center_id, full_name, role, active)
+      values (v_existing_id, p_center_id, p_full_name, p_role, true)
       on conflict (id) do update
-      set role = p_role, full_name = p_full_name, active = true, updated_at = now();
+      set center_id = p_center_id, role = p_role, full_name = p_full_name, active = true, updated_at = now();
 
       perform log_audit_event(
-        p_actor_id, 'user.invite', 'profiles', v_existing_id::text,
+        p_center_id, p_actor_id, 'user.invite', 'profiles', v_existing_id::text,
         jsonb_build_object('active', false, 'role', v_existing_role),
         jsonb_build_object('email', p_email, 'role', p_role, 'active', true, 'reactivated', true)
       );
@@ -483,17 +565,19 @@ begin
     end if;
   end if;
 
-  -- New user creation handled via Supabase Auth Admin API; trigger fn_auth_users_create_profile provisions profile
+  -- New user creation handled via Supabase Auth Admin API; trigger fn_auth_users_create_profile
+  -- provisions the profile from raw_app_meta_data (role + center_id).
   perform log_audit_event(
-    p_actor_id, 'user.invite', 'profiles', p_email,
+    p_center_id, p_actor_id, 'user.invite', 'profiles', p_email,
     null,
-    jsonb_build_object('email', p_email, 'role', p_role)
+    jsonb_build_object('email', p_email, 'role', p_role, 'center_id', p_center_id)
   );
 end;
 $$;
 
 -- 16. RPC: create_or_update_draft_rate_profile (PRD §7.3, F18, F41)
 create or replace function create_or_update_draft_rate_profile(
+  p_center_id uuid,
   p_profile_id uuid,
   p_effective_from date,
   p_vat_mode text,
@@ -510,8 +594,10 @@ declare
   v_mr record;
   v_old record;
   v_version int;
+  v_foreign_method uuid;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
@@ -523,28 +609,32 @@ begin
 
   if p_profile_id is null then
     v_id := gen_random_uuid();
-    select coalesce(max(version), 0) + 1 into v_version from rate_profiles;
+    select coalesce(max(version), 0) + 1 into v_version from rate_profiles where center_id = p_center_id;
 
     insert into rate_profiles (
-      id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, created_by
+      id, center_id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, created_by
     ) values (
-      v_id, v_version, 'draft', p_effective_from, p_vat_mode, p_vat_bp, p_commission_base, p_commission_bp, p_actor_id
+      v_id, p_center_id, v_version, 'draft', p_effective_from, p_vat_mode, p_vat_bp, p_commission_base, p_commission_bp, p_actor_id
     );
 
     for v_mr in select * from jsonb_to_recordset(p_method_rates) as x(method_id uuid, charge_bp int) loop
-      insert into method_rates (rate_profile_id, method_id, charge_bp)
-      values (v_id, v_mr.method_id, v_mr.charge_bp);
+      select id into v_foreign_method from payment_methods where id = v_mr.method_id and center_id = p_center_id;
+      if v_foreign_method is null then
+        raise exception '422 invalid_payment_method_for_center';
+      end if;
+      insert into method_rates (center_id, rate_profile_id, method_id, charge_bp)
+      values (p_center_id, v_id, v_mr.method_id, v_mr.charge_bp);
     end loop;
 
     perform log_audit_event(
-      p_actor_id, 'rate_profile.create', 'rate_profiles', v_id::text,
+      p_center_id, p_actor_id, 'rate_profile.create', 'rate_profiles', v_id::text,
       null,
       jsonb_build_object('version', v_version, 'status', 'draft', 'effective_from', p_effective_from, 'vat_mode', p_vat_mode, 'vat_bp', p_vat_bp, 'commission_bp', p_commission_bp)
     );
   else
     v_id := p_profile_id;
     select status, effective_from, vat_mode, vat_bp, commission_base, commission_bp into v_old
-    from rate_profiles where id = v_id;
+    from rate_profiles where id = v_id and center_id = p_center_id;
 
     if v_old.status is null then
       raise exception '404 draft_rate_profile_not_found';
@@ -560,17 +650,21 @@ begin
         vat_bp = p_vat_bp,
         commission_base = p_commission_base,
         commission_bp = p_commission_bp
-    where id = v_id and status = 'draft';
+    where id = v_id and center_id = p_center_id and status = 'draft';
 
-    delete from method_rates where rate_profile_id = v_id;
+    delete from method_rates where rate_profile_id = v_id and center_id = p_center_id;
 
     for v_mr in select * from jsonb_to_recordset(p_method_rates) as x(method_id uuid, charge_bp int) loop
-      insert into method_rates (rate_profile_id, method_id, charge_bp)
-      values (v_id, v_mr.method_id, v_mr.charge_bp);
+      select id into v_foreign_method from payment_methods where id = v_mr.method_id and center_id = p_center_id;
+      if v_foreign_method is null then
+        raise exception '422 invalid_payment_method_for_center';
+      end if;
+      insert into method_rates (center_id, rate_profile_id, method_id, charge_bp)
+      values (p_center_id, v_id, v_mr.method_id, v_mr.charge_bp);
     end loop;
 
     perform log_audit_event(
-      p_actor_id, 'rate_profile.update', 'rate_profiles', v_id::text,
+      p_center_id, p_actor_id, 'rate_profile.update', 'rate_profiles', v_id::text,
       jsonb_build_object('effective_from', v_old.effective_from, 'vat_mode', v_old.vat_mode, 'vat_bp', v_old.vat_bp, 'commission_bp', v_old.commission_bp),
       jsonb_build_object('effective_from', p_effective_from, 'vat_mode', p_vat_mode, 'vat_bp', p_vat_bp, 'commission_bp', p_commission_bp)
     );
@@ -582,12 +676,14 @@ $$;
 
 -- 17. RPC: publish_rate_profile (PRD §7.3, F18, F41, F53)
 create or replace function publish_rate_profile(
+  p_center_id uuid,
   p_profile_id uuid,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_caller_role user_role;
   v_caller_active boolean;
+  v_center_number int;
   v_status text;
   v_effective_from date;
   v_vat_bp int;
@@ -596,17 +692,23 @@ declare
   v_uncovered_method text;
   v_next_version int;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
-  -- Advisory lock on rate profile versions
-  perform pg_advisory_xact_lock(1003, 1);
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  -- Advisory lock on this center's rate profile versions
+  perform pg_advisory_xact_lock((1003 << 16) | (v_center_number & 65535), 1);
 
   select status, effective_from, vat_bp, commission_bp
   into v_status, v_effective_from, v_vat_bp, v_comm_bp
-  from rate_profiles where id = p_profile_id;
+  from rate_profiles where id = p_profile_id and center_id = p_center_id;
 
   if v_status is null then
     raise exception '404 rate_profile_not_found';
@@ -622,18 +724,22 @@ begin
   end if;
 
   -- 100% Deduction Guard check (Rule 3, §16.2 Test #41)
-  select max(charge_bp) into v_max_charge_bp from method_rates where rate_profile_id = p_profile_id;
+  select max(charge_bp) into v_max_charge_bp
+  from method_rates where rate_profile_id = p_profile_id and center_id = p_center_id;
   if (v_vat_bp + v_comm_bp + coalesce(v_max_charge_bp, 0)) > 10000 then
     raise exception '422 deductions_exceed_100_percent';
   end if;
 
-  -- Coverage check: must cover all active payment methods
+  -- Coverage check: must cover all active payment methods of this center
   select pm.code into v_uncovered_method
   from payment_methods pm
-  where pm.active = true
+  where pm.center_id = p_center_id
+    and pm.active = true
     and not exists (
       select 1 from method_rates mr
-      where mr.rate_profile_id = p_profile_id and mr.method_id = pm.id
+      where mr.rate_profile_id = p_profile_id
+        and mr.center_id = p_center_id
+        and mr.method_id = pm.id
     )
   limit 1;
 
@@ -641,17 +747,18 @@ begin
     raise exception '422 method_not_covered_in_published_profile';
   end if;
 
-  -- Assign next sequential published version
-  select coalesce(max(version), 0) + 1 into v_next_version from rate_profiles where status = 'published';
+  -- Assign next sequential published version for this center
+  select coalesce(max(version), 0) + 1 into v_next_version
+  from rate_profiles where center_id = p_center_id and status = 'published';
 
   update rate_profiles
   set status = 'published',
       version = v_next_version,
       published_at = now()
-  where id = p_profile_id and status = 'draft';
+  where id = p_profile_id and center_id = p_center_id and status = 'draft';
 
   perform log_audit_event(
-    p_actor_id, 'rate_profile.publish', 'rate_profiles', p_profile_id::text,
+    p_center_id, p_actor_id, 'rate_profile.publish', 'rate_profiles', p_profile_id::text,
     jsonb_build_object('status', 'draft'),
     jsonb_build_object('status', 'published', 'version', v_next_version, 'effective_from', v_effective_from)
   );
@@ -660,6 +767,7 @@ $$;
 
 -- 18. RPC: admin_review_stale_entry (PRD §7.3, C2, H1)
 create or replace function admin_review_stale_entry(
+  p_center_id uuid,
   p_entry_id uuid,
   p_action text,
   p_actor_id uuid,
@@ -668,13 +776,14 @@ create or replace function admin_review_stale_entry(
 declare
   v_caller_role user_role;
   v_caller_active boolean;
+  v_center_number int;
   v_entry_date date;
   v_status entry_status;
   v_stale_status text;
   v_month date;
-  v_gross bigint;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
@@ -687,9 +796,14 @@ begin
     raise exception '422 missing_reject_reason';
   end if;
 
-  select entry_date, status, stale_review_status, gross_poisha
-  into v_entry_date, v_status, v_stale_status, v_gross
-  from entries where id = p_entry_id;
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select entry_date, status, stale_review_status
+  into v_entry_date, v_status, v_stale_status
+  from entries where id = p_entry_id and center_id = p_center_id;
 
   if v_status is null then
     raise exception '404 entry_not_found';
@@ -706,17 +820,17 @@ begin
   v_month := date_trunc('month', v_entry_date)::date;
 
   -- Lock Hierarchy: Step 1 Month Lock, Step 2 Sequence Lock, Step 3 Row Lock
-  perform pg_advisory_xact_lock(1001, extract(year from v_month)::int * 12 + extract(month from v_month)::int);
+  perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_month)::int * 12 + extract(month from v_month)::int);
 
-  if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+  if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
     raise exception '422 month_closed';
   end if;
 
-  perform pg_advisory_xact_lock(1002, 1);
+  perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
 
   -- Row lock & re-verification under lock to avoid race conditions
   select status, stale_review_status into v_status, v_stale_status
-  from entries where id = p_entry_id for update;
+  from entries where id = p_entry_id and center_id = p_center_id for update;
 
   if v_status != 'active' or v_stale_status != 'flagged' then
     raise exception '422 entry_state_changed_during_lock';
@@ -727,10 +841,10 @@ begin
     set stale_review_status = 'approved',
         stale_reviewed_by = p_actor_id,
         stale_reviewed_at = now()
-    where id = p_entry_id and stale_review_status = 'flagged';
+    where id = p_entry_id and center_id = p_center_id and stale_review_status = 'flagged';
 
     perform log_audit_event(
-      p_actor_id, 'entry.stale_review_approve', 'entries', p_entry_id::text,
+      p_center_id, p_actor_id, 'entry.stale_review_approve', 'entries', p_entry_id::text,
       jsonb_build_object('stale_review_status', 'flagged'),
       jsonb_build_object('stale_review_status', 'approved', 'reviewed_by', p_actor_id)
     );
@@ -744,10 +858,10 @@ begin
         stale_reviewed_by = p_actor_id,
         stale_reviewed_at = now(),
         notes = coalesce(notes || E'\n', '') || 'Stale review rejected: ' || trim(p_reason)
-    where id = p_entry_id and stale_review_status = 'flagged';
+    where id = p_entry_id and center_id = p_center_id and stale_review_status = 'flagged';
 
     perform log_audit_event(
-      p_actor_id, 'entry.stale_review_reject', 'entries', p_entry_id::text,
+      p_center_id, p_actor_id, 'entry.stale_review_reject', 'entries', p_entry_id::text,
       jsonb_build_object('stale_review_status', 'flagged'),
       jsonb_build_object('stale_review_status', 'rejected', 'reviewed_by', p_actor_id, 'reason', trim(p_reason))
     );
@@ -759,6 +873,7 @@ $$;
 
 -- 19. RPC: admin_manage_payment_method (PRD §7.3, F43, F53)
 create or replace function admin_manage_payment_method(
+  p_center_id uuid,
   p_action text,
   p_id uuid,
   p_code text,
@@ -774,25 +889,26 @@ declare
   v_id uuid;
   v_old record;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
   if p_action = 'create' then
     v_id := coalesce(p_id, gen_random_uuid());
-    insert into payment_methods (id, code, name, sort_order, active, requires_txn_ref)
-    values (v_id, p_code, p_name, p_sort_order, p_active, p_requires_txn_ref);
+    insert into payment_methods (id, center_id, code, name, sort_order, active, requires_txn_ref)
+    values (v_id, p_center_id, p_code, p_name, p_sort_order, p_active, p_requires_txn_ref);
 
     perform log_audit_event(
-      p_actor_id, 'payment_method.create', 'payment_methods', v_id::text,
+      p_center_id, p_actor_id, 'payment_method.create', 'payment_methods', v_id::text,
       null,
       jsonb_build_object('code', p_code, 'name', p_name, 'active', p_active, 'sort_order', p_sort_order, 'requires_txn_ref', p_requires_txn_ref)
     );
     return v_id;
   elsif p_action = 'update' then
     select code, name, sort_order, active, requires_txn_ref into v_old
-    from payment_methods where id = p_id;
+    from payment_methods where id = p_id and center_id = p_center_id;
 
     if v_old.code is null then
       raise exception '404 payment_method_not_found';
@@ -804,10 +920,10 @@ begin
         active = p_active,
         requires_txn_ref = p_requires_txn_ref,
         updated_at = now()
-    where id = p_id;
+    where id = p_id and center_id = p_center_id;
 
     perform log_audit_event(
-      p_actor_id, 'payment_method.update', 'payment_methods', p_id::text,
+      p_center_id, p_actor_id, 'payment_method.update', 'payment_methods', p_id::text,
       jsonb_build_object('name', v_old.name, 'sort_order', v_old.sort_order, 'active', v_old.active, 'requires_txn_ref', v_old.requires_txn_ref),
       jsonb_build_object('name', p_name, 'sort_order', p_sort_order, 'active', p_active, 'requires_txn_ref', p_requires_txn_ref)
     );
@@ -820,6 +936,7 @@ $$;
 
 -- 20. RPC: admin_manage_payable (PRD §7.3, Finding 4)
 create or replace function admin_manage_payable(
+  p_center_id uuid,
   p_action text,
   p_id uuid,
   p_kind text,
@@ -836,8 +953,10 @@ declare
   v_caller_active boolean;
   v_id uuid;
   v_old record;
+  v_method_exists uuid;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
@@ -850,20 +969,27 @@ begin
     raise exception '422 invalid_remind_days_before';
   end if;
 
+  if p_kind = 'method_charge' then
+    select id into v_method_exists from payment_methods where id = p_method_id and center_id = p_center_id;
+    if v_method_exists is null then
+      raise exception '422 invalid_payment_method_for_center';
+    end if;
+  end if;
+
   if p_action = 'create' then
     v_id := coalesce(p_id, gen_random_uuid());
-    insert into payables (id, code, name, kind, method_id, due_day, remind_days_before, active)
-    values (v_id, p_code, p_name, p_kind, p_method_id, p_due_day, p_remind_days_before, p_active);
+    insert into payables (id, center_id, code, name, kind, method_id, due_day, remind_days_before, active)
+    values (v_id, p_center_id, p_code, p_name, p_kind, p_method_id, p_due_day, p_remind_days_before, p_active);
 
     perform log_audit_event(
-      p_actor_id, 'payable.create', 'payables', v_id::text,
+      p_center_id, p_actor_id, 'payable.create', 'payables', v_id::text,
       null,
       jsonb_build_object('code', p_code, 'name', p_name, 'kind', p_kind, 'due_day', p_due_day, 'remind_days_before', p_remind_days_before, 'active', p_active)
     );
     return v_id;
   elsif p_action = 'update' then
     select code, name, kind, due_day, remind_days_before, active into v_old
-    from payables where id = p_id;
+    from payables where id = p_id and center_id = p_center_id;
 
     if v_old.code is null then
       raise exception '404 payable_not_found';
@@ -875,10 +1001,10 @@ begin
         remind_days_before = p_remind_days_before,
         active = p_active,
         updated_at = now()
-    where id = p_id;
+    where id = p_id and center_id = p_center_id;
 
     perform log_audit_event(
-      p_actor_id, 'payable.update', 'payables', p_id::text,
+      p_center_id, p_actor_id, 'payable.update', 'payables', p_id::text,
       jsonb_build_object('name', v_old.name, 'due_day', v_old.due_day, 'remind_days_before', v_old.remind_days_before, 'active', v_old.active),
       jsonb_build_object('name', p_name, 'due_day', p_due_day, 'remind_days_before', p_remind_days_before, 'active', p_active)
     );
@@ -891,6 +1017,7 @@ $$;
 
 -- 21. RPC: admin_update_settings (PRD §7.3, M6)
 create or replace function admin_update_settings(
+  p_center_id uuid,
   p_settings jsonb,
   p_actor_id uuid
 ) returns void language plpgsql security definer set search_path = public, pg_temp as $$
@@ -901,7 +1028,8 @@ declare
   v_old_tol bigint;
   v_key text;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
@@ -918,17 +1046,20 @@ begin
     raise exception '422 tolerance_must_be_non_negative';
   end if;
 
+  insert into app_settings (center_id) values (p_center_id)
+  on conflict (center_id) do nothing;
+
   select net_label, reconcile_tolerance_poisha into v_old_net_label, v_old_tol
-  from app_settings where id = true;
+  from app_settings where center_id = p_center_id;
 
   update app_settings
   set net_label = coalesce(p_settings->>'net_label', net_label),
       reconcile_tolerance_poisha = coalesce((p_settings->>'reconcile_tolerance_poisha')::bigint, reconcile_tolerance_poisha),
       updated_at = now()
-  where id = true;
+  where center_id = p_center_id;
 
   perform log_audit_event(
-    p_actor_id, 'app_settings.update', 'app_settings', 'true',
+    p_center_id, p_actor_id, 'app_settings.update', 'app_settings', p_center_id::text,
     jsonb_build_object('net_label', v_old_net_label, 'reconcile_tolerance_poisha', v_old_tol),
     p_settings
   );
@@ -937,6 +1068,7 @@ $$;
 
 -- 22. RPC: admin_manage_user (PRD §7.3, F15)
 create or replace function admin_manage_user(
+  p_center_id uuid,
   p_action text,
   p_user_id uuid,
   p_role text,
@@ -949,12 +1081,14 @@ declare
   v_target_role user_role;
   v_target_active boolean;
 begin
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
-  select role, active into v_target_role, v_target_active from profiles where id = p_user_id;
+  select role, active into v_target_role, v_target_active
+  from profiles where id = p_user_id and center_id = p_center_id;
   if v_target_role is null then
     raise exception '404 user_not_found';
   end if;
@@ -974,26 +1108,29 @@ begin
       raise exception '400 invalid_role';
     end if;
 
-    update profiles set role = p_role::user_role, updated_at = now() where id = p_user_id;
+    update profiles set role = p_role::user_role, updated_at = now()
+    where id = p_user_id and center_id = p_center_id;
 
     perform log_audit_event(
-      p_actor_id, 'user.role_change', 'profiles', p_user_id::text,
+      p_center_id, p_actor_id, 'user.role_change', 'profiles', p_user_id::text,
       jsonb_build_object('role', v_target_role),
       jsonb_build_object('role', p_role)
     );
   elsif p_action = 'deactivate' then
-    update profiles set active = false, updated_at = now() where id = p_user_id;
+    update profiles set active = false, updated_at = now()
+    where id = p_user_id and center_id = p_center_id;
 
     perform log_audit_event(
-      p_actor_id, 'user.deactivate', 'profiles', p_user_id::text,
+      p_center_id, p_actor_id, 'user.deactivate', 'profiles', p_user_id::text,
       jsonb_build_object('active', true),
       jsonb_build_object('active', false)
     );
   elsif p_action = 'reactivate' then
-    update profiles set active = true, updated_at = now() where id = p_user_id;
+    update profiles set active = true, updated_at = now()
+    where id = p_user_id and center_id = p_center_id;
 
     perform log_audit_event(
-      p_actor_id, 'user.reactivate', 'profiles', p_user_id::text,
+      p_center_id, p_actor_id, 'user.reactivate', 'profiles', p_user_id::text,
       jsonb_build_object('active', false),
       jsonb_build_object('active', true)
     );
@@ -1004,7 +1141,8 @@ end;
 $$;
 
 -- 23. Maintenance Routine: purge_expired_sync_ops (PRD §7.3 M2)
-create or replace function purge_expired_sync_ops()
+-- p_center_id NULL means all centers (the scheduled job's global sweep).
+create or replace function purge_expired_sync_ops(p_center_id uuid default null)
 returns bigint language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_deleted bigint;
@@ -1014,6 +1152,7 @@ begin
     delete from sync_ops
     where result = 'rejected'
       and resolution_status in ('resolved', 'discarded')
+      and (p_center_id is null or center_id = p_center_id)
       and created_at < now() - interval '90 days'
     returning op_id
   )
@@ -1022,8 +1161,11 @@ begin
 end;
 $$;
 
--- 24. RPC: rpc_supersede_entry (PRD §7.3, Finding 2, Finding 3, Item 3.4)
+-- 24. RPC: rpc_supersede_entry (PRD §7.3, Finding 2, Finding 3, Item 3.4, chk_reassign)
+-- Folds the former hotfix 20261107000001: a plain correction must not carry
+-- original_entry_date; only a closed-month reassignment does.
 create or replace function rpc_supersede_entry(
+  p_center_id uuid,
   p_original_id uuid,
   p_new_entry jsonb,
   p_actor_id uuid
@@ -1031,11 +1173,14 @@ create or replace function rpc_supersede_entry(
 declare
   v_caller_role user_role;
   v_caller_active boolean;
+  v_center_number int;
   v_orig_date date;
   v_new_date date;
   v_orig_month date;
   v_new_month date;
   v_orig_status entry_status;
+  v_orig_entry_date date;
+  v_reassign_reason text;
   v_new_id uuid;
   v_new_seq bigint;
   v_new_num bigint;
@@ -1067,12 +1212,19 @@ declare
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_actor_id::text, '')::text, true);
-  select role, active into v_caller_role, v_caller_active from profiles where id = p_actor_id;
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  select role, active into v_caller_role, v_caller_active
+  from profiles where id = p_actor_id and center_id = p_center_id;
   if v_caller_role is null or v_caller_active is not true or v_caller_role not in ('admin', 'owner') then
     raise exception '403 unauthorized';
   end if;
 
-  select entry_date, status into v_orig_date, v_orig_status from entries where id = p_original_id;
+  select entry_date, status into v_orig_date, v_orig_status
+  from entries where id = p_original_id and center_id = p_center_id;
   if v_orig_status is null then
     raise exception '422 parent_entry_not_found';
   end if;
@@ -1088,27 +1240,44 @@ begin
   v_orig_month := date_trunc('month', v_orig_date)::date;
   v_new_month := date_trunc('month', v_new_date)::date;
 
-  -- Step 1: Ascending Month Locks (PRD §7.2)
-  if v_orig_month <= v_new_month then
-    perform pg_advisory_xact_lock(1001, extract(year from v_orig_month)::int * 12 + extract(month from v_orig_month)::int);
-    if v_orig_month != v_new_month then
-      perform pg_advisory_xact_lock(1001, extract(year from v_new_month)::int * 12 + extract(month from v_new_month)::int);
+  -- A plain supersede is a correction, not a closed-month reassignment: chk_reassign
+  -- demands a reason and a different date whenever original_entry_date is set, so
+  -- only a reassignment (PRD §7.3 / Finding #8) carries the original date.
+  v_reassign_reason := nullif(trim(coalesce(p_new_entry->>'reassignReason', '')), '');
+  if v_reassign_reason is not null then
+    v_orig_entry_date := coalesce((p_new_entry->>'originalEntryDate')::date, v_orig_date);
+    if v_orig_entry_date = v_new_date then
+      raise exception '422 invalid_reassign_date';
     end if;
   else
-    perform pg_advisory_xact_lock(1001, extract(year from v_new_month)::int * 12 + extract(month from v_new_month)::int);
-    perform pg_advisory_xact_lock(1001, extract(year from v_orig_month)::int * 12 + extract(month from v_orig_month)::int);
+    v_orig_entry_date := null;
+  end if;
+
+  -- Step 1: Ascending Month Locks (PRD §7.2)
+  if v_orig_month <= v_new_month then
+    perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_orig_month)::int * 12 + extract(month from v_orig_month)::int);
+    if v_orig_month != v_new_month then
+      perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_new_month)::int * 12 + extract(month from v_new_month)::int);
+    end if;
+  else
+    perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_new_month)::int * 12 + extract(month from v_new_month)::int);
+    perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_orig_month)::int * 12 + extract(month from v_orig_month)::int);
   end if;
 
   -- Month Closed Check
-  if exists (select 1 from month_closes where month in (v_orig_month, v_new_month) and status = 'closed') then
+  if exists (
+    select 1 from month_closes
+    where center_id = p_center_id and month in (v_orig_month, v_new_month) and status = 'closed'
+  ) then
     raise exception '422 month_closed';
   end if;
 
   -- Step 2: Sequence Lock
-  perform pg_advisory_xact_lock(1002, 1);
+  perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
 
   -- Step 3: Row Lock original entry
-  select status into v_orig_status from entries where id = p_original_id for update;
+  select status into v_orig_status
+  from entries where id = p_original_id and center_id = p_center_id for update;
   if v_orig_status != 'active' then
     raise exception '422 cannot_supersede_non_active';
   end if;
@@ -1117,9 +1286,9 @@ begin
   v_method_id := (p_new_entry->>'methodId')::uuid;
   v_txn_ref := nullif(upper(trim(coalesce(p_new_entry->>'txnRef', ''))), '');
 
-  -- Validate payment method is active
+  -- Validate payment method is active and belongs to this center
   select active, requires_txn_ref into v_method_active, v_requires_txn_ref
-  from payment_methods where id = v_method_id;
+  from payment_methods where id = v_method_id and center_id = p_center_id;
   if v_method_active is null or v_method_active is not true then
     raise exception '422 inactive_payment_method';
   end if;
@@ -1128,11 +1297,11 @@ begin
     raise exception '422 missing_txn_ref';
   end if;
 
-  -- Published rate profile covering replacement entry date
+  -- Published rate profile covering replacement entry date, for this center
   select id, version, vat_mode, vat_bp, commission_bp, commission_base
   into v_expected_rate_profile_id, v_expected_version, v_expected_vat_mode, v_expected_vat_bp, v_expected_comm_bp, v_expected_comm_base
   from rate_profiles
-  where status = 'published' and effective_from <= v_new_date
+  where center_id = p_center_id and status = 'published' and effective_from <= v_new_date
   order by effective_from desc, version desc
   limit 1;
 
@@ -1157,8 +1326,10 @@ begin
 
   select mr.charge_bp, rp.charges_borne_by into v_expected_charge_bp, v_expected_borne_by
   from method_rates mr
-  join rate_profiles rp on rp.id = mr.rate_profile_id
-  where mr.rate_profile_id = v_expected_rate_profile_id and mr.method_id = v_method_id;
+  join rate_profiles rp on rp.id = mr.rate_profile_id and rp.center_id = mr.center_id
+  where mr.center_id = p_center_id
+    and mr.rate_profile_id = v_expected_rate_profile_id
+    and mr.method_id = v_method_id;
 
   if v_expected_charge_bp is null then
     raise exception '422 method_not_covered_in_published_profile';
@@ -1232,16 +1403,17 @@ begin
     raise exception '422 gross_conservation_violation';
   end if;
 
-  -- Check duplicate txn reference
+  -- Check duplicate txn reference within this center
   select exists (
     select 1 from entries
-    where method_id = v_method_id and txn_ref = v_txn_ref and status = 'active' and id != p_original_id
+    where center_id = p_center_id
+      and method_id = v_method_id and txn_ref = v_txn_ref and status = 'active' and id != p_original_id
   ) into v_dup_txn;
 
   -- Stale rate check (is v_rate_profile_id superseded?)
   select id into v_latest_published_id
   from rate_profiles
-  where status = 'published' and effective_from <= (now() at time zone 'Asia/Dhaka')::date
+  where center_id = p_center_id and status = 'published' and effective_from <= (now() at time zone 'Asia/Dhaka')::date
   order by effective_from desc, version desc limit 1;
 
   if v_latest_published_id is not null and v_rate_profile_id != v_latest_published_id then
@@ -1252,11 +1424,12 @@ begin
   end if;
 
   -- Mark Original Superseded
-  update entries set status = 'superseded', superseded_at = now() where id = p_original_id;
+  update entries set status = 'superseded', superseded_at = now()
+  where id = p_original_id and center_id = p_center_id;
 
   -- Insert Replacement Entry
   insert into entries (
-    id, entry_date, customer_name, sub_qty, sub_description, txn_ref,
+    id, center_id, entry_date, customer_name, sub_qty, sub_description, txn_ref,
     method_id, gross_poisha, rate_profile_id, snapshot,
     vat_input_poisha, vat_override_poisha, vat_override_reason,
     commission_override_poisha, commission_override_reason,
@@ -1265,7 +1438,7 @@ begin
     device_id, client_created_at, dup_txn_flag, stale_rates, stale_review_status,
     supersedes_id, original_entry_date, reassign_reason
   ) values (
-    v_new_id, v_new_date, p_new_entry->>'customerName',
+    v_new_id, p_center_id, v_new_date, p_new_entry->>'customerName',
     coalesce((p_new_entry->>'subQty')::int, 1), p_new_entry->>'subDescription',
     v_txn_ref, v_method_id, v_gross,
     v_rate_profile_id, v_snapshot,
@@ -1277,11 +1450,11 @@ begin
     p_new_entry->>'deviceId',
     coalesce((p_new_entry->>'clientCreatedAt')::timestamptz, now()),
     v_dup_txn, v_stale_rates, v_stale_status,
-    p_original_id, v_orig_date, p_new_entry->>'reassignReason'
+    p_original_id, v_orig_entry_date, v_reassign_reason
   ) returning server_seq, entry_number into v_new_seq, v_new_num;
 
   perform log_audit_event(
-    p_actor_id, 'entry.supersede', 'entries', p_original_id::text,
+    p_center_id, p_actor_id, 'entry.supersede', 'entries', p_original_id::text,
     jsonb_build_object('id', p_original_id, 'status', 'active'),
     jsonb_build_object('id', p_original_id, 'status', 'superseded', 'replacement_entry_id', v_new_id)
   );
@@ -1298,6 +1471,7 @@ $$;
 
 -- 25. RPC: rpc_push_sync_op (PRD §7.3 lines 940-975, §9.1 lines 1595-1650, Findings 2, 3, 7, 8, A3, F48)
 create or replace function rpc_push_sync_op(
+  p_center_id uuid,
   p_device_id text,
   p_caller_id uuid,
   p_caller_role user_role,
@@ -1316,6 +1490,7 @@ declare
   v_client_created_at timestamptz;
   v_max_known_version int;
   v_server_hash text;
+  v_existing_center uuid;
   v_existing_op_hash text;
   v_existing_result text;
   v_existing_reason text;
@@ -1325,9 +1500,27 @@ declare
   v_orig_entry_hash text;
   v_device_revoked boolean := false;
   v_stale_threshold_poisha bigint := 5000000; -- 50,000 BDT
+  v_center_number int;
+  v_center_code text;
 begin
 
   perform set_config('clt.audit_actor', coalesce(p_caller_id::text, '')::text, true);
+  perform set_config('clt.current_center_id', p_center_id::text, true);
+
+  select center_number, code into v_center_number, v_center_code
+  from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  -- The caller must be an active member of the center it pushes into.
+  if not exists (
+    select 1 from profiles
+    where id = p_caller_id and center_id = p_center_id and active = true
+  ) then
+    raise exception '403 unauthorized';
+  end if;
+
   -- 1. Multi-Month Advisory Locks in Ascending Order (PRD §7.2, Finding 2)
   -- Regex guards prevent malformed inputs from aborting the lock gathering query
   for v_m in
@@ -1349,22 +1542,23 @@ begin
         case when (op->'payload'->>'entryId') ~ '^[0-9a-fA-F-]{36}$' then (op->'payload'->>'entryId')::uuid else null end,
         case when (op->'payload'->>'originalEntryId') ~ '^[0-9a-fA-F-]{36}$' then (op->'payload'->>'originalEntryId')::uuid else null end
       )
+      where e.center_id = p_center_id
     )
     select distinct m from extracted_months where m is not null order by m asc
   loop
-    perform pg_advisory_xact_lock(1001, extract(year from v_m.m)::int * 12 + extract(month from v_m.m)::int);
+    perform pg_advisory_xact_lock((1001 << 16) | (v_center_number & 65535), extract(year from v_m.m)::int * 12 + extract(month from v_m.m)::int);
   end loop;
 
   -- 2. Sequence Advisory Lock (PRD §7.2 Step 2)
-  perform pg_advisory_xact_lock(1002, 1);
+  perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
 
   -- 3. Device Presence Registration & Revocation Check (H3, M4)
   select exists (
-    select 1 from devices where device_id = p_device_id and revoked = true
+    select 1 from devices where center_id = p_center_id and device_id = p_device_id and revoked = true
   ) into v_device_revoked;
 
   if not v_device_revoked then
-    perform upsert_device_sync_state(p_device_id, p_caller_id, null);
+    perform upsert_device_sync_state(p_center_id, p_device_id, p_caller_id, null);
   end if;
 
   -- 4. Process Each Operation inside Isolated Subtransaction (F48)
@@ -1373,7 +1567,7 @@ begin
       v_op_id := (v_op->>'opId')::uuid;
       v_op_type := v_op->>'type';
       v_client_created_at := (v_op->>'clientCreatedAt')::timestamptz;
-      
+
       -- Canonical RFC 8785 SHA-256 hash computed in SvelteKit layer, with database SHA-256 fallback
       -- digest() lives in Supabase's 'extensions' schema; the pinned search_path
       -- (public, pg_temp) cannot resolve the unqualified name, so qualify it.
@@ -1385,15 +1579,25 @@ begin
       end if;
 
       -- A. Idempotency Check on op_id First (PRD §9.1 Step 6c, Finding 8, Test #61)
-      select payload_hash, result, reason into v_existing_op_hash, v_existing_result, v_existing_reason
+      -- op_id is globally unique; a different center's op_id is rejected without
+      -- reading or overwriting its row.
+      select center_id, payload_hash, result, reason
+      into v_existing_center, v_existing_op_hash, v_existing_result, v_existing_reason
       from sync_ops where op_id = v_op_id;
+
+      if v_existing_center is not null and v_existing_center <> p_center_id then
+        v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'rejected', 'reason', 'op_id_conflict_foreign_center');
+        continue;
+      end if;
 
       if v_existing_op_hash is not null then
         if v_existing_op_hash = v_server_hash then
           if v_existing_result = 'ok' then
             -- Fetch server_seq and entry_number if create_entry op
             select server_seq, entry_number into v_existing_seq, v_existing_num
-            from entries where id = (select entry_id from sync_ops where op_id = v_op_id);
+            from entries
+            where id = (select entry_id from sync_ops where op_id = v_op_id and center_id = p_center_id)
+              and center_id = p_center_id;
 
             v_results := v_results || jsonb_build_object(
               'opId', v_op_id,
@@ -1409,12 +1613,12 @@ begin
         else
           -- Altered payload for same op_id: log tamper detected and reject directly
           perform log_audit_event(
-            p_caller_id, 'security.tamper_detected', 'sync_ops', v_op_id::text,
+            p_center_id, p_caller_id, 'security.tamper_detected', 'sync_ops', v_op_id::text,
             null,
             jsonb_build_object('op_id', v_op_id, 'error', 'op_id_conflict_tampered')
           );
-          insert into sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status, reason)
-          values (v_op_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'rejected', 'pending', 'op_id_conflict_tampered')
+          insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status, reason)
+          values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'rejected', 'pending', 'op_id_conflict_tampered')
           on conflict (op_id) do update set reason = EXCLUDED.reason, result = 'rejected', resolution_status = 'pending';
 
           v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'rejected', 'reason', 'op_id_conflict_tampered');
@@ -1425,12 +1629,12 @@ begin
       -- B. Transport Integrity Verification (Finding 8)
       if (v_op->>'payloadHash') is not null and (v_op->>'payloadHash') != v_server_hash then
         perform log_audit_event(
-          p_caller_id, 'security.tamper_detected', 'sync_ops', v_op_id::text,
+          p_center_id, p_caller_id, 'security.tamper_detected', 'sync_ops', v_op_id::text,
           null,
           jsonb_build_object('op_id', v_op_id, 'client_hash', v_op->>'payloadHash', 'server_hash', v_server_hash)
         );
-        insert into sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status, reason)
-        values (v_op_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'rejected', 'pending', 'payload_hash_mismatch');
+        insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status, reason)
+        values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'rejected', 'pending', 'payload_hash_mismatch');
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'rejected', 'reason', 'payload_hash_mismatch');
         continue;
@@ -1485,7 +1689,7 @@ begin
           v_month := date_trunc('month', v_entry_date)::date;
 
           -- Month Closed Check (PRD §7.3, §9.1)
-          if exists (select 1 from month_closes where month = v_month and status = 'closed') then
+          if exists (select 1 from month_closes where center_id = p_center_id and month = v_month and status = 'closed') then
             raise exception 'month_closed';
           end if;
 
@@ -1496,18 +1700,20 @@ begin
           v_max_known_version := (v_op->>'maxKnownRateVersion')::int;
           v_rate_profile_id := (v_op->'payload'->>'rateProfileId')::uuid;
 
-          -- Step 1: Check if ANY published profile covers the entry date
+          -- Step 1: Check if ANY published profile covers the entry date in this center
           select exists (
-            select 1 from rate_profiles where status = 'published' and effective_from <= v_entry_date
+            select 1 from rate_profiles
+            where center_id = p_center_id and status = 'published' and effective_from <= v_entry_date
           ) into v_any_profile_for_date;
 
           if not v_any_profile_for_date then
             raise exception 'no_rate_profile_for_date';
           end if;
 
-          -- Step 2: Verify submitted rate profile exists and is published
+          -- Step 2: Verify submitted rate profile exists, is published, and is this center's
           select id, version, effective_from into v_sub_id, v_sub_ver, v_sub_eff
-          from rate_profiles where id = v_rate_profile_id and status = 'published';
+          from rate_profiles
+          where id = v_rate_profile_id and center_id = p_center_id and status = 'published';
 
           if v_sub_id is null then
             raise exception 'rate_profile_not_found';
@@ -1516,7 +1722,8 @@ begin
           -- Step 3: Anti-Cherry-Picking Check: resolve highest applicable version known to client
           select id into v_exp_id
           from rate_profiles
-          where status = 'published' and effective_from <= v_entry_date and version <= v_max_known_version
+          where center_id = p_center_id
+            and status = 'published' and effective_from <= v_entry_date and version <= v_max_known_version
           order by effective_from desc, version desc limit 1;
 
           if v_sub_id != v_exp_id then
@@ -1525,7 +1732,7 @@ begin
 
           -- Device Watermark Grounding (H3, H4)
           select last_rate_version, last_rate_version_at into v_dev_rate_ver, v_dev_rate_at
-          from devices where device_id = p_device_id and user_id = p_caller_id;
+          from devices where center_id = p_center_id and device_id = p_device_id and user_id = p_caller_id;
           if v_dev_rate_ver is not null and v_max_known_version < v_dev_rate_ver and v_client_created_at > v_dev_rate_at then
             raise exception 'rate_profile_date_mismatch';
           end if;
@@ -1533,7 +1740,8 @@ begin
           -- Check Stale Rates (> 50,000 BDT triggers review)
           select id into v_latest_published_id
           from rate_profiles
-          where status = 'published' and effective_from <= (now() at time zone 'Asia/Dhaka')::date
+          where center_id = p_center_id
+            and status = 'published' and effective_from <= (now() at time zone 'Asia/Dhaka')::date
           order by effective_from desc, version desc limit 1;
 
           if v_latest_published_id is not null and v_rate_profile_id != v_latest_published_id then
@@ -1558,9 +1766,9 @@ begin
             raise exception 'upgrade_required';
           end if;
 
-          -- Payment Method Active & Reference Validation
+          -- Payment Method Active & Reference Validation (scoped to the center)
           select active, requires_txn_ref into v_method_active, v_requires_txn_ref
-          from payment_methods where id = v_method_id;
+          from payment_methods where id = v_method_id and center_id = p_center_id;
           if v_method_active is not true then
             raise exception 'inactive_payment_method';
           end if;
@@ -1573,12 +1781,13 @@ begin
           -- Snapshot Integrity Check (PRD §6.5 item 3, §16.2 Test #1, F1)
           select version, vat_mode, vat_bp, commission_bp, commission_base
           into v_expected_version, v_expected_vat_mode, v_expected_vat_bp, v_expected_comm_bp, v_expected_comm_base
-          from rate_profiles where id = v_rate_profile_id;
+          from rate_profiles where id = v_rate_profile_id and center_id = p_center_id;
 
           select mr.charge_bp, rp.charges_borne_by into v_expected_charge_bp, v_expected_borne_by
           from method_rates mr
-          join rate_profiles rp on rp.id = mr.rate_profile_id
-          where mr.rate_profile_id = v_rate_profile_id and mr.method_id = v_method_id;
+          join rate_profiles rp on rp.id = mr.rate_profile_id and rp.center_id = mr.center_id
+          where mr.center_id = p_center_id
+            and mr.rate_profile_id = v_rate_profile_id and mr.method_id = v_method_id;
 
           if v_snapshot is null or v_expected_charge_bp is null then
             raise exception 'invalid_snapshot_rules';
@@ -1645,13 +1854,15 @@ begin
 
           -- Entry Idempotency Check (M9, R-M8)
           select server_seq, entry_number, created_by into v_existing_seq, v_existing_num, v_existing_creator
-          from entries where id = v_entry_id;
+          from entries where id = v_entry_id and center_id = p_center_id;
           if v_existing_seq is not null then
             if v_existing_creator = p_caller_id then
               -- Verify payload hash to ensure same creator didn't send altered payload
-              select payload_hash into v_orig_entry_hash from sync_ops where entry_id = v_entry_id and op_type = 'create_entry' and result = 'ok';
+              select payload_hash into v_orig_entry_hash
+              from sync_ops
+              where entry_id = v_entry_id and center_id = p_center_id and op_type = 'create_entry' and result = 'ok';
               if v_orig_entry_hash is not null and v_orig_entry_hash != v_server_hash then
-                perform log_audit_event(p_caller_id, 'security.tamper_detected', 'entries', v_entry_id::text, null, jsonb_build_object('error', 'entry_id_payload_tampered'));
+                perform log_audit_event(p_center_id, p_caller_id, 'security.tamper_detected', 'entries', v_entry_id::text, null, jsonb_build_object('error', 'entry_id_payload_tampered'));
                 v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'rejected', 'reason', 'entry_id_conflict_tampered');
                 continue;
               else
@@ -1659,21 +1870,22 @@ begin
                 continue;
               end if;
             else
-              perform log_audit_event(p_caller_id, 'security.tamper_detected', 'entries', v_entry_id::text, null, jsonb_build_object('error', 'entry_id_creator_mismatch'));
+              perform log_audit_event(p_center_id, p_caller_id, 'security.tamper_detected', 'entries', v_entry_id::text, null, jsonb_build_object('error', 'entry_id_creator_mismatch'));
               v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'rejected', 'reason', 'entry_id_conflict_tampered');
               continue;
             end if;
           end if;
 
-          -- Check duplicate reference among active entries
+          -- Check duplicate reference among active entries of this center
           select exists (
             select 1 from entries
-            where method_id = v_method_id and txn_ref = v_txn_ref and status = 'active'
+            where center_id = p_center_id
+              and method_id = v_method_id and txn_ref = v_txn_ref and status = 'active'
           ) into v_dup_txn;
 
           -- Insert new entry
           insert into entries (
-            id, entry_date, customer_name, sub_qty, sub_description, txn_ref,
+            id, center_id, entry_date, customer_name, sub_qty, sub_description, txn_ref,
             method_id, gross_poisha, rate_profile_id, snapshot,
             vat_input_poisha, vat_override_poisha, vat_override_reason,
             commission_override_poisha, commission_override_reason,
@@ -1681,7 +1893,7 @@ begin
             customer_charge_poisha, net_poisha, notes, created_by,
             device_id, client_created_at, dup_txn_flag, stale_rates, stale_review_status
           ) values (
-            v_entry_id, v_entry_date, v_op->'payload'->>'customerName',
+            v_entry_id, p_center_id, v_entry_date, v_op->'payload'->>'customerName',
             coalesce((v_op->'payload'->>'subQty')::int, 1), v_op->'payload'->>'subDescription',
             v_txn_ref, v_method_id, v_gross,
             v_rate_profile_id, v_snapshot,
@@ -1693,15 +1905,16 @@ begin
             v_dup_txn, v_stale_rates, v_stale_status
           );
 
-          insert into sync_ops (op_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, supersedes_rejected_op_id, result, resolution_status)
-          values (v_op_id, p_caller_id, p_device_id, v_op_type, v_entry_id, v_op->'payload', v_server_hash, v_client_created_at, (v_op->>'supersedesRejectedOpId')::uuid, 'ok', 'resolved');
+          insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, supersedes_rejected_op_id, result, resolution_status)
+          values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, v_entry_id, v_op->'payload', v_server_hash, v_client_created_at, (v_op->>'supersedesRejectedOpId')::uuid, 'ok', 'resolved');
 
           if (v_op->>'supersedesRejectedOpId') is not null then
-            update sync_ops set resolution_status = 'resolved' where op_id = (v_op->>'supersedesRejectedOpId')::uuid;
+            update sync_ops set resolution_status = 'resolved'
+            where op_id = (v_op->>'supersedesRejectedOpId')::uuid and center_id = p_center_id;
           end if;
 
           perform log_audit_event(
-            p_caller_id, 'entry.create', 'entries', v_entry_id::text,
+            p_center_id, p_caller_id, 'entry.create', 'entries', v_entry_id::text,
             null,
             jsonb_build_object('gross', v_gross, 'vat', v_vat, 'commission', v_comm, 'charge', v_charge, 'net', v_net, 'snapshot', v_snapshot, 'method_id', v_method_id, 'entry_date', v_entry_date)
           );
@@ -1710,69 +1923,75 @@ begin
         end;
 
       elsif v_op_type = 'supersede_entry' then
-        if p_caller_role not in ('admin', 'owner') then
+        if p_caller_role is null or p_caller_role not in ('admin', 'owner') then
           raise exception '403 unauthorized';
         end if;
-        perform rpc_supersede_entry((v_op->'payload'->>'originalEntryId')::uuid, v_op->'payload'->'replacement', p_caller_id);
-        insert into sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, supersedes_rejected_op_id, result, resolution_status)
-        values (v_op_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, (v_op->>'supersedesRejectedOpId')::uuid, 'ok', 'resolved');
+        perform rpc_supersede_entry(
+          p_center_id,
+          (v_op->'payload'->>'originalEntryId')::uuid,
+          v_op->'payload'->'replacement',
+          p_caller_id
+        );
+        insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, supersedes_rejected_op_id, result, resolution_status)
+        values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, (v_op->>'supersedesRejectedOpId')::uuid, 'ok', 'resolved');
 
         if (v_op->>'supersedesRejectedOpId') is not null then
-          update sync_ops set resolution_status = 'resolved' where op_id = (v_op->>'supersedesRejectedOpId')::uuid;
+          update sync_ops set resolution_status = 'resolved'
+          where op_id = (v_op->>'supersedesRejectedOpId')::uuid and center_id = p_center_id;
         end if;
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
 
       elsif v_op_type = 'void_entry' then
-        if p_caller_role not in ('admin', 'owner') then
+        if p_caller_role is null or p_caller_role not in ('admin', 'owner') then
           raise exception '403 unauthorized';
         end if;
 
         select date_trunc('month', entry_date)::date into v_entry_month
-        from entries where id = (v_op->'payload'->>'entryId')::uuid;
+        from entries where id = (v_op->'payload'->>'entryId')::uuid and center_id = p_center_id;
 
-        if exists (select 1 from month_closes where month = v_entry_month and status = 'closed') then
+        if exists (select 1 from month_closes where center_id = p_center_id and month = v_entry_month and status = 'closed') then
           raise exception '422 month_closed';
         end if;
 
         update entries
         set status = 'voided', voided_by = p_caller_id, voided_at = now(),
             void_reason = coalesce(v_op->'payload'->>'reason', 'Voided by admin')
-        where id = (v_op->'payload'->>'entryId')::uuid and status = 'active';
+        where id = (v_op->'payload'->>'entryId')::uuid and center_id = p_center_id and status = 'active';
 
         if not found then
           raise exception '422 cannot_void_non_active';
         end if;
 
-        insert into sync_ops (op_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, result, resolution_status)
-        values (v_op_id, p_caller_id, p_device_id, v_op_type, (v_op->'payload'->>'entryId')::uuid, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
+        insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, result, resolution_status)
+        values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, (v_op->'payload'->>'entryId')::uuid, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
 
-        perform log_audit_event(p_caller_id, 'entry.void', 'entries', v_op->'payload'->>'entryId', jsonb_build_object('status', 'active'), jsonb_build_object('status', 'voided'));
+        perform log_audit_event(p_center_id, p_caller_id, 'entry.void', 'entries', v_op->'payload'->>'entryId', jsonb_build_object('status', 'active'), jsonb_build_object('status', 'voided'));
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
 
       elsif v_op_type = 'request_void' then
         select date_trunc('month', entry_date)::date into v_entry_month
-        from entries where id = (v_op->'payload'->>'entryId')::uuid;
+        from entries where id = (v_op->'payload'->>'entryId')::uuid and center_id = p_center_id;
 
-        if exists (select 1 from month_closes where month = v_entry_month and status = 'closed') then
+        if exists (select 1 from month_closes where center_id = p_center_id and month = v_entry_month and status = 'closed') then
           raise exception '422 month_closed';
         end if;
 
         update entries
         set void_requested_by = p_caller_id, void_requested_at = now(),
             void_request_reason = v_op->'payload'->>'reason'
-        where id = (v_op->'payload'->>'entryId')::uuid and status = 'active'
+        where id = (v_op->'payload'->>'entryId')::uuid and center_id = p_center_id and status = 'active'
           and (created_by = p_caller_id or p_caller_role in ('admin', 'owner'));
 
         if not found then
           raise exception '422 cannot_void_non_active';
         end if;
 
-        insert into sync_ops (op_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, result, resolution_status)
-        values (v_op_id, p_caller_id, p_device_id, v_op_type, (v_op->'payload'->>'entryId')::uuid, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
+        insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, result, resolution_status)
+        values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, (v_op->'payload'->>'entryId')::uuid, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
 
-        perform log_audit_event(p_caller_id, 'entry.void_request', 'entries', v_op->'payload'->>'entryId', null, jsonb_build_object('void_requested_by', p_caller_id));
+        perform log_audit_event(p_center_id, p_caller_id, 'entry.void_request', 'entries', v_op->'payload'->>'entryId', null, jsonb_build_object('void_requested_by', p_caller_id));
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
 
@@ -1786,17 +2005,17 @@ begin
 
           update sync_ops
           set resolution_status = 'discarded'
-          where op_id = v_target_op_id and result = 'rejected'
+          where op_id = v_target_op_id and center_id = p_center_id and result = 'rejected'
             and (actor_id = p_caller_id or p_caller_role in ('admin', 'owner'));
 
           if not found then
             raise exception '403 unauthorized';
           end if;
 
-          insert into sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status)
-          values (v_op_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
+          insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status)
+          values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
 
-          perform log_audit_event(p_caller_id, 'entry.discard_rejected', 'sync_ops', v_target_op_id::text, jsonb_build_object('result', 'rejected'), jsonb_build_object('resolution_status', 'discarded'));
+          perform log_audit_event(p_center_id, p_caller_id, 'entry.discard_rejected', 'sync_ops', v_target_op_id::text, jsonb_build_object('result', 'rejected'), jsonb_build_object('resolution_status', 'discarded'));
 
           v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
         end;
@@ -1830,13 +2049,13 @@ begin
 
         -- Persistent audit logging inside exception handler
         if v_err_reason in ('calc_mismatch', 'invalid_snapshot_rules') then
-          perform log_audit_event(p_caller_id, 'sync.calc_mismatch', 'sync_ops', v_op_id::text, null, jsonb_build_object('op_id', v_op_id, 'reason', v_err_reason));
+          perform log_audit_event(p_center_id, p_caller_id, 'sync.calc_mismatch', 'sync_ops', v_op_id::text, null, jsonb_build_object('op_id', v_op_id, 'reason', v_err_reason));
         elsif v_err_reason like '%tamper%' then
-          perform log_audit_event(p_caller_id, 'security.tamper_detected', 'sync_ops', v_op_id::text, null, jsonb_build_object('op_id', v_op_id, 'reason', v_err_reason));
+          perform log_audit_event(p_center_id, p_caller_id, 'security.tamper_detected', 'sync_ops', v_op_id::text, null, jsonb_build_object('op_id', v_op_id, 'reason', v_err_reason));
         end if;
 
-        insert into sync_ops (op_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status, reason)
-        values (v_op_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'rejected', 'pending', v_err_reason)
+        insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, payload, payload_hash, client_created_at, result, resolution_status, reason)
+        values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, v_op->'payload', v_server_hash, v_client_created_at, 'rejected', 'pending', v_err_reason)
         on conflict (op_id) do update set reason = EXCLUDED.reason, result = 'rejected', resolution_status = 'pending';
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'rejected', 'reason', v_err_reason);
@@ -1848,7 +2067,159 @@ begin
 end;
 $$;
 
--- 26. Scheduled Cron Job: Daily retention cleanup at 21:00 UTC = 03:00 Asia/Dhaka (PRD §7.3, §11 PRD ISSUE 004-1)
+-- 26. Maintenance: audited purge of named entries (CLT-R-029 cleanup)
+-- Folds the former 20261108000001 hotfix, now scoped to one center. Entries are
+-- immutable, so this remains the only sanctioned deletion path: it refuses a
+-- closed month or a reconciled entry, writes one audit row per entry before the
+-- delete, disables trg_entries_immutability for the delete only, and recomputes
+-- the affected months. service_role only.
+create or replace function maintenance_purge_entries(
+  p_center_id uuid,
+  p_entry_ids uuid[],
+  p_reason text,
+  p_actor uuid default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_id uuid;
+  v_entry entries%rowtype;
+  v_month date;
+  v_months date[];
+  v_deleted int := 0;
+  v_sync_ops int := 0;
+  v_purged jsonb := '[]'::jsonb;
+  v_ops int;
+  v_center_number int;
+begin
+  select center_number into v_center_number from centers where id = p_center_id;
+  if v_center_number is null then
+    raise exception '422 center_not_found';
+  end if;
+
+  if p_entry_ids is null or array_length(p_entry_ids, 1) is null then
+    raise exception '422 empty_entry_list';
+  end if;
+
+  if p_reason is null or length(btrim(p_reason)) < 10 then
+    raise exception '422 reason_required';
+  end if;
+
+  if p_actor is not null and not exists (
+    select 1 from profiles where id = p_actor and center_id = p_center_id
+  ) then
+    raise exception '422 unknown_actor';
+  end if;
+
+  -- Refuse the whole batch if any id is unknown to this center: a partial purge
+  -- is worse than a failed one, because the caller cannot tell which rows went.
+  select count(*) into v_ops
+  from entries where center_id = p_center_id and id = any(p_entry_ids);
+  if v_ops <> cardinality(p_entry_ids) then
+    raise exception '404 entry_not_found';
+  end if;
+
+  if exists (
+    select 1 from entry_reconciliation_exceptions
+    where center_id = p_center_id and entry_id = any(p_entry_ids)
+    union all
+    select 1 from statement_lines
+    where center_id = p_center_id and matched_entry_id = any(p_entry_ids)
+  ) then
+    raise exception '409 entry_is_reconciled';
+  end if;
+
+  -- Step 1: month locks, ascending.
+  select array_agg(distinct date_trunc('month', e.entry_date)::date
+                   order by date_trunc('month', e.entry_date)::date)
+    into v_months
+    from entries e
+   where e.center_id = p_center_id and e.id = any(p_entry_ids);
+
+  foreach v_month in array v_months loop
+    perform pg_advisory_xact_lock(
+      (1001 << 16) | (v_center_number & 65535),
+      extract(year from v_month)::int * 12 + extract(month from v_month)::int
+    );
+  end loop;
+
+  if exists (
+    select 1 from month_closes
+    where center_id = p_center_id and month = any(v_months) and status = 'closed'
+  ) then
+    raise exception '422 month_closed';
+  end if;
+
+  -- Step 2: sequence lock, before any row lock.
+  perform pg_advisory_xact_lock((1002 << 16) | (v_center_number & 65535), 1);
+
+  -- Step 3: row locks, then the only place in the system that deletes entries.
+  foreach v_id in array p_entry_ids loop
+    select * into v_entry
+    from entries where id = v_id and center_id = p_center_id for update;
+
+    delete from sync_ops where entry_id = v_id and center_id = p_center_id;
+    get diagnostics v_ops = row_count;
+    v_sync_ops := v_sync_ops + v_ops;
+
+    perform log_audit_event(
+      p_center_id,
+      p_actor,
+      'entry.maintenance_purge',
+      'entries',
+      v_id::text,
+      to_jsonb(v_entry),
+      jsonb_build_object(
+        'reason', btrim(p_reason),
+        'sync_ops_deleted', v_ops,
+        'purged_at', now()
+      )
+    );
+
+    alter table entries disable trigger trg_entries_immutability;
+    delete from entries where id = v_id and center_id = p_center_id;
+    get diagnostics v_ops = row_count;
+    alter table entries enable trigger trg_entries_immutability;
+
+    v_deleted := v_deleted + v_ops;
+    v_purged := v_purged || jsonb_build_object(
+      'entry_number', v_entry.entry_number,
+      'entry_date', v_entry.entry_date,
+      'gross_poisha', v_entry.gross_poisha,
+      'customer_name', v_entry.customer_name,
+      'sync_ops_deleted', v_ops
+    );
+  end loop;
+
+  if (select tgenabled from pg_trigger where tgname = 'trg_entries_immutability') is distinct from 'O' then
+    raise exception '500 immutability_trigger_not_restored';
+  end if;
+
+  -- Step 4: settlements, because DELETE does not fire the recalc trigger.
+  foreach v_month in array v_months loop
+    perform generate_monthly_settlements(p_center_id, v_month);
+  end loop;
+
+  return jsonb_build_object(
+    'deleted', v_deleted,
+    'sync_ops_deleted', v_sync_ops,
+    'months', to_jsonb(v_months),
+    'entries', v_purged
+  );
+end;
+$$;
+
+revoke all on function maintenance_purge_entries(uuid, uuid[], text, uuid) from public;
+revoke all on function maintenance_purge_entries(uuid, uuid[], text, uuid) from anon;
+revoke all on function maintenance_purge_entries(uuid, uuid[], text, uuid) from authenticated;
+grant execute on function maintenance_purge_entries(uuid, uuid[], text, uuid) to service_role;
+
+comment on function maintenance_purge_entries(uuid, uuid[], text, uuid) is
+  'Owner-authorised, audited deletion of named entries in one center. Refuses closed months and reconciled entries; writes one audit_log row per entry; recomputes the affected months. service_role only.';
+
+-- 27. Scheduled Cron Job: Daily retention cleanup at 21:00 UTC = 03:00 Asia/Dhaka (PRD §7.3, §11 PRD ISSUE 004-1)
 do $$
 begin
   if exists (select 1 from pg_available_extensions where name = 'pg_cron') then
@@ -1858,10 +2229,15 @@ begin
     if exists (select 1 from cron.job where jobname = 'sync-op-retention') then
       perform cron.unschedule('sync-op-retention');
     end if;
+    -- NULL center: sweep every center.
     perform cron.schedule('sync-op-retention', '0 21 * * *', 'SELECT purge_expired_sync_ops();');
   end if;
 end $$;
 
--- 27. Security Privilege Revocations (Hard Rule 7, Gate 1, Test #22)
+-- 28. Security Privilege Revocations (Hard Rule 7, Gate 1, Test #22)
 REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA public FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON ALL ROUTINES IN SCHEMA public TO service_role;
+
+-- The GoTrue provisioning triggers remain callable by supabase_auth_admin.
+grant execute on function fn_auth_users_create_profile() to supabase_auth_admin;
+grant execute on function fn_auth_users_sync_profile_role() to supabase_auth_admin;

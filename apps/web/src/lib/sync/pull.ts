@@ -10,7 +10,45 @@ import {
 } from '$lib/db';
 import { getOrGenerateDeviceId } from '$lib/auth/device';
 import { supabase } from '$lib/supabase/client';
+import { session } from '$lib/auth/session.svelte';
 import { syncRunner } from './runner.svelte';
+import {
+  clearSuperCenterCache,
+  clearSyncedEntries,
+  pruneReplacedMethods,
+  pruneReplacedMonthCloses,
+  pruneReplacedPayables,
+  pruneReplacedProfiles,
+  pruneReplacedRateProfiles,
+  pruneReplacedSettlements,
+  pruneReplacedStatements,
+} from '$lib/db/prune';
+
+let pullEpoch = 0;
+let activePullAbort: AbortController | null = null;
+
+/**
+ * Invalidates any in-flight incremental pull (such as when a super_admin switches
+ * active center context mid-pull) so stale responses cannot overwrite Dexie or `server_cursor`.
+ */
+export function invalidateInFlightPull(): void {
+  pullEpoch++;
+  if (activePullAbort) {
+    activePullAbort.abort();
+    activePullAbort = null;
+  }
+}
+
+/**
+ * Clears center-scoped cache tables and resets `server_cursor` to `'0'` when switching centers.
+ */
+export async function resetSuperCenterCache(): Promise<void> {
+  invalidateInFlightPull();
+  await clearSuperCenterCache(db);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('clt_server_cursor', '0');
+  }
+}
 
 export interface PullResponseDto {
   entries: Array<{
@@ -135,33 +173,77 @@ export interface PullResponseDto {
  * transforms method rates into dictionary maps, and stores cursor with updated_at in db.meta.
  */
 export async function executeIncrementalPull(): Promise<void> {
+  const myEpoch = pullEpoch;
   const deviceId = getOrGenerateDeviceId();
 
   const metaCursorRow = await db.meta.get('server_cursor');
-  let cursor = (metaCursorRow?.value as string) || localStorage.getItem('clt_server_cursor') || '0';
+  const localCursor =
+    typeof localStorage !== 'undefined' ? localStorage.getItem('clt_server_cursor') : null;
+  let cursor = (metaCursorRow?.value as string) || localCursor || '0';
 
   let hasMore = true;
   let isFirstBatch = true;
+  let watermarkResets = 0;
 
   const {
-    data: { session },
+    data: { session: sbSession },
   } = await supabase.auth.getSession();
-  let token = session?.access_token;
+  let token = sbSession?.access_token;
+
+  if (myEpoch !== pullEpoch) {
+    return;
+  }
+
+  // Super-admin center switcher (CLT-T-074): pull only the selected center when
+  // the Head Office narrowed its context. Franchise users always pull their own.
+  let centerIdParam = '';
+  if (session.user?.role === 'super_admin' && typeof sessionStorage !== 'undefined') {
+    try {
+      const activeCenter = sessionStorage.getItem('clt_super_center');
+      if (activeCenter && activeCenter !== 'all') {
+        centerIdParam = `&centerId=${activeCenter}`;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
 
   while (hasMore) {
-    const includeMeta = isFirstBatch;
-    const url = `/api/v1/sync/pull?since=${cursor}&includeMeta=${includeMeta}&deviceId=${deviceId}`;
+    if (myEpoch !== pullEpoch) {
+      return;
+    }
 
+    const includeMeta = isFirstBatch;
+    const url = `/api/v1/sync/pull?since=${cursor}&includeMeta=${includeMeta}&deviceId=${deviceId}${centerIdParam}`;
+
+    const controller = new AbortController();
+    activePullAbort = controller;
     let res: Response;
     try {
       res = await fetch(url, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        signal: controller.signal,
       });
-    } catch {
+    } catch (err) {
+      if (
+        controller.signal.aborted ||
+        myEpoch !== pullEpoch ||
+        (err instanceof Error && err.name === 'AbortError')
+      ) {
+        return;
+      }
       // Network drop: throw to let caller update status to offline
       throw new Error('network_offline');
+    } finally {
+      if (activePullAbort === controller) {
+        activePullAbort = null;
+      }
+    }
+
+    if (myEpoch !== pullEpoch) {
+      return;
     }
 
     if (!res.ok) {
@@ -186,27 +268,24 @@ export async function executeIncrementalPull(): Promise<void> {
         throw new Error('user_forbidden');
       }
 
-      if (res.status === 409) {
-        // Cursor past watermark: reset cursor to '0' and retry immediately (PRD §9.1(b))
+      if (res.status === 409 || res.status === 410) {
+        if (watermarkResets >= 2) {
+          throw new Error(`pull_failed_http_${res.status}`);
+        }
+        watermarkResets++;
+        // Cursor past watermark (e.g., DB reset) or sync gap exceeded (>90d ops purged):
+        // clear stale synced rows, reset cursor to '0', force metadata re-fetch, and retry.
+        await clearSyncedEntries(db);
         cursor = '0';
-        localStorage.setItem('clt_server_cursor', '0');
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('clt_server_cursor', '0');
+        }
         await db.meta.put({
           key: 'server_cursor',
           value: '0',
           updated_at: new Date().toISOString(),
         });
-        continue;
-      }
-
-      if (res.status === 410) {
-        // Sync gap exceeded (>90d ops purged): full resync required
-        cursor = '0';
-        localStorage.setItem('clt_server_cursor', '0');
-        await db.meta.put({
-          key: 'server_cursor',
-          value: '0',
-          updated_at: new Date().toISOString(),
-        });
+        isFirstBatch = true;
         continue;
       }
 
@@ -219,10 +298,13 @@ export async function executeIncrementalPull(): Promise<void> {
     }
 
     const data: PullResponseDto = await res.json();
+    if (myEpoch !== pullEpoch) {
+      return;
+    }
 
     // Ingest relational configuration and metadata on first batch only
     if (includeMeta) {
-      if (data.rateProfiles && Array.isArray(data.rateProfiles)) {
+      if (Array.isArray(data.rateProfiles)) {
         const cachedProfiles: CachedRateProfile[] = data.rateProfiles.map((p) => ({
           id: p.id,
           version: p.version,
@@ -236,10 +318,18 @@ export async function executeIncrementalPull(): Promise<void> {
           note: p.note ?? undefined,
           method_rates: p.method_rates,
         }));
-        await db.rateProfiles.bulkPut(cachedProfiles);
+        if (cachedProfiles.length > 0) {
+          await db.rateProfiles.bulkPut(cachedProfiles);
+        }
+        // CLT-R-026: drop published profiles the server replaced, so a stale
+        // one whose method_rates point at dead ids cannot win resolution.
+        await pruneReplacedRateProfiles(
+          cachedProfiles.map((p) => p.id),
+          db,
+        );
       }
 
-      if (data.methods && Array.isArray(data.methods)) {
+      if (Array.isArray(data.methods)) {
         const mappedMethods: CachedPaymentMethod[] = data.methods.map((m) => ({
           id: m.id,
           code: m.code,
@@ -248,10 +338,18 @@ export async function executeIncrementalPull(): Promise<void> {
           display_order: m.sort_order, // Map Postgres sort_order to Dexie display_order
           active: m.active,
         }));
-        await db.methods.bulkPut(mappedMethods);
+        if (mappedMethods.length > 0) {
+          await db.methods.bulkPut(mappedMethods);
+        }
+        // CLT-R-026: drop methods the server no longer returns, so replaced ids
+        // cannot become the entry form's default and block Save.
+        await pruneReplacedMethods(
+          mappedMethods.map((m) => m.id),
+          db,
+        );
       }
 
-      if (data.payables && Array.isArray(data.payables)) {
+      if (Array.isArray(data.payables)) {
         const mappedPayables: CachedPayable[] = data.payables.map((p) => ({
           id: p.id,
           name: p.name, // Required DDL column name
@@ -267,11 +365,23 @@ export async function executeIncrementalPull(): Promise<void> {
           due_day: p.due_day,
           active: p.active,
         }));
-        await db.payables.bulkPut(mappedPayables);
+        if (mappedPayables.length > 0) {
+          await db.payables.bulkPut(mappedPayables);
+        }
+        await pruneReplacedPayables(
+          mappedPayables.map((p) => p.id),
+          db,
+        );
       }
 
-      if (data.monthCloses && Array.isArray(data.monthCloses)) {
-        await db.monthCloses.bulkPut(data.monthCloses);
+      if (Array.isArray(data.monthCloses)) {
+        if (data.monthCloses.length > 0) {
+          await db.monthCloses.bulkPut(data.monthCloses);
+        }
+        await pruneReplacedMonthCloses(
+          data.monthCloses.map((c) => c.month),
+          db,
+        );
       }
 
       if (data.settings) {
@@ -284,7 +394,7 @@ export async function executeIncrementalPull(): Promise<void> {
         });
       }
 
-      if (data.profiles && Array.isArray(data.profiles)) {
+      if (Array.isArray(data.profiles)) {
         const mappedProfiles: CachedProfile[] = data.profiles.map((p) => ({
           id: p.id,
           role: p.role,
@@ -293,10 +403,16 @@ export async function executeIncrementalPull(): Promise<void> {
           default_route: p.role === 'staff' ? '/entries/new' : '/dashboard',
           created_at: new Date().toISOString(),
         }));
-        await db.profiles.bulkPut(mappedProfiles);
+        if (mappedProfiles.length > 0) {
+          await db.profiles.bulkPut(mappedProfiles);
+        }
+        await pruneReplacedProfiles(
+          mappedProfiles.map((p) => p.id),
+          db,
+        );
       }
 
-      if (data.settlements && Array.isArray(data.settlements)) {
+      if (Array.isArray(data.settlements)) {
         const mappedSettlements: CachedSettlement[] = data.settlements.map((s) => ({
           id: s.id,
           month: s.month,
@@ -318,10 +434,16 @@ export async function executeIncrementalPull(): Promise<void> {
           overpayment_approved_by: s.overpayment_approved_by ?? undefined,
           overpayment_approved_at: s.overpayment_approved_at ?? undefined,
         }));
-        await db.settlements.bulkPut(mappedSettlements);
+        if (mappedSettlements.length > 0) {
+          await db.settlements.bulkPut(mappedSettlements);
+        }
+        await pruneReplacedSettlements(
+          mappedSettlements.map((s) => s.id),
+          db,
+        );
       }
 
-      if (data.statements && Array.isArray(data.statements)) {
+      if (Array.isArray(data.statements)) {
         const payableIdsByStatement = new Map<string, string[]>();
         for (const link of data.statementPayables ?? []) {
           const list = payableIdsByStatement.get(link.statement_id) ?? [];
@@ -343,7 +465,13 @@ export async function executeIncrementalPull(): Promise<void> {
           reconciled_at: st.reconciled_at ?? undefined,
           reconciled_by: st.reconciled_by ?? undefined,
         }));
-        await db.statements.bulkPut(mappedStatements);
+        if (mappedStatements.length > 0) {
+          await db.statements.bulkPut(mappedStatements);
+        }
+        await pruneReplacedStatements(
+          mappedStatements.map((s) => s.id),
+          db,
+        );
       }
 
       if (data.rejectedOps && Array.isArray(data.rejectedOps)) {
@@ -372,8 +500,14 @@ export async function executeIncrementalPull(): Promise<void> {
     }
 
     // Ingest visible entries returned from monotonic SQL query
+    if (myEpoch !== pullEpoch) {
+      return;
+    }
     if (data.entries && data.entries.length > 0) {
       for (const entry of data.entries) {
+        if (myEpoch !== pullEpoch) {
+          return;
+        }
         const localEntry: LocalEntry = {
           id: entry.id,
           entry_number: entry.entry_number
@@ -415,8 +549,13 @@ export async function executeIncrementalPull(): Promise<void> {
       }
     }
 
+    if (myEpoch !== pullEpoch) {
+      return;
+    }
     cursor = data.nextCursor;
-    localStorage.setItem('clt_server_cursor', cursor);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('clt_server_cursor', cursor);
+    }
     await db.meta.put({
       key: 'server_cursor',
       value: cursor,

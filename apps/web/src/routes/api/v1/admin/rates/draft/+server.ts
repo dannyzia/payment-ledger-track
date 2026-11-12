@@ -129,7 +129,13 @@ export const POST: RequestHandler = async (event) => {
   const supabase = getServiceSupabase();
   // p_profile_id defaults to NULL (create); CLI-generated types omit the null union (CLT-D-012).
   const NULL_TEXT = null as unknown as string;
+  const centerId = caller.centerId;
+  if (!centerId) {
+    return new Response(JSON.stringify({ error: 'missing_center_id' }), { status: 400 });
+  }
+
   const { data, error } = await supabase.rpc('create_or_update_draft_rate_profile', {
+    p_center_id: centerId,
     p_profile_id: parsed.data.draftId ?? NULL_TEXT,
     p_effective_from: parsed.data.effectiveFrom,
     p_vat_mode: parsed.data.vat.mode,

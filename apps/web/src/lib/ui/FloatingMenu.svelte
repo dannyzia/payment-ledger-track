@@ -3,9 +3,10 @@
   import { messages } from '../i18n/messages';
   import { triggerHapticTick } from '$lib/native/haptics';
   import { session } from '$lib/auth/session.svelte';
+  import type { UserRole } from '@clt/shared';
 
   interface Props {
-    role?: 'staff' | 'admin' | 'owner';
+    role?: UserRole;
     positionMode?: 'free' | 'bottom' | 'left' | 'right';
   }
 
@@ -156,6 +157,26 @@
           class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1"
         >
           {messages.menu.settings}
+        </a>
+      {/if}
+      {#if role === 'super_admin'}
+        <a
+          href="/admin/super/centers"
+          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Franchise Centers
+        </a>
+        <a
+          href="/admin/super/search"
+          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Global Search
+        </a>
+        <a
+          href="/admin/audit"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Audit Trail
         </a>
       {/if}
       <button

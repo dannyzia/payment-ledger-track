@@ -29,8 +29,13 @@ for (const envName of ['.env.local', '.env']) {
   if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: false });
 }
 
+const STAFF_EMAIL = process.env.E2E_STAFF_EMAIL || '';
+const STAFF_PASSWORD = process.env.E2E_STAFF_PASSWORD || '';
 const OWNER_EMAIL = process.env.BOOTSTRAP_OWNER_EMAIL || '';
 const OWNER_PASSWORD = process.env.BOOTSTRAP_OWNER_PASSWORD || '';
+
+const TEST_EMAIL = STAFF_EMAIL || OWNER_EMAIL;
+const TEST_PASSWORD = STAFF_PASSWORD || OWNER_PASSWORD;
 
 test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () => {
   // Full login + sync-pull + offline save + reconnect cycle needs well above
@@ -38,18 +43,18 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
   test.setTimeout(120_000);
 
   test.beforeEach(async ({ page }) => {
-    // Authenticate with the bootstrap Owner credentials (local Supabase auth).
+    // Authenticate with center staff credentials (or fallback to bootstrap owner).
     test.skip(
-      !OWNER_EMAIL || !OWNER_PASSWORD,
-      'BOOTSTRAP_OWNER_EMAIL / BOOTSTRAP_OWNER_PASSWORD are not configured in the root .env; e2e login cannot proceed (Plan 020 Precondition 3).',
+      !TEST_EMAIL || !TEST_PASSWORD,
+      'E2E credentials are not configured in the environment; e2e login cannot proceed (Plan 020 Precondition 3).',
     );
 
     // Login with one tolerance retry: local GoTrue rate limits after several
     // automated attempts, so a single delay-and-retry absorbs transient 429s.
     async function attemptLogin(): Promise<boolean> {
       await page.goto('/login');
-      await page.fill('#login-email', OWNER_EMAIL);
-      await page.fill('#login-password', OWNER_PASSWORD);
+      await page.fill('#login-email', TEST_EMAIL);
+      await page.fill('#login-password', TEST_PASSWORD);
       await page.click('button[type="submit"]');
       try {
         await page.waitForURL('**/dashboard', { timeout: 15000 });
@@ -79,36 +84,37 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
     await expect
       .poll(
         async () => {
-          methodCacheInfo = await page.evaluate(
-            () =>
-              new Promise<string>((resolve) => {
-                const open = indexedDB.open('CosmoLedgerTrackDB');
-                open.onsuccess = () => {
-                  const idb = open.result;
-                  if (!Array.from(idb.objectStoreNames).includes('methods')) {
-                    idb.close();
-                    resolve('count=0 store-missing');
-                    return;
-                  }
-                  const req = idb
-                    .transaction('methods', 'readonly')
-                    .objectStore('methods')
-                    .getAll();
-                  req.onsuccess = () => {
-                    idb.close();
-                    const rows = (
-                      req.result as Array<{ code?: string; display_order?: unknown }>
-                    ).map((r) => `${r.code}:do=${r.display_order}`);
-                    resolve(`count=${rows.length} [${rows.join(', ')}]`);
-                  };
-                  req.onerror = () => {
-                    idb.close();
-                    resolve('count=0 idb-error');
-                  };
+          methodCacheInfo = await page.evaluate(async () => {
+            const dbs = await indexedDB.databases();
+            const dbName = dbs.find(
+              (d) => d.name?.startsWith('KumonLedger_') || d.name === 'CosmoLedgerTrackDB',
+            )?.name;
+            if (!dbName) return 'count=0 dbs-empty';
+            return new Promise<string>((resolve) => {
+              const open = indexedDB.open(dbName);
+              open.onsuccess = () => {
+                const idb = open.result;
+                if (!Array.from(idb.objectStoreNames).includes('methods')) {
+                  idb.close();
+                  resolve('count=0 store-missing');
+                  return;
+                }
+                const req = idb.transaction('methods', 'readonly').objectStore('methods').getAll();
+                req.onsuccess = () => {
+                  idb.close();
+                  const rows = (
+                    req.result as Array<{ code?: string; display_order?: unknown }>
+                  ).map((r) => `${r.code}:do=${r.display_order}`);
+                  resolve(`count=${rows.length} [${rows.join(', ')}]`);
                 };
-                open.onerror = () => resolve('count=0 open-failed');
-              }),
-          );
+                req.onerror = () => {
+                  idb.close();
+                  resolve('count=0 idb-error');
+                };
+              };
+              open.onerror = () => resolve('count=0 open-failed');
+            });
+          });
           return methodCacheInfo;
         },
         { timeout: 45000 },

@@ -24,7 +24,17 @@ export const handle: Handle = async ({ event, resolve }) => {
     });
   }
 
+  // Request correlation id + handler timing (R7).
+  const requestId = event.request.headers.get('x-request-id') || crypto.randomUUID();
+  const start = Date.now();
   const response = await resolve(event);
+  const durationMs = Date.now() - start;
+  response.headers.set('x-request-id', requestId);
+  if (event.url.pathname.startsWith('/api/')) {
+    console.log(
+      `[API] ${requestId} ${event.request.method} ${event.url.pathname} -> ${response.status} (${durationMs}ms)`,
+    );
+  }
 
   if (isCapacitorOrigin) {
     response.headers.set('Access-Control-Allow-Origin', origin);

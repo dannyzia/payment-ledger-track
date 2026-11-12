@@ -1,8 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import type { UserRole } from '@clt/shared';
 
   interface Props {
-    role: 'owner' | 'admin' | 'staff';
+    role: UserRole;
     open: boolean;
     onclose: () => void;
   }
@@ -16,7 +17,7 @@
     id: string;
     title: string;
     route: string;
-    roles: ('owner' | 'admin' | 'staff')[];
+    roles: UserRole[];
     shortcut?: string;
   }
 
