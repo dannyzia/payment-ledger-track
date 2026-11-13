@@ -406,3 +406,35 @@ report `synced` while ops sat queued), and pulling after any push failure
 (breaks the ordering guarantee for franchise users, whose retry can succeed).
 Covered by `apps/web/src/lib/sync/runner.test.ts`: the centerless branch pulls
 and stays `error`; the centered branch still refuses to pull.
+
+---
+
+## CLT-POLICY-Q1: VAT Treatment Rule
+Status: CONFIRMED
+Decided by: Zia (Project Owner)
+Date: 2026-11-13
+Outcome: Each center is able to set a default VAT (mode and rate: e.g. percent_of_gross with default bp, or manual) in their center rate profile. On the transaction entry form, this displays as the default % and calculated amount, with staff able to adjust or override either the amount or percentage on each individual transaction.
+VAT applies to: Configured per center; adjustable per transaction.
+Adviser consulted: Owner business decision; statutory tax applicability remains UNVERIFIED per Rule 15 and subject to local accountant consultation.
+
+## CLT-POLICY-Q2: Net / Final Calculation Definition
+Status: CONFIRMED
+Decided by: Zia (Project Owner)
+Date: 2026-11-13
+Outcome: Confirmed formula: net_after_deductions = gross − VAT − commission − business-borne method charge. Display label "Net after deductions" (configurable in admin settings).
+Recipient of net: Center business.
+
+## CLT-POLICY-Q3: Commission Deduction Structure
+Status: CONFIRMED
+Decided by: Zia (Project Owner)
+Date: 2026-11-13
+Outcome: Each center sets its default commission rate (e.g. 42.00% / 4200 bp) in its center-scoped rate profile. All transaction data is saved immutably with the snapshot rate active at the time of entry. When the center admin changes the rate profile, subsequent transactions apply the new rate without altering historical entries (Hard Rule 4).
+Commission base: gross minus VAT (per published center rate profile).
+Per-entry override with reason: Allowed.
+
+## CLT-POLICY-Q4: Method Charges Borne Allocation
+Status: CONFIRMED
+Decided by: Zia (Project Owner)
+Date: 2026-11-13
+Outcome: The center bears method charges (charges_borne_by = 'business'). The charges are deducted from Net and tracked as center liabilities to the payment method providers. Rates (e.g. bKash 1.15%, card 1.50%) are changeable by each center admin via their published rate profile.
+

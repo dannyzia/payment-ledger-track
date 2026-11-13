@@ -221,12 +221,12 @@ location is named so nothing is duplicated or restated in the wrong voice.
 | Project key **CLT**; IDs like `CLT-T-014` | AGENTS.md §1 | 2026-10-29 | CONFIRMED |
 | Both orchestration systems in force: `ORCHESTRATOR.md` for tracking, Rhizome for agent transport | AGENTS.md §10 | 2026-10-29 | CONFIRMED |
 | Admin changes rates alone (no Owner approval); single Owner; fixed monthly due date per payable; reconciliation in v1; transaction reference mandatory only where `methods.requires_txn_ref = true`; all percentages from the admin panel | AGENTS.md §4, "Decided by the owner" | undated | CONFIRMED |
-| Q1 VAT rule, Q2 net/"Final" definition, Q3 commission structure, Q4 charge bearer | root `DECISIONS.md`, blocks `CLT-POLICY-Q1`…`Q4`; packet `OWNER_DECISION_PACKET_Q1_Q4.md` | — | **PENDING** (Rule 20) |
+| Q1 VAT rule, Q2 net/"Final" definition, Q3 commission structure, Q4 charge bearer | root `DECISIONS.md`, `CLT-POLICY-Q1`…`Q4` | 2026-11-13 | **CONFIRMED** (Rule 20 satisfied) |
 | Implementer deviations: `CLT-D-001`…`CLT-D-025` (plan-level choices where the PRD was silent) | root `DECISIONS.md` | to 2026-11-06 | CONFIRMED as recorded |
 
 The Q1–Q4 marker lines must be written in **root** `DECISIONS.md`, not here:
 `scripts/build-android.sh` greps `Qn.*Status: CONFIRMED` in the root file before
-an `.aab` store build (CLT-D-022).
+an `.aab` store build (CLT-D-022). Verified 2026-11-13: `CLT-POLICY-Q1` through `CLT-POLICY-Q4` recorded in root `DECISIONS.md` with `Status: CONFIRMED`.
 
 ## 4. Decision requests to raise (unassigned IDs)
 
@@ -243,6 +243,7 @@ when answered.
 
 | Rev | Date | Change |
 |---|---|---|
+| 6 | 2026-11-13 | Q1–Q4 confirmed by Zia: recorded in root `DECISIONS.md` (`CLT-POLICY-Q1`..`Q4`). Center admins configure default VAT (% and amount with transaction override), standard Net formula confirmed, center-scoped default commission with immutable snapshot rate profiles, and center bears method charges. |
 | 5 | 2026-11-11 | `CLT-D-034` recorded: restore Owner-only `reopen_month` + statement invalidation, 6-arg `review_entry_reconciliation_exception` + `database.types.ts`, full `reconcile_statement` Mode A/B guards and canonical error codes, `close_month` idempotency + `unapproved_overpaid_settlement`, and Admin/Owner/super_admin restriction on `audit_log_select_policy`. |
 | 4 | 2026-11-11 | `CLT-D-033` recorded: technical remediation removing Nov 10 session RLS workarounds (`004`/`006`), folding PRD §7.4 5-method / 4-payable seed cleanly into `007` and removing `008`, removing dummy `auth.users` insert from `scripts/bootstrap.ts`, and fixing `schema.test.ts`, `bootstrap.test.ts`, and `view_parity.test.ts`. |
 | 3 | 2026-11-08 | `CLT-D-029` recorded: the app's display name is **Kumon Ledger Track**, matching the KUMON artwork. Applied to Capacitor, the PWA manifest (`short_name` "Kumon Ledger"), titles, brand strings and the Android `app_name`; package id and Dexie database name deliberately untouched. |
