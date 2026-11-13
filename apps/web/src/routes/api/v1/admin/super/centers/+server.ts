@@ -121,9 +121,13 @@ export const POST: RequestHandler = async (event) => {
       }
 
       if (!existingUser) {
+        const redirectTo = `${event.url.origin}/callback`;
         const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
           ownerEmail,
-          { data: { full_name: parsed.data.ownerName } },
+          {
+            data: { full_name: parsed.data.ownerName },
+            redirectTo,
+          },
         );
         if (inviteError || !invited?.user) {
           throw new Error(inviteError?.message ?? 'Owner invite failed');
