@@ -13,6 +13,7 @@ const createCenterSchema = z.object({
   phone: z.string().min(1, 'Phone number is required'),
   ownerEmail: z.string().email('Valid owner email is required'),
   ownerName: z.string().min(1, 'Owner name is required'),
+  ownerPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
 });
 
 /**
@@ -141,18 +142,37 @@ export const POST: RequestHandler = async (event) => {
       }
 
       if (!existingUser) {
-        const redirectTo = `${event.url.origin}/callback`;
-        const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-          ownerEmail,
-          {
-            data: { full_name: parsed.data.ownerName },
-            redirectTo,
-          },
-        );
-        if (inviteError || !invited?.user) {
-          throw new Error(inviteError?.message ?? 'Owner invite failed');
+        if (parsed.data.ownerPassword) {
+          const { data: created, error: createError } = await supabase.auth.admin.createUser({
+            email: ownerEmail,
+            password: parsed.data.ownerPassword,
+            email_confirm: true,
+            user_metadata: { full_name: parsed.data.ownerName },
+            app_metadata: { role: 'owner', center_id: centerId },
+          });
+          if (createError || !created?.user) {
+            throw new Error(createError?.message ?? 'Owner creation failed');
+          }
+          existingUser = { id: created.user.id };
+        } else {
+          const redirectTo = `${event.url.origin}/callback`;
+          const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+            ownerEmail,
+            {
+              data: { full_name: parsed.data.ownerName },
+              redirectTo,
+            },
+          );
+          if (inviteError || !invited?.user) {
+            throw new Error(inviteError?.message ?? 'Owner invite failed');
+          }
+          existingUser = { id: invited.user.id };
         }
-        existingUser = { id: invited.user.id };
+      } else if (parsed.data.ownerPassword) {
+        const { error: passError } = await supabase.auth.admin.updateUserById(existingUser.id, {
+          password: parsed.data.ownerPassword,
+        });
+        if (passError) throw passError;
       }
 
       const { error: updateError } = await supabase.auth.admin.updateUserById(existingUser.id, {

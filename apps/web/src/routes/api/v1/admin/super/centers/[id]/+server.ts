@@ -15,6 +15,7 @@ const updateCenterSchema = z
     tradeLicense: z.string().max(32).nullable().optional(),
     ownerEmail: z.string().email().optional(),
     ownerName: z.string().min(1).optional(),
+    ownerPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' });
 
@@ -201,6 +202,44 @@ export const PATCH: RequestHandler = async (event) => {
       }
     } catch (e) {
       ownerError = e instanceof Error ? e.message : 'Owner update failed';
+      if (!patch || Object.keys(patch).length === 0) {
+        return new Response(JSON.stringify({ error: ownerError }), { status: 422 });
+      }
+    }
+  }
+
+  // Update center owner password if requested
+  if (parsed.data.ownerPassword) {
+    try {
+      const { data: currentOwnerProf } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('center_id', centerId)
+        .eq('role', 'owner')
+        .eq('active', true)
+        .maybeSingle();
+
+      if (currentOwnerProf) {
+        const { error: passErr } = await supabase.auth.admin.updateUserById(currentOwnerProf.id, {
+          password: parsed.data.ownerPassword,
+        });
+        if (passErr) throw passErr;
+
+        await supabase.from('audit_log').insert({
+          center_id: centerId,
+          actor: caller.userId,
+          action: 'center.owner_password_reset',
+          target_table: 'profiles',
+          target_id: currentOwnerProf.id,
+          before: null,
+          after: { reset_by: caller.userId, timestamp: new Date().toISOString() } as unknown as Json,
+        });
+        ownerUpdated = true;
+      } else {
+        throw new Error('No active owner profile found for this center to set password');
+      }
+    } catch (e) {
+      ownerError = e instanceof Error ? e.message : 'Password update failed';
       if (!patch || Object.keys(patch).length === 0) {
         return new Response(JSON.stringify({ error: ownerError }), { status: 422 });
       }

@@ -46,6 +46,8 @@
   let phone = $state('');
   let ownerName = $state('');
   let ownerEmail = $state('');
+  let ownerPassword = $state('');
+  let showProvisionPassword = $state(false);
 
   // Edit Center state
   let showEditModal = $state(false);
@@ -60,6 +62,8 @@
   let editTradeLicense = $state('');
   let editOwnerEmail = $state('');
   let editOwnerName = $state('');
+  let editOwnerPassword = $state('');
+  let showEditPassword = $state(false);
   let editStatus = $state<'active' | 'suspended' | 'archived'>('active');
 
   function openEdit(c: Center) {
@@ -72,6 +76,8 @@
     editTradeLicense = c.trade_license_number ?? '';
     editOwnerEmail = c.owner_email ?? '';
     editOwnerName = c.owner_name ?? '';
+    editOwnerPassword = '';
+    showEditPassword = false;
     editStatus = c.status;
     editError = '';
     showEditModal = true;
@@ -94,6 +100,7 @@
           tradeLicense: editTradeLicense.trim() || null,
           ownerEmail: editOwnerEmail.trim() || undefined,
           ownerName: editOwnerName.trim() || undefined,
+          ownerPassword: editOwnerPassword.trim() || undefined,
           status: editStatus,
         }),
       });
@@ -148,6 +155,7 @@
           phone: phone.trim(),
           ownerEmail: ownerEmail.trim(),
           ownerName: ownerName.trim(),
+          ownerPassword: ownerPassword.trim() || undefined,
         }),
       });
       if (!res.ok) {
@@ -167,7 +175,9 @@
         phone =
         ownerName =
         ownerEmail =
+        ownerPassword =
           '';
+      showProvisionPassword = false;
       await loadCenters();
     } catch (e) {
       formError = adminFetchError(e);
@@ -427,6 +437,37 @@
             required
           />
         </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Initial Owner Password</span>
+          <div class="relative flex items-center">
+            <input
+              type={showProvisionPassword ? 'text' : 'password'}
+              class="w-full min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] pl-3 pr-12 text-[var(--ink)]"
+              bind:value={ownerPassword}
+              placeholder="Min 8 characters (direct login)"
+              minlength={8}
+            />
+            <button
+              type="button"
+              class="absolute right-1 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
+              onclick={() => (showProvisionPassword = !showProvisionPassword)}
+              aria-label={showProvisionPassword ? 'Hide password' : 'Show password'}
+              title={showProvisionPassword ? 'Hide password' : 'Show password'}
+            >
+              {#if showProvisionPassword}
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                </svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              {/if}
+            </button>
+          </div>
+          <span class="text-xs text-[var(--muted)]">If left blank, an invite link will be sent to the email address.</span>
+        </label>
         <div class="flex justify-end gap-2 mt-2">
           <Button type="button" onclick={() => (showModal = false)}>Cancel</Button>
           <Button type="submit" variant="commission" loading={submitting}>Provision Center</Button>
@@ -534,6 +575,38 @@
             bind:value={editOwnerName}
             placeholder="Owner Full Name"
           />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Set / Reset Owner Password</span>
+          <div class="relative flex items-center">
+            <input
+              type={showEditPassword ? 'text' : 'password'}
+              class="w-full min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] pl-3 pr-12 text-[var(--ink)]"
+              bind:value={editOwnerPassword}
+              placeholder="Leave blank to keep existing password"
+              minlength={8}
+            />
+            <button
+              type="button"
+              class="absolute right-1 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
+              onclick={() => (showEditPassword = !showEditPassword)}
+              aria-label={showEditPassword ? 'Hide password' : 'Show password'}
+              title={showEditPassword ? 'Hide password' : 'Show password'}
+            >
+              {#if showEditPassword}
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                </svg>
+              {:else}
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              {/if}
+            </button>
+          </div>
+          <span class="text-xs text-[var(--muted)]">Enter a new password (min 8 chars) to immediately overwrite the owner's login credentials.</span>
         </label>
 
         <label class="flex flex-col gap-1 text-sm">
