@@ -12,9 +12,9 @@ are separate on purpose (AGENTS.md §3). Do not merge them.
 Decision IDs are `CLT-D-nnn` and **never reused** (AGENTS.md §6). The two logs
 share that space:
 
-- Root `DECISIONS.md` already owns `CLT-D-001` … `CLT-D-025`, plus the
-  `CLT-POLICY-Q1` … `CLT-POLICY-Q4` policy headings.
-- **The next free orchestration ID is `CLT-D-026`.**
+- Root `DECISIONS.md` already owns `CLT-D-001` … `CLT-D-025`, `CLT-D-030` … `CLT-D-032`,
+  `CLT-D-035`, plus the `CLT-POLICY-Q1` … `CLT-POLICY-Q4` policy headings.
+- **The next free decision ID is `CLT-D-036`.**
 
 `G0_READINESS_CHECKLIST.md` §4 originally proposed `CLT-D-001` for the G0 line;
 that number was already taken, so it now points here. Numbers are assigned when
@@ -45,6 +45,29 @@ Reason: <one sentence in Zia's words>
 Still open before this can be answered: the roster table in `ORCHESTRATOR.md`
 §5 is `<fill>` for every role. `LEDGER.md`, `RISKS.md` and this file now exist,
 so the "ledger created" criterion is met.
+
+### CLT-D-035 — Governance Boundary: Owner Business Decisions vs Agent Technical Autonomy
+
+```
+Status: CONFIRMED
+Date: 2026-11-13
+Decided by: Zia (Owner)
+Options: Require Owner approval on technical/architectural choices;
+         or establish clear boundary: Owner owns business decisions exclusively,
+         agents hold full autonomy and responsibility for technical execution.
+Outcome: Strict division of responsibility: Owner owns business decisions exclusively;
+         technical execution, correctness, architecture, and verification belong
+         autonomously to agents and do not require Owner approval.
+Scope: Repository-wide governance, architecture, technical execution, and approvals
+Reason: Zia (chat, 2026-11-13): "ZIA-APPROVED. You may write in your decision.md that ZIA only
+        take business decision. And Zia took it while replying to your answer. The technical
+        part is yours, I do not know that the technical things that u had done is correct
+        or not. and actually dones not require my approval on those."
+```
+
+Consequences:
+1. Business scope, commercial terms, rate policy defaults (Q1–Q4), franchise rules, and release authorizations belong exclusively to Zia.
+2. Technical implementation, database migrations, test harnesses, code design, refactorings, and gate verification are owned autonomously by the agent team. Technical correctness is verified by automated test suites and readiness gates, not by owner inspection.
 
 ### CLT-D-033 — Multi-Tenant Migration, Bootstrap & Test Harness Remediation (Post-076 Drift)
 
@@ -243,6 +266,7 @@ when answered.
 
 | Rev | Date | Change |
 |---|---|---|
+| 7 | 2026-11-13 | `CLT-D-035` recorded: Owner (Zia) established governance boundary — Zia exclusively takes business decisions (Q1–Q4, commercial scope, release approvals); technical execution, correctness, and architecture belong autonomously to the agent engineering team and do not require Owner approval. |
 | 6 | 2026-11-13 | Q1–Q4 confirmed by Zia: recorded in root `DECISIONS.md` (`CLT-POLICY-Q1`..`Q4`). Center admins configure default VAT (% and amount with transaction override), standard Net formula confirmed, center-scoped default commission with immutable snapshot rate profiles, and center bears method charges. |
 | 5 | 2026-11-11 | `CLT-D-034` recorded: restore Owner-only `reopen_month` + statement invalidation, 6-arg `review_entry_reconciliation_exception` + `database.types.ts`, full `reconcile_statement` Mode A/B guards and canonical error codes, `close_month` idempotency + `unapproved_overpaid_settlement`, and Admin/Owner/super_admin restriction on `audit_log_select_policy`. |
 | 4 | 2026-11-11 | `CLT-D-033` recorded: technical remediation removing Nov 10 session RLS workarounds (`004`/`006`), folding PRD §7.4 5-method / 4-payable seed cleanly into `007` and removing `008`, removing dummy `auth.users` insert from `scripts/bootstrap.ts`, and fixing `schema.test.ts`, `bootstrap.test.ts`, and `view_parity.test.ts`. |

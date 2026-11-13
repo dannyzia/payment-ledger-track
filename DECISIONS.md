@@ -407,6 +407,18 @@ report `synced` while ops sat queued), and pulling after any push failure
 Covered by `apps/web/src/lib/sync/runner.test.ts`: the centerless branch pulls
 and stays `error`; the centered branch still refuses to pull.
 
+## CLT-D-035 — Governance Boundary: Owner Business Decisions vs Agent Technical Autonomy
+
+- **Date**: 2026-11-13
+- **Decided by**: Zia (Owner)
+- **Scope**: Repository-wide governance, architecture, technical execution, and approvals
+- **Context**: The Project Owner defined the strict operating boundary between Owner business responsibilities and AI engineering agent technical responsibilities.
+- **Decision**: 
+  1. The Owner (Zia) exclusively owns and takes business, policy, commercial, legal/tax, and release deployment decisions (such as Q1–Q4 policy answers, franchise parameters, and release sign-off).
+  2. Technical architecture, code implementation, test harnesses, refactoring, performance, and correctness verification are fully delegated to the agent engineering team. Technical decisions do not require Owner approval.
+  3. Technical correctness is verified objectively via automated test suites, property-based tests, database constraints, and Implementation Readiness Gates (G0–G5), rather than through manual owner code review.
+- **Owner quote**: "ZIA-APPROVED. You may write in your decision.md that ZIA only take business decision. And Zia took it while replying to your answer. The technical part is yours, I do not know that the technical things that u had done is correct or not. and actually dones not require my approval on those."
+
 ---
 
 ## CLT-POLICY-Q1: VAT Treatment Rule
