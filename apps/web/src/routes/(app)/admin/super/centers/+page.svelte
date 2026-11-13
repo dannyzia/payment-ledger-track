@@ -22,6 +22,9 @@
     phone: string;
     status: 'active' | 'suspended' | 'archived';
     created_at: string;
+    owner_id?: string | null;
+    owner_name?: string | null;
+    owner_email?: string | null;
   }
 
   const isSuperAdmin = $derived(session.user?.role === 'super_admin');
@@ -55,6 +58,8 @@
   let editPhone = $state('');
   let editBinNumber = $state('');
   let editTradeLicense = $state('');
+  let editOwnerEmail = $state('');
+  let editOwnerName = $state('');
   let editStatus = $state<'active' | 'suspended' | 'archived'>('active');
 
   function openEdit(c: Center) {
@@ -65,6 +70,8 @@
     editPhone = c.phone;
     editBinNumber = c.bin_number ?? '';
     editTradeLicense = c.trade_license_number ?? '';
+    editOwnerEmail = c.owner_email ?? '';
+    editOwnerName = c.owner_name ?? '';
     editStatus = c.status;
     editError = '';
     showEditModal = true;
@@ -85,6 +92,8 @@
           phone: editPhone.trim(),
           binNumber: editBinNumber.trim() || null,
           tradeLicense: editTradeLicense.trim() || null,
+          ownerEmail: editOwnerEmail.trim() || undefined,
+          ownerName: editOwnerName.trim() || undefined,
           status: editStatus,
         }),
       });
@@ -270,6 +279,11 @@
                     </div>
                     <div class="font-normal text-[var(--ink)]">{c.name}</div>
                     <div class="text-xs text-[var(--muted)]">{c.legal_entity_name}</div>
+                    {#if c.owner_email}
+                      <div class="text-xs text-[var(--accent)] mt-0.5 font-normal">
+                        Owner: {c.owner_name ? `${c.owner_name} · ` : ''}{c.owner_email}
+                      </div>
+                    {/if}
                   </button>
                 </td>
                 <td class="py-3 px-4 text-[var(--ink)]">{c.phone}</td>
@@ -499,6 +513,26 @@
             class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
             bind:value={editPhone}
             required
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Center Owner Email</span>
+          <input
+            type="email"
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editOwnerEmail}
+            placeholder="owner@example.com"
+            required
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Center Owner Name</span>
+          <input
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editOwnerName}
+            placeholder="Owner Full Name"
           />
         </label>
 

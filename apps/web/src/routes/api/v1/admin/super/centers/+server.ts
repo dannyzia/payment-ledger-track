@@ -28,12 +28,32 @@ export const GET: RequestHandler = async (event) => {
   let query = supabase.from('centers').select('*').order('center_number', { ascending: true });
   if (status) query = query.eq('status', status);
 
-  const { data, error } = await query;
+  const { data: centers, error } = await query;
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
-  return new Response(JSON.stringify({ centers: data ?? [] }), { status: 200 });
+  // Enrich centers with owner details
+  const { data: owners } = await supabase
+    .from('profiles')
+    .select('id, full_name, center_id')
+    .eq('role', 'owner')
+    .eq('active', true);
+
+  const { data: authUsers } = await supabase.auth.admin.listUsers();
+
+  const enriched = (centers ?? []).map((c) => {
+    const ownerProf = owners?.find((o) => o.center_id === c.id);
+    const authUser = authUsers?.users?.find((u) => u.id === ownerProf?.id);
+    return {
+      ...c,
+      owner_id: ownerProf?.id ?? null,
+      owner_name: ownerProf?.full_name ?? null,
+      owner_email: authUser?.email ?? null,
+    };
+  });
+
+  return new Response(JSON.stringify({ centers: enriched }), { status: 200 });
 };
 
 /**

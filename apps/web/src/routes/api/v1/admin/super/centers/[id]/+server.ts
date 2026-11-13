@@ -13,6 +13,8 @@ const updateCenterSchema = z
     phone: z.string().min(1).optional(),
     binNumber: z.string().max(16).nullable().optional(),
     tradeLicense: z.string().max(32).nullable().optional(),
+    ownerEmail: z.string().email().optional(),
+    ownerName: z.string().min(1).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'At least one field is required' });
 
@@ -70,25 +72,143 @@ export const PATCH: RequestHandler = async (event) => {
   if (parsed.data.binNumber !== undefined) patch.bin_number = parsed.data.binNumber;
   if (parsed.data.tradeLicense !== undefined) patch.trade_license_number = parsed.data.tradeLicense;
 
-  const { data: updated, error: updateError } = await supabase
-    .from('centers')
-    .update(patch)
-    .eq('id', centerId)
-    .select('*')
-    .single();
-  if (updateError) {
-    return new Response(JSON.stringify({ error: updateError.message }), { status: 422 });
+  let updatedCenter = before;
+  if (Object.keys(patch).length > 0) {
+    const { data: updated, error: updateError } = await supabase
+      .from('centers')
+      .update(patch)
+      .eq('id', centerId)
+      .select('*')
+      .single();
+    if (updateError) {
+      return new Response(JSON.stringify({ error: updateError.message }), { status: 422 });
+    }
+    updatedCenter = updated;
+
+    await supabase.from('audit_log').insert({
+      center_id: centerId,
+      actor: caller.userId,
+      action: 'center.update',
+      target_table: 'centers',
+      target_id: centerId,
+      before: before as unknown as Json,
+      after: updated as unknown as Json,
+    });
   }
 
-  await supabase.from('audit_log').insert({
-    center_id: centerId,
-    actor: caller.userId,
-    action: 'center.update',
-    target_table: 'centers',
-    target_id: centerId,
-    before: before as unknown as Json,
-    after: updated as unknown as Json,
-  });
+  // Update center owner (email and/or name) if requested
+  let ownerUpdated = false;
+  let ownerError: string | null = null;
+  const newOwnerEmail = parsed.data.ownerEmail?.toLowerCase();
+  const newOwnerName = parsed.data.ownerName?.trim();
 
-  return new Response(JSON.stringify({ success: true, center: updated }), { status: 200 });
+  if (newOwnerEmail || newOwnerName) {
+    try {
+      const { data: currentOwnerProf } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('center_id', centerId)
+        .eq('role', 'owner')
+        .eq('active', true)
+        .maybeSingle();
+
+      if (currentOwnerProf) {
+        const { data: authUserData } = await supabase.auth.admin.getUserById(currentOwnerProf.id);
+        const currentEmail = authUserData?.user?.email?.toLowerCase();
+
+        if (newOwnerEmail && newOwnerEmail !== currentEmail) {
+          let matchedExistingUser: { id: string; user_metadata?: Record<string, unknown> } | null = null;
+          let page = 1;
+          for (;;) {
+            const { data: listed } = await supabase.auth.admin.listUsers({ page, perPage: 50 });
+            const match = (listed?.users ?? []).find((u) => u.email?.toLowerCase() === newOwnerEmail);
+            if (match) {
+              matchedExistingUser = match;
+              break;
+            }
+            if ((listed?.users?.length ?? 0) < 50) break;
+            page += 1;
+          }
+
+          if (!matchedExistingUser) {
+            const { error: emailErr } = await supabase.auth.admin.updateUserById(currentOwnerProf.id, {
+              email: newOwnerEmail,
+              email_confirm: true,
+              user_metadata: newOwnerName ? { full_name: newOwnerName } : undefined,
+            });
+            if (emailErr) throw emailErr;
+          } else {
+            // Reassign center ownership to existing user
+            await supabase.from('profiles').update({ role: 'admin' }).eq('id', currentOwnerProf.id);
+            await supabase.auth.admin.updateUserById(currentOwnerProf.id, {
+              app_metadata: { role: 'admin', center_id: centerId },
+            });
+            await supabase.from('profiles').upsert({
+              id: matchedExistingUser.id,
+              center_id: centerId,
+              role: 'owner',
+              full_name: newOwnerName || (matchedExistingUser.user_metadata?.full_name as string) || 'Center Owner',
+              active: true,
+            });
+            await supabase.auth.admin.updateUserById(matchedExistingUser.id, {
+              app_metadata: { role: 'owner', center_id: centerId },
+            });
+          }
+
+          await supabase.from('audit_log').insert({
+            center_id: centerId,
+            actor: caller.userId,
+            action: 'center.owner_update',
+            target_table: 'profiles',
+            target_id: currentOwnerProf.id,
+            before: { email: currentEmail, full_name: currentOwnerProf.full_name } as unknown as Json,
+            after: { email: newOwnerEmail, full_name: newOwnerName || currentOwnerProf.full_name } as unknown as Json,
+          });
+          ownerUpdated = true;
+        }
+
+        if (newOwnerName && newOwnerName !== currentOwnerProf.full_name) {
+          await supabase.from('profiles').update({ full_name: newOwnerName }).eq('id', currentOwnerProf.id);
+          await supabase.auth.admin.updateUserById(currentOwnerProf.id, {
+            user_metadata: { full_name: newOwnerName },
+          });
+          ownerUpdated = true;
+        }
+      } else if (newOwnerEmail) {
+        // Center had no existing active owner
+        const redirectTo = `${event.url.origin}/callback`;
+        const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(
+          newOwnerEmail,
+          {
+            data: { full_name: newOwnerName || 'Center Owner' },
+            redirectTo,
+          },
+        );
+        if (inviteErr) throw inviteErr;
+        if (invited?.user) {
+          await supabase.auth.admin.updateUserById(invited.user.id, {
+            app_metadata: { role: 'owner', center_id: centerId },
+          });
+          await supabase.from('profiles').upsert({
+            id: invited.user.id,
+            center_id: centerId,
+            role: 'owner',
+            full_name: newOwnerName || 'Center Owner',
+            active: true,
+          });
+          ownerUpdated = true;
+        }
+      }
+    } catch (e) {
+      ownerError = e instanceof Error ? e.message : 'Owner update failed';
+      if (!patch || Object.keys(patch).length === 0) {
+        return new Response(JSON.stringify({ error: ownerError }), { status: 422 });
+      }
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, center: updatedCenter, ownerUpdated, ownerError }),
+    { status: 200 },
+  );
 };
