@@ -44,6 +44,64 @@
   let ownerName = $state('');
   let ownerEmail = $state('');
 
+  // Edit Center state
+  let showEditModal = $state(false);
+  let editingCenter = $state<Center | null>(null);
+  let editSubmitting = $state(false);
+  let editError = $state('');
+  let editName = $state('');
+  let editLegalEntityName = $state('');
+  let editAddress = $state('');
+  let editPhone = $state('');
+  let editBinNumber = $state('');
+  let editTradeLicense = $state('');
+  let editStatus = $state<'active' | 'suspended' | 'archived'>('active');
+
+  function openEdit(c: Center) {
+    editingCenter = c;
+    editName = c.name;
+    editLegalEntityName = c.legal_entity_name;
+    editAddress = c.address;
+    editPhone = c.phone;
+    editBinNumber = c.bin_number ?? '';
+    editTradeLicense = c.trade_license_number ?? '';
+    editStatus = c.status;
+    editError = '';
+    showEditModal = true;
+  }
+
+  async function saveCenterEdit() {
+    if (!editingCenter) return;
+    editSubmitting = true;
+    editError = '';
+    try {
+      const res = await authFetch(`/api/v1/admin/super/centers/${editingCenter.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          legalEntityName: editLegalEntityName.trim(),
+          address: editAddress.trim(),
+          phone: editPhone.trim(),
+          binNumber: editBinNumber.trim() || null,
+          tradeLicense: editTradeLicense.trim() || null,
+          status: editStatus,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || 'Failed to update center details');
+      }
+      showEditModal = false;
+      editingCenter = null;
+      await loadCenters();
+    } catch (e) {
+      editError = adminFetchError(e);
+    } finally {
+      editSubmitting = false;
+    }
+  }
+
   async function loadCenters() {
     loading = true;
     errorMessage = '';
@@ -200,9 +258,19 @@
             {#each centers as c (c.id)}
               <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
                 <td class="py-3 px-4">
-                  <div class="font-semibold text-[var(--ink)]">{c.code}</div>
-                  <div class="text-[var(--ink)]">{c.name}</div>
-                  <div class="text-xs text-[var(--muted)]">{c.legal_entity_name}</div>
+                  <button
+                    type="button"
+                    class="text-left font-semibold text-[var(--ink)] hover:underline focus:outline-none flex flex-col items-start cursor-pointer group"
+                    onclick={() => openEdit(c)}
+                    title="Click to edit center details"
+                  >
+                    <div class="flex items-center gap-1.5">
+                      <span class="group-hover:text-[var(--accent)] transition-colors">{c.code}</span>
+                      <span class="text-xs text-[var(--muted)] group-hover:text-[var(--accent)] font-normal transition-colors">✎ Edit</span>
+                    </div>
+                    <div class="font-normal text-[var(--ink)]">{c.name}</div>
+                    <div class="text-xs text-[var(--muted)]">{c.legal_entity_name}</div>
+                  </button>
                 </td>
                 <td class="py-3 px-4 text-[var(--ink)]">{c.phone}</td>
                 <td class="py-3 px-4 text-[var(--ink)]">{c.address}</td>
@@ -222,6 +290,13 @@
                 </td>
                 <td class="py-3 px-4">
                   <div class="flex justify-end gap-1">
+                    <Button
+                      variant="default"
+                      class="text-xs min-h-[44px]"
+                      onclick={() => openEdit(c)}
+                    >
+                      Edit
+                    </Button>
                     {#if c.status !== 'active'}
                       <Button class="text-xs min-h-[44px]" onclick={() => setStatus(c, 'active')}>
                         Activate
@@ -341,6 +416,107 @@
         <div class="flex justify-end gap-2 mt-2">
           <Button type="button" onclick={() => (showModal = false)}>Cancel</Button>
           <Button type="submit" variant="commission" loading={submitting}>Provision Center</Button>
+        </div>
+      </form>
+    </Modal>
+
+    <Modal
+      open={showEditModal}
+      title="Edit Center: {editingCenter?.code ?? ''}"
+      onclose={() => (showEditModal = false)}
+    >
+      <form
+        class="flex flex-col gap-3"
+        onsubmit={(e) => {
+          e.preventDefault();
+          saveCenterEdit();
+        }}
+      >
+        {#if editError}
+          <div class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm">
+            {editError}
+          </div>
+        {/if}
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Center Code (Immutable)</span>
+          <input
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-black/5 dark:bg-white/5 px-3 text-[var(--muted)] cursor-not-allowed font-mono font-semibold"
+            value={editingCenter?.code ?? ''}
+            disabled
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Center Name</span>
+          <input
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editName}
+            required
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Legal Entity Name</span>
+          <input
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editLegalEntityName}
+            required
+          />
+        </label>
+
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1 text-sm">
+            <span class="text-[var(--muted)]">BIN (optional)</span>
+            <input
+              class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+              bind:value={editBinNumber}
+              maxlength={16}
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-sm">
+            <span class="text-[var(--muted)]">Trade License (optional)</span>
+            <input
+              class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+              bind:value={editTradeLicense}
+              maxlength={32}
+            />
+          </label>
+        </div>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Address</span>
+          <input
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editAddress}
+            required
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Phone</span>
+          <input
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editPhone}
+            required
+          />
+        </label>
+
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Status</span>
+          <select
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={editStatus}
+          >
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+
+        <div class="flex justify-end gap-2 mt-2">
+          <Button type="button" onclick={() => (showEditModal = false)}>Cancel</Button>
+          <Button type="submit" variant="commission" loading={editSubmitting}>Save Changes</Button>
         </div>
       </form>
     </Modal>
