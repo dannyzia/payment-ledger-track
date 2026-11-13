@@ -19,6 +19,7 @@ export interface SaveEntryInput {
   snapshot: RateSnapshot;
   vatInputPoisha?: bigint | undefined;
   vatOverridePoisha?: bigint | undefined;
+  vatOverrideReason?: string | undefined;
   commissionOverridePoisha?: bigint | undefined;
   txnRef?: string | undefined;
   notes?: string | undefined;
@@ -60,6 +61,9 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
     snapshot: input.snapshot,
     vat_input_poisha:
       input.vatInputPoisha !== undefined ? input.vatInputPoisha.toString() : undefined,
+    vat_override_poisha:
+      input.vatOverridePoisha !== undefined ? input.vatOverridePoisha.toString() : undefined,
+    vat_override_reason: input.vatOverrideReason ?? undefined,
     supersedes_id: input.supersedesOriginalId ?? undefined,
   };
 
@@ -80,6 +84,7 @@ export async function saveLocalEntry(input: SaveEntryInput): Promise<LocalEntry>
     vatInputPoisha: input.vatInputPoisha !== undefined ? input.vatInputPoisha.toString() : null,
     vatOverridePoisha:
       input.vatOverridePoisha !== undefined ? input.vatOverridePoisha.toString() : null,
+    vatOverrideReason: input.vatOverrideReason ?? null,
     commissionOverridePoisha:
       input.commissionOverridePoisha !== undefined
         ? input.commissionOverridePoisha.toString()

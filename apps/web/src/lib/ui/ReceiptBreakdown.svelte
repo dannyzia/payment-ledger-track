@@ -12,6 +12,7 @@
     methodName: string;
     vatMode?: string | undefined;
     vatBp?: number | undefined;
+    isVatOverridden?: boolean | undefined;
     commissionBp?: number | undefined;
     chargeBp?: number | undefined;
   }
@@ -26,6 +27,7 @@
     methodName,
     vatMode = 'manual',
     vatBp,
+    isVatOverridden = false,
     commissionBp,
     chargeBp,
   }: Props = $props();
@@ -55,7 +57,11 @@
       <!-- VAT Deduction (Safe decimal percentage format without BigInt division crash) -->
       <div class="flex justify-between items-center text-[var(--muted)]">
         <span class="font-sans">
-          VAT ({vatMode === 'manual' ? 'manual' : `${((vatBp ?? 0) / 100).toFixed(2)}%`})
+          VAT ({vatMode === 'manual'
+            ? 'manual'
+            : isVatOverridden
+              ? 'override'
+              : `${((vatBp ?? 0) / 100).toFixed(2)}%`})
         </span>
         <span class="text-amber-800 dark:text-amber-400">
           {vatPoisha > 0n ? `-${formatPoishaToBdt(vatPoisha)}` : formatPoishaToBdt(0n)}

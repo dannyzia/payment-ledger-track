@@ -9,8 +9,8 @@
   import { saveLocalEntry, checkDuplicate } from '$lib/db/entries';
   import { db, type CachedPaymentMethod, type CachedRateProfile } from '$lib/db';
   import { session } from '$lib/auth/session.svelte';
-  import { calculateEntry, DeductionsExceedGrossError, type RateSnapshot } from '@clt/calc';
-  import { parseBdtToPoisha } from '@clt/shared';
+  import { calculateEntry, DeductionsExceedGrossError, mulBp, type RateSnapshot } from '@clt/calc';
+  import { parseBdtToPoisha, formatPoishaToBdt } from '@clt/shared';
 
   // Form State initialized to Asia/Dhaka current date (PRD §8.1)
   let entryDate = $state(
@@ -23,6 +23,11 @@
   let selectedMethodId = $state<string>(''); // Method UUID
   let txnRef = $state('');
   let manualVatInput = $state('');
+  let isVatOverridden = $state(false);
+  let vatOverrideMode = $state<'amount' | 'percent'>('amount');
+  let vatOverrideAmountInput = $state('');
+  let vatOverridePercentInput = $state('');
+  let vatOverrideReason = $state('Counter override');
   let notes = $state('');
 
   // Operational State
@@ -118,6 +123,16 @@
           manualVatInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
         }
 
+        if (orig.vat_override_poisha && BigInt(orig.vat_override_poisha) > 0n) {
+          isVatOverridden = true;
+          vatOverrideMode = 'amount';
+          const vp = BigInt(orig.vat_override_poisha);
+          const vTaka = vp / 100n;
+          const vRem = vp % 100n;
+          vatOverrideAmountInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
+          vatOverrideReason = orig.vat_override_reason ?? 'Counter override';
+        }
+
         txnRef = orig.txn_ref ?? '';
         notes = orig.notes
           ? `[Supersedes ${supersedingOriginalBadge}] ${orig.notes}`
@@ -192,6 +207,50 @@
     }
   });
 
+  let vatOverrideError = $derived.by(() => {
+    if (!isVatOverridden || activeProfile?.vat_mode === 'manual') return '';
+    if (vatOverrideMode === 'amount') {
+      if (!vatOverrideAmountInput.trim()) return '';
+      if (vatOverrideAmountInput.includes('.') && vatOverrideAmountInput.split('.')[1].length > 2) {
+        return 'Maximum 2 decimal digits allowed for VAT amount.';
+      }
+      try {
+        const p = parseBdtToPoisha(vatOverrideAmountInput);
+        if (p < 0n) return 'VAT amount cannot be negative.';
+        if (grossPoisha > 0n && p > grossPoisha) return 'VAT override cannot exceed gross amount.';
+        return '';
+      } catch {
+        return 'Invalid VAT amount format.';
+      }
+    } else {
+      if (!vatOverridePercentInput.trim()) return '';
+      const num = Number(vatOverridePercentInput);
+      if (isNaN(num) || num < 0) return 'Invalid VAT percentage.';
+      if (num > 100) return 'VAT percentage cannot exceed 100%.';
+      return '';
+    }
+  });
+
+  let vatOverridePoisha = $derived.by(() => {
+    if (!isVatOverridden || activeProfile?.vat_mode === 'manual' || !!vatOverrideError) {
+      return undefined;
+    }
+    if (vatOverrideMode === 'amount') {
+      if (!vatOverrideAmountInput.trim()) return undefined;
+      try {
+        return parseBdtToPoisha(vatOverrideAmountInput);
+      } catch {
+        return undefined;
+      }
+    } else {
+      if (!vatOverridePercentInput.trim()) return undefined;
+      const num = Number(vatOverridePercentInput);
+      if (isNaN(num) || num < 0 || num > 100) return undefined;
+      const bp = Math.round(num * 100);
+      return mulBp(grossPoisha, bp);
+    }
+  });
+
   // Pure derived Authoritative Calculation via packages/calc (Rule 3)
   let calculationState = $derived.by(() => {
     if (!activeProfile || !selectedMethodId || grossPoisha <= 0n) {
@@ -238,11 +297,18 @@
       rounding: 'half_up',
     };
 
+    const isOverrideActive =
+      activeProfile.vat_mode !== 'manual' && isVatOverridden && vatOverridePoisha !== undefined;
+
     try {
       const res = calculateEntry({
         grossPoisha,
         snapshot,
         vatInputPoisha: activeProfile.vat_mode === 'manual' ? manualVatPoisha : undefined,
+        vatOverridePoisha: isOverrideActive ? vatOverridePoisha : undefined,
+        vatOverrideReason: isOverrideActive
+          ? vatOverrideReason.trim() || 'Counter override'
+          : undefined,
       });
       return { ...res, error: '' };
     } catch (e) {
@@ -304,7 +370,13 @@
       saveErrorMessage = 'Customer name is required.';
       return;
     }
-    if (grossPoisha <= 0n || isMonthClosed || !!calculationError || !!grossInputError) {
+    if (
+      grossPoisha <= 0n ||
+      isMonthClosed ||
+      !!calculationError ||
+      !!grossInputError ||
+      !!vatOverrideError
+    ) {
       return;
     }
     if (requiresTxnRef && !txnRef.trim()) {
@@ -358,6 +430,12 @@
         netPoisha: calculated.netAfterDeductionsPoisha,
         snapshot: completeSnapshot,
         vatInputPoisha: activeProfile.vat_mode === 'manual' ? manualVatPoisha : undefined,
+        vatOverridePoisha:
+          activeProfile.vat_mode !== 'manual' && isVatOverridden ? vatOverridePoisha : undefined,
+        vatOverrideReason:
+          activeProfile.vat_mode !== 'manual' && isVatOverridden
+            ? (vatOverrideReason.trim() || 'Counter override')
+            : undefined,
         txnRef: normalizedTxnRef,
         notes: notes.trim() || undefined,
         rateProfileId: activeProfile.id,
@@ -373,6 +451,11 @@
       txnRef = '';
       txnRefError = '';
       manualVatInput = '';
+      isVatOverridden = false;
+      vatOverrideMode = 'amount';
+      vatOverrideAmountInput = '';
+      vatOverridePercentInput = '';
+      vatOverrideReason = 'Counter override';
       notes = '';
       subDescription = '';
       subQty = 1;
@@ -629,7 +712,7 @@
             {/if}
           </div>
 
-          <!-- Manual VAT Input if activeProfile.vat_mode === 'manual' -->
+          <!-- VAT Section: Manual or Configured Default with Override (CLT-POLICY-Q1) -->
           {#if activeProfile?.vat_mode === 'manual'}
             <div>
               <label for="input-vat" class="block text-xs font-semibold text-[var(--muted)] mb-1"
@@ -642,6 +725,130 @@
                 bind:value={manualVatInput}
                 class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
               />
+            </div>
+          {:else if activeProfile?.vat_mode}
+            <div
+              class="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/20 p-3"
+            >
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-xs font-semibold text-[var(--ink)]">
+                    VAT: {((activeProfile.vat_bp ?? 0) / 100).toFixed(2)}% of gross
+                  </span>
+                  <span class="text-xs font-mono text-[var(--muted)] ml-2">
+                    ({formatPoishaToBdt(calculated.vatPoisha)})
+                  </span>
+                </div>
+                {#if !isVatOverridden}
+                  <button
+                    type="button"
+                    class="text-xs text-[var(--accent)] hover:underline font-medium"
+                    onclick={() => {
+                      isVatOverridden = true;
+                      vatOverrideMode = 'amount';
+                      const vp = calculated.vatPoisha;
+                      const vTaka = vp / 100n;
+                      const vRem = vp % 100n;
+                      vatOverrideAmountInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
+                      vatOverridePercentInput = ((activeProfile?.vat_bp ?? 0) / 100).toFixed(2);
+                    }}
+                  >
+                    Change VAT
+                  </button>
+                {:else}
+                  <button
+                    type="button"
+                    class="text-xs text-red-600 hover:underline font-medium"
+                    onclick={() => {
+                      isVatOverridden = false;
+                      vatOverrideAmountInput = '';
+                      vatOverridePercentInput = '';
+                    }}
+                  >
+                    Revert to default ({((activeProfile?.vat_bp ?? 0) / 100).toFixed(2)}%)
+                  </button>
+                {/if}
+              </div>
+
+              {#if isVatOverridden}
+                <div class="mt-3 pt-3 border-t border-black/10 dark:border-white/10 space-y-2">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs text-[var(--muted)]">Override by:</span>
+                    <button
+                      type="button"
+                      class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'amount'
+                        ? 'bg-[var(--ink)] text-[var(--bg)] font-medium'
+                        : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
+                      onclick={() => (vatOverrideMode = 'amount')}
+                    >
+                      Amount (BDT)
+                    </button>
+                    <button
+                      type="button"
+                      class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'percent'
+                        ? 'bg-[var(--ink)] text-[var(--bg)] font-medium'
+                        : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
+                      onclick={() => (vatOverrideMode = 'percent')}
+                    >
+                      Rate (%)
+                    </button>
+                  </div>
+
+                  {#if vatOverrideMode === 'amount'}
+                    <div>
+                      <label
+                        for="input-vat-override-amount"
+                        class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
+                        >Override VAT Amount (BDT)</label
+                      >
+                      <input
+                        id="input-vat-override-amount"
+                        type="text"
+                        placeholder="0.00"
+                        bind:value={vatOverrideAmountInput}
+                        class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-sm font-mono"
+                      />
+                    </div>
+                  {:else}
+                    <div>
+                      <label
+                        for="input-vat-override-percent"
+                        class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
+                        >Override VAT Rate (%)</label
+                      >
+                      <input
+                        id="input-vat-override-percent"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        placeholder="0.00"
+                        bind:value={vatOverridePercentInput}
+                        class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-sm font-mono"
+                      />
+                    </div>
+                  {/if}
+
+                  {#if vatOverrideError}
+                    <p class="text-xs text-red-600">{vatOverrideError}</p>
+                  {/if}
+
+                  <div>
+                    <label
+                      for="input-vat-override-reason"
+                      class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
+                      >Override Reason</label
+                    >
+                    <input
+                      id="input-vat-override-reason"
+                      type="text"
+                      placeholder="e.g. Special customer exemption"
+                      bind:value={vatOverrideReason}
+                      class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-xs"
+                    />
+                  </div>
+                </div>
+              {/if}
             </div>
           {/if}
 
@@ -670,6 +877,7 @@
               !selectedMethodId ||
               !activeProfile ||
               !!grossInputError ||
+              !!vatOverrideError ||
               !!calculationError}
           >
             {isSaving
@@ -695,6 +903,9 @@
         methodName={currentMethod?.name ?? 'Method Charge'}
         vatMode={activeProfile?.vat_mode}
         vatBp={activeProfile?.vat_bp}
+        isVatOverridden={activeProfile?.vat_mode !== 'manual' &&
+          isVatOverridden &&
+          vatOverridePoisha !== undefined}
         commissionBp={activeProfile?.commission_bp}
         chargeBp={activeProfile?.method_rates[selectedMethodId]?.fee_bp}
       />

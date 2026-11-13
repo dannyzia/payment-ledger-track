@@ -30,6 +30,8 @@ export interface LocalEntry {
   rate_profile_id: string;
   snapshot?: RateSnapshot | undefined; // Rule 4 immutable rate snapshot
   vat_input_poisha?: string | undefined;
+  vat_override_poisha?: string | undefined;
+  vat_override_reason?: string | undefined;
   supersedes_id?: string | undefined; // Original entry ID if created in supersede mode
   device_id?: string | undefined;
   dup_txn_flag?: boolean | undefined;

@@ -229,4 +229,37 @@ describe('Local-First Dexie Storage & Performance', () => {
     expect(updatedOrig?.status).toBe('superseded');
     expect(replacement.status).toBe('active');
   });
+
+  it('correctly saves and encodes vatOverridePoisha and vatOverrideReason in storage and outbox', async () => {
+    const saved = await saveLocalEntry({
+      entryDate: '2026-10-29',
+      customerName: 'VAT Override Customer',
+      subQty: 1,
+      methodId: 'b0000000-0000-0000-0000-000000000001',
+      grossPoisha: 100000n,
+      vatPoisha: 5000n,
+      commissionPoisha: 39900n,
+      businessChargePoisha: 1150n,
+      customerChargePoisha: 0n,
+      netPoisha: 53950n,
+      snapshot: {
+        ...defaultSnapshot,
+        vat: { mode: 'percent_of_gross', bp: 1500 },
+      },
+      vatOverridePoisha: 5000n,
+      vatOverrideReason: 'Counter override',
+      rateProfileId: 'a0000000-0000-0000-0000-000000000001',
+      userId: 'u1',
+    });
+
+    const stored = await db.entries.get(saved.id);
+    expect(stored?.vat_override_poisha).toBe('5000');
+    expect(stored?.vat_override_reason).toBe('Counter override');
+
+    const outboxOps = await db.outbox.toArray();
+    const op = outboxOps.find((o) => (o.payload as Record<string, unknown>).id === saved.id);
+    expect(op).toBeDefined();
+    expect((op!.payload as Record<string, unknown>).vatOverridePoisha).toBe('5000');
+    expect((op!.payload as Record<string, unknown>).vatOverrideReason).toBe('Counter override');
+  });
 });
