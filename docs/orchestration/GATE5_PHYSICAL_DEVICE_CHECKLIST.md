@@ -43,18 +43,22 @@ Q1–Q4 business-policy confirmation (Rule 20, packet:
 |---|---|---|---|---|
 | P1 | Plan 019 code present | `ls apps/web/capacitor.config.ts scripts/build-android.sh apps/web/android-config/AndroidManifest.xml apps/web/src/lib/native` | files listed | **PRESENT** (TOC row 019 = Partially Implemented) |
 | P2 | JDK 17 or 21 | `javac -version` | `javac 17…`/`21…` | **PASS** — `javac 21.0.12.1` |
-| P3 | Android SDK + adb | `test -n "$ANDROID_HOME" && test -x "$ANDROID_HOME/platform-tools/adb"` | exit 0 | **BLOCKED** — `ANDROID_HOME` unset, `adb` absent (GS-1) |
-| P4 | Physical device, Android 10+, USB debugging | `adb devices` | device listed, not `unauthorized` | **TBD** — no device attached |
+| P3 | Android SDK + adb | `test -n "$ANDROID_HOME" && test -x "$ANDROID_HOME/platform-tools/adb"` | exit 0 | **PASS (2026-11-14)** — `adb` 1.0.41 / 36.0.0 at `/home/zia/android-sdk/platform-tools/adb`; `ANDROID_HOME` is still unset, so `apps/web/android/local.properties` now carries `sdk.dir=/home/zia/android-sdk` and the preflight finds adb from there (GS-1) |
+| P4 | Physical device, Android 10+, USB debugging | `adb devices` | device listed, not `unauthorized` | **BLOCKED (2026-11-14)** — `adb devices` lists nothing, `adb get-state` exits 1 with `error: no devices/emulators found`, and `lsusb` shows no Android device. A handset did pass this on 2026-11-12 (§9.1), so this is an unplugged phone, not a tooling gap |
 | P5 | Low-end device for the performance items | `adb shell getprop ro.build.version.release`, RAM via `adb shell cat /proc/meminfo` | Android 10+, RAM recorded | **TBD** |
 | P6 | Build script syntax + executable | `bash -n scripts/build-android.sh && test -x scripts/build-android.sh` | exit 0 | **PASS** (`bash -n` ok) |
 | P7 | `PUBLIC_API_BASE` set to the reachable HTTPS backend | `test -n "$PUBLIC_API_BASE"` | non-empty | **UNSET** — the script aborts without it, by design |
-| P8 | Release keystore values available from the secret manager | names only: `RELEASE_KEYSTORE_PATH`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` (Rule 8: never in repo, never in a brief) | present in secret store | **UNVERIFIED** |
+| P8 | Release keystore values available from the secret manager | names only: `RELEASE_KEYSTORE_PATH`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` (Rule 8: never in repo, never in a brief) | present in secret store | **PRESENT locally (2026-11-14)**, generated on Zia's instruction: `~/.config/cosmo-ledger/release/clt-release.jks` (600, dir 700), 4096-bit RSA, alias `clt-release`, valid to 2054-04-01; the four `RELEASE_*` variables are in the 600 `release-signing.env` there and in the gitignored `.env.local`. Certificate `SHA-256 1D:80:54:4B:…:5A:3A:4F`. **Still needs an off-machine backup** before anything is published — losing it ends same-identity updates |
 | P9 | CLT-T-050 fixed (floating-menu keyboard/pointer activation) | `docs/orchestration/briefs/CLT-T-050.md` implemented | fix merged | **OPEN** — H16 and H15 are expected to fail until it lands |
 | P10 | Test accounts for Staff, Admin, Owner | invited via admin panel; Owner exists from bootstrap | 3 accounts usable on device | Admin/Staff **TBD**; Owner exists |
 | P11 | Test data only — never real customer names or transaction references | — | fixtures from PRD §6.6 row 1 (Ayash, bKash, ৳5,909.00 gross) | — |
 
 Run does not start until **P3, P4, P7** are green. P9 is not a hard blocker for
 starting, but H16/H15 must then be reported as *failed, known defect*, not waived.
+
+Attempted again **2026-11-14**: P3 now passes and P4 stopped the run before a single
+§5 item was tested. Nothing in §5 was executed, and no result below changed because
+of it.
 
 ## 3. Device matrix (tester fills before testing)
 
@@ -80,8 +84,26 @@ deliberately **not** Rule 20 gated (CLT-D-022), so the hardware run is not block
 Q1–Q4. `--aab` is the store artifact and refuses to build until `DECISIONS.md` carries
 the four marker lines `Q1: Status: CONFIRMED` … `Q4: Status: CONFIRMED`; verified on
 2026-11-06 that all four are currently **missing**, so an `.aab` build will exit 1 by
-design — expected, not a defect. Record: commit SHA, APK SHA-256, `versionName`,
-`versionCode`, and whether the APK was signed.
+design. That was then; the owner's 2026-11-13 answers supplied the markers, so on
+2026-11-14 `--aab` proceeded, built and signed — the gate was satisfied, not
+bypassed. Record: commit SHA, artifact SHA-256, `versionName`, `versionCode`, and
+whether the artifact was signed.
+
+Build ready for the next run (2026-11-14, `PUBLIC_API_BASE=http://localhost:5173`,
+`JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`):
+
+| Artifact | SHA-256 | Size | Signed | Notes |
+|---|---|---|---|---|
+| `app/build/outputs/apk/debug/app-debug.apk` | `91125e4d9a570bf8…` | 5,602,804 B | yes — `CN=Android Debug` (`apksigner verify --print-certs`) | The installable build for the hardware run. `aapt dump xmltree` shows `usesCleartextTraffic=0xffffffff` (true) in its merged manifest, so `http://localhost:5173` over `adb reverse` can answer. Contains the baked API base (one occurrence in `assets/public/_app/immutable`). |
+| `app/build/outputs/apk/release/app-release-signed.apk` | `14593027f3992599…` | 4,456,049 B | **yes** — `CN=Cosmo Ledger Track`, `SHA-256 1d80544b…`; `apksigner verify` → `Verifies` (v1/v2/v3 true) | Signed 2026-11-14 with the generated release key. **Not distributable as built:** it bakes `PUBLIC_API_BASE=http://localhost:5173` while the release manifest has `usesCleartextTraffic=0x0`, so it needs the production HTTPS origin before release. |
+| `app/build/outputs/bundle/release/app-release.aab` | `5de61df12bb48d6c…` | 4,224,379 B | **yes** — `jarsigner -verify` passes, `keytool -printcert -jarfile` shows `CN=Cosmo Ledger Track`, `SHA-256 1D:80:54:4B:…`. Warnings: self-signed, and unsigned by a timestamp authority (`as early as 2054-04-01`) | Built by `./scripts/build-android.sh --aab` on 2026-11-14. **Not uploadable as built:** it bakes `PUBLIC_API_BASE=http://localhost:5173`, and `versionCode 1` repeats the APK's. A Play upload needs the production HTTPS origin, a bumped `versionCode`, and a decision on Play App Signing (this key becomes the upload key if it is enabled). |
+| `app/build/outputs/apk/release/app-release-unsigned.apk` | `3b86e0852f12b7ff…` | 4,394,442 B | **no** — `apksigner verify` reports `DOES NOT VERIFY / Missing META-INF/MANIFEST.MF` | Built by `./scripts/build-android.sh --apk`. **Not installable as-is**; superseded by `app-release-signed.apk` once the key existed (P8 now PRESENT). Its manifest carries `usesCleartextTraffic=0x0`, confirming the release path stays HTTPS-only. |
+
+Built at commit `939826ba…`; `versionName 1.0`, `versionCode 1`, `targetSdkVersion 34`,
+`minSdkVersion 22`. The debug APK was produced with the AGENTS.md §2 chain
+(`CAPACITOR_BUILD=true pnpm --filter @clt/web build` → `android:sync` → `gradlew
+assembleDebug`); the release one by `build-android.sh --apk`, which runs
+`assembleRelease`. Neither was installed: no handset is attached (see §2 P4).
 
 ## 5. Protocol
 
@@ -485,9 +507,9 @@ device, so this checklist remains the proof for everything else.
 
 | ID | Item | Effect on this run | Owner |
 |---|---|---|---|
-| GS-1 | `ANDROID_HOME` unset and `adb` absent on the dev machine | P3/P4 cannot start; no install, no logcat, no screenshots | Zia (install Android SDK command-line tools + platform-tools) |
+| GS-1 | **Partly resolved 2026-11-14.** SDK and adb are present (`/home/zia/android-sdk`, adb 36.0.0) and `apps/web/android/local.properties` records `sdk.dir`, so P3 passes; `ANDROID_HOME` is still unset, which no longer blocks anything. P4 stays open: no handset is attached | Gate 5 cannot start until a phone is plugged in and USB debugging is authorised; then `pnpm test:e2e:device` runs the machine subset (H36) and §5 needs a person on the device | Zia (plug in the handset) |
 | GS-2 | CLT-T-050 open (menu activation: `preventDefault` on bubbled Enter/Space in `FloatingMenu.svelte`; `setPointerCapture` in `draggable.ts` retargeting clicks) | H15 and H16 will fail; a hardware tap test cannot pass before the fix | Implementer (brief exists) |
-| GS-3 | Q1–Q4 unconfirmed (Rule 20): none of the `Qn: Status: CONFIRMED` marker lines exist in `DECISIONS.md` (checked 2026-11-06) | `--aab` refuses to build by design (store path only; `--apk` hardware builds are ungated); M5 sign-off needs the four confirmations | Zia (packet ready) |
+| GS-3 | **Resolved 2026-11-14.** Q1–Q4 confirmed by the owner on 2026-11-13; `DECISIONS.md` now carries the answer blocks `CLT-POLICY-Q1`–`Q4` and the single-line `Qn: Status: CONFIRMED` markers (the previous check, 2026-11-06, found neither) | The Rule 20 gate now passes on both implementations: `deploy-check.ts` reads the answer sections, and `build-android.sh --aab` finds the marker lines. Store release remains gated on Rule 19 (`ZIA-APPROVED` line) | — |
 | GS-4 | Gate 5 automated check was E2E-only (§9 caveat) | **Revised 2026-11-12:** outside `M2`, the gate report carries a `Gate 5 (Physical Device)` entry from `pnpm test:e2e:device`. A `not_run_*` entry keeps `allSatisfied: false` in `GATE*_EVIDENCE.json`, and the run warns on stderr instead of claiming all gates passed | Orchestrator |
 | GS-5 | PRD §14.5 requires screens < 640 px to "dock cleanly into a bottom sheet bar"; `draggable.ts` only clamps and dodges (`snapToEdge`, `calculateAvoidance`) — no bottom-sheet bar exists in `apps/web/src` (grep for "bottom sheet" returns nothing) | H11 passes only if dodge-away is accepted as the intended behaviour on narrow screens; otherwise this is a spec gap needing a Decision Request | Zia decision / implementer |
 | GS-6 | Performance targets (save < 100 ms, report < 1 s) unverified on low-end hardware (AGENTS.md §8) | H31/H32 measure rather than assert; results feed the §8 verdict | Tester |

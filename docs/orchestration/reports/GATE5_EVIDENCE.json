@@ -1,0 +1,21 @@
+{
+  "milestone": "M5",
+  "generatedAt": "2026-11-14T10:38:06.999Z",
+  "allSatisfied": false,
+  "gates": {
+    "Gate 5 (Accessibility Proof)": {
+      "satisfied": true,
+      "status": "automated_checks_passed",
+      "timestamp": "2026-11-14T10:35:24.849Z",
+      "evidence": "[browser e2e (non-a11y)] exit 0\nMethod cache state: count=5 [bank_transfer:do=50, mastercard:do=40, visa:do=30, bkash:do=20, cash:do=10]\nMeasured local save latency: 21.700000002980232ms\n  ✓  16 [Mobile-Pixel5] › tests/e2e/offline_sync.spec.ts:73:3 › E2E Local-First Offline Save, Latency, and Reconnect Sync › records entry offline with save latency under 100ms and syncs upon reconnect (4.5s)\n  ✓  17 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:70:3 › CLT-T-063 role-scoped navigation › staff sees no Reports link in the desktop sidebar (2.6s)\n  ✓  18 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:85:3 › CLT-T-063 role-scoped navigation › staff sees no Reports link in the phone navigation panel (2.3s)\n  ✓  19 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:97:3 › CLT-T-063 role-scoped navigation › staff is redirected away from /reports even with the link hidden (4.1s)\n  ✓  20 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:106:3 › CLT-T-063 role-scoped navigation › privileged center admin or owner sees the Reports and Settlements links (2.2s)\n\n  20 passed (2.1m)\n\n[accessibility: WCAG AA contrast, prefers-reduced-motion, prefers-reduced-transparency] exit 0\n  ✓  2 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:317:3 › Gate 5 automated accessibility evidence (CLT-R-008) › dark theme design tokens meet WCAG AA (4.5:1) for normal text (2.9s)\n  ✓  3 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:328:3 › Gate 5 automated accessibility evidence (CLT-R-008) › default motion is present, so the reduced-motion case cannot pass vacuously (2.3s)\n  ✓  4 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:343:3 › Gate 5 automated accessibility evidence (CLT-R-008) › prefers-reduced-motion: reduce collapses transition and animation duration (2.2s)\n  ✓  5 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:360:3 › Gate 5 automated accessibility evidence (CLT-R-008) › the shipped stylesheet contains the reduced-transparency rule for glass surfaces (1.7s)\n  ✓  6 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:404:3 › Gate 5 automated accessibility evidence (CLT-R-008) › prefers-reduced-transparency: reduce removes backdrop blur where the engine supports it (467ms)\n\n  6 passed (27.1s)\n",
+      "note": "Covers WCAG AA token contrast in light and dark themes, prefers-reduced-motion and prefers-reduced-transparency. Haptics, WebView fallback and physical-device rendering remain on the manual Gate 5 checklist (CLT-R-008)."
+    },
+    "Gate 5 (Physical Device)": {
+      "satisfied": false,
+      "status": "not_run_no_environment",
+      "timestamp": "2026-11-14T10:38:04.820Z",
+      "evidence": "[pnpm test:e2e:device] exit 1\n$ tsx scripts/e2e/verify-device-fixtures.ts && tsx scripts/e2e/verify-owner-screens.ts && tsx scripts/e2e/verify-owner-screens.ts --expect=staff\n◇ injected env (5) from .env.local\n\n❌ FIXTURE CHECK PREFLIGHT FAILED — no credentials were tested:\n\n  • adb could not be run, so the handset cannot be inspected.\n    Fix: Set ADB=/path/to/platform-tools/adb or ANDROID_HOME, or write `sdk.dir` into apps/web/android/local.properties.\n[ELIFECYCLE] Command failed with exit code 1.\nCommand failed: pnpm test:e2e:device\n$ tsx scripts/e2e/verify-device-fixtures.ts && tsx scripts/e2e/verify-owner-screens.ts && tsx scripts/e2e/verify-owner-screens.ts --expect=staff\n◇ injected env (5) from .env.local\n\n❌ FIXTURE CHECK PREFLIGHT FAILED — no credentials were tested:\n\n  • adb could not be run, so the handset cannot be inspected.\n    Fix: Set ADB=/path/to/platform-tools/adb or ANDROID_HOME, or write `sdk.dir` into apps/web/android/local.properties.\n[ELIFECYCLE] Command failed with exit code 1.\n",
+      "note": "Device check did not run: preflight failed (handset, WebView/CDP or backend not available). Attach the device and run pnpm test:e2e:device; Gate 5 sign-off needs its pasted pass."
+    }
+  }
+}

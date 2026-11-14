@@ -1,0 +1,41 @@
+{
+  "milestone": "production",
+  "generatedAt": "2026-11-14T11:55:28.616Z",
+  "allSatisfied": false,
+  "gates": {
+    "Gate 1 (Database Proof)": {
+      "satisfied": true,
+      "timestamp": "2026-11-14T11:52:16.742Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (70 tests | 65 skipped) 142ms\n\n Test Files  1 passed (1)\n      Tests  5 passed | 65 skipped (70)\n   Start at  17:52:14\n   Duration  1.62s (transform 362ms, setup 0ms, collect 409ms, tests 142ms, environment 1ms, prepare 245ms)\n\n"
+    },
+    "Gate 2 (Financial Proof)": {
+      "satisfied": true,
+      "timestamp": "2026-11-14T11:52:38.535Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/packages/calc\n\n ✓ test/fixtures.test.ts (8 tests) 14ms\n ✓ test/properties.test.ts (6 tests) 10589ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 1: Gross Conservation (40,000 runs) — vat + commission + businessCharge + net === gross 6578ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 2: Charge Partitioning (30,000 runs) — businessCharge + customerCharge === charge 2201ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 3: Deduction Guard (15,000 runs) — rejects when deductions exceed gross (PRD §6.4 guard #1) 1043ms\n   ✓ PRD §16.1 Calculation Invariant Property Tests (100,000 Runs) > Property 4: Idempotence of Calculation (10,000 runs) — identical inputs yield identical results 496ms\n\n Test Files  2 passed (2)\n      Tests  14 passed (14)\n   Start at  17:52:17\n   Duration  11.99s (transform 442ms, setup 0ms, collect 730ms, tests 10.60s, environment 1ms, prepare 511ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/calc/parity.test.ts (7 tests) 111ms\n\n Test Files  1 passed (1)\n      Tests  7 passed (7)\n   Start at  17:52:32\n   Duration  1.23s (transform 170ms, setup 0ms, collect 204ms, tests 111ms, environment 0ms, prepare 155ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/reports/view_parity.test.ts (2 tests) 162ms\n\n Test Files  1 passed (1)\n      Tests  2 passed (2)\n   Start at  17:52:36\n   Duration  1.54s (transform 387ms, setup 0ms, collect 268ms, tests 162ms, environment 1ms, prepare 413ms)\n\n"
+    },
+    "Gate 3 (Sync Proof)": {
+      "satisfied": true,
+      "timestamp": "2026-11-14T11:52:43.236Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (70 tests) 362ms\n\n Test Files  1 passed (1)\n      Tests  70 passed (70)\n   Start at  17:52:41\n   Duration  1.52s (transform 204ms, setup 0ms, collect 209ms, tests 362ms, environment 0ms, prepare 200ms)\n\n"
+    },
+    "Gate 4 (Lifecycle Proof)": {
+      "satisfied": true,
+      "timestamp": "2026-11-14T11:52:51.916Z",
+      "evidence": "\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (70 tests | 61 skipped) 102ms\n\n Test Files  1 passed (1)\n      Tests  9 passed | 61 skipped (70)\n   Start at  17:52:46\n   Duration  1.14s (transform 195ms, setup 0ms, collect 202ms, tests 102ms, environment 1ms, prepare 226ms)\n\n\n RUN  v2.1.9 /home/zia/Documents/My Projects/Cosmo_Ledger_Track/apps/web\n\n ✓ tests/regression/suite.test.ts (70 tests | 39 skipped) 134ms\n\n Test Files  1 passed (1)\n      Tests  31 passed | 39 skipped (70)\n   Start at  17:52:50\n   Duration  1.23s (transform 162ms, setup 0ms, collect 181ms, tests 134ms, environment 1ms, prepare 222ms)\n\n"
+    },
+    "Gate 5 (Accessibility Proof)": {
+      "satisfied": true,
+      "status": "automated_checks_passed",
+      "timestamp": "2026-11-14T11:52:51.916Z",
+      "evidence": "[browser e2e (non-a11y)] exit 0\nMethod cache state: count=5 [bank_transfer:do=50, mastercard:do=40, visa:do=30, bkash:do=20, cash:do=10]\nMeasured local save latency: 17.30000001192093ms\n  ✓  16 [Mobile-Pixel5] › tests/e2e/offline_sync.spec.ts:73:3 › E2E Local-First Offline Save, Latency, and Reconnect Sync › records entry offline with save latency under 100ms and syncs upon reconnect (2.0s)\n  ✓  17 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:70:3 › CLT-T-063 role-scoped navigation › staff sees no Reports link in the desktop sidebar (1.3s)\n  ✓  18 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:85:3 › CLT-T-063 role-scoped navigation › staff sees no Reports link in the phone navigation panel (1.3s)\n  ✓  19 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:97:3 › CLT-T-063 role-scoped navigation › staff is redirected away from /reports even with the link hidden (2.8s)\n  ✓  20 [Mobile-Pixel5] › tests/e2e/role_navigation.spec.ts:106:3 › CLT-T-063 role-scoped navigation › privileged center admin or owner sees the Reports and Settlements links (1.7s)\n\n  20 passed (2.2m)\n\n[accessibility: WCAG AA contrast, prefers-reduced-motion, prefers-reduced-transparency] exit 0\n  ✓  2 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:317:3 › Gate 5 automated accessibility evidence (CLT-R-008) › dark theme design tokens meet WCAG AA (4.5:1) for normal text (1.8s)\n  ✓  3 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:328:3 › Gate 5 automated accessibility evidence (CLT-R-008) › default motion is present, so the reduced-motion case cannot pass vacuously (1.7s)\n  ✓  4 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:343:3 › Gate 5 automated accessibility evidence (CLT-R-008) › prefers-reduced-motion: reduce collapses transition and animation duration (2.6s)\n  ✓  5 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:360:3 › Gate 5 automated accessibility evidence (CLT-R-008) › the shipped stylesheet contains the reduced-transparency rule for glass surfaces (1.7s)\n  ✓  6 [Mobile-Pixel5] › tests/e2e/accessibility.spec.ts:404:3 › Gate 5 automated accessibility evidence (CLT-R-008) › prefers-reduced-transparency: reduce removes backdrop blur where the engine supports it (1.8s)\n\n  6 passed (19.6s)\n",
+      "note": "Covers WCAG AA token contrast in light and dark themes, prefers-reduced-motion and prefers-reduced-transparency. Haptics, WebView fallback and physical-device rendering remain on the manual Gate 5 checklist (CLT-R-008)."
+    },
+    "Gate 5 (Physical Device)": {
+      "satisfied": false,
+      "status": "not_run_no_environment",
+      "timestamp": "2026-11-14T11:55:25.806Z",
+      "evidence": "[pnpm test:e2e:device] exit 1\n$ tsx scripts/e2e/verify-device-fixtures.ts && tsx scripts/e2e/verify-owner-screens.ts && tsx scripts/e2e/verify-owner-screens.ts --expect=staff\n◇ injected env (5) from .env.local\n\n❌ FIXTURE CHECK PREFLIGHT FAILED — no credentials were tested:\n\n  • adb could not be run, so the handset cannot be inspected.\n    Fix: Set ADB=/path/to/platform-tools/adb or ANDROID_HOME, or write `sdk.dir` into apps/web/android/local.properties.\n[ELIFECYCLE] Command failed with exit code 1.\nCommand failed: pnpm test:e2e:device\n$ tsx scripts/e2e/verify-device-fixtures.ts && tsx scripts/e2e/verify-owner-screens.ts && tsx scripts/e2e/verify-owner-screens.ts --expect=staff\n◇ injected env (5) from .env.local\n\n❌ FIXTURE CHECK PREFLIGHT FAILED — no credentials were tested:\n\n  • adb could not be run, so the handset cannot be inspected.\n    Fix: Set ADB=/path/to/platform-tools/adb or ANDROID_HOME, or write `sdk.dir` into apps/web/android/local.properties.\n[ELIFECYCLE] Command failed with exit code 1.\n",
+      "note": "Device check did not run: preflight failed (handset, WebView/CDP or backend not available). Attach the device and run pnpm test:e2e:device; Gate 5 sign-off needs its pasted pass."
+    }
+  }
+}
