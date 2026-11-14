@@ -233,8 +233,15 @@ export async function runDevicePreflight(
     }
   };
 
+  // `get-state` fails both when adb is missing and when adb works but no handset
+  // is attached, so a failed `devices` call is the only proof that adb itself is
+  // the problem. Without this, an unplugged phone is reported as "adb could not
+  // be run", which sends the tester to reinstall the SDK for nothing.
+  const getState = run(['get-state'])?.trim() || null;
+  const adbReachable = getState !== null || run(['devices']) !== null;
+
   const observations: DeviceObservations = {
-    adbState: run(['get-state'])?.trim() || null,
+    adbState: getState ?? (adbReachable ? 'no-device' : null),
     deviceLocked: null,
     webviewSocket: null,
     cdpPackage: null,
