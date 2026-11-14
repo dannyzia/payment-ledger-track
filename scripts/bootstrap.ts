@@ -10,6 +10,92 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const { Pool } = pg;
 
+interface CentreSeed {
+  code: string;
+  name: string;
+  legalEntityName: string;
+  binNumber: string | null;
+  tradeLicense: string | null;
+  address: string;
+  phone: string;
+  ownerEmail: string;
+  ownerName: string;
+}
+
+const CENTRE_CODE_PATTERN = /^[A-Z0-9]{2,8}$/;
+
+/** Development and test fixtures, provisioned when BOOTSTRAP_CENTER_CODE is unset. */
+const DEV_CENTRE_FIXTURES: CentreSeed[] = [
+  {
+    code: 'MHK',
+    name: 'Kumon Mohakhali Center',
+    legalEntityName: 'Mohakhali Learning Center Ltd',
+    binNumber: '0000000000',
+    tradeLicense: 'MHK-TL-000001',
+    address: 'Mohakhali, Dhaka',
+    phone: '01700000001',
+    ownerEmail: 'owner.mhk@cosmoledger.local',
+    ownerName: 'Mohakhali Owner',
+  },
+  {
+    code: 'RMP',
+    name: 'Kumon Rampura Center',
+    legalEntityName: 'Rampura Education Center Ltd',
+    binNumber: '0000000001',
+    tradeLicense: 'RMP-TL-000001',
+    address: 'Rampura, Dhaka',
+    phone: '01700000002',
+    ownerEmail: 'owner.rmp@cosmoledger.local',
+    ownerName: 'Rampura Owner',
+  },
+];
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required to provision the first center`);
+  }
+  return value;
+}
+
+function optionalEnv(name: string): string | null {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
+/**
+ * PRD §7.4: the first center's identity comes from the environment. When
+ * BOOTSTRAP_CENTER_CODE is unset, the two development fixtures are provisioned
+ * instead so local and test runs keep their existing baseline.
+ */
+export function resolveCentreSeeds(): CentreSeed[] {
+  const code = process.env.BOOTSTRAP_CENTER_CODE?.trim();
+  if (!code) {
+    return DEV_CENTRE_FIXTURES;
+  }
+
+  const normalizedCode = code.toUpperCase();
+  if (!CENTRE_CODE_PATTERN.test(normalizedCode)) {
+    throw new Error(
+      `BOOTSTRAP_CENTER_CODE must be 2-8 uppercase alphanumeric characters, got "${code}"`,
+    );
+  }
+
+  return [
+    {
+      code: normalizedCode,
+      name: requiredEnv('BOOTSTRAP_CENTER_NAME'),
+      legalEntityName: requiredEnv('BOOTSTRAP_CENTER_LEGAL_ENTITY_NAME'),
+      binNumber: optionalEnv('BOOTSTRAP_CENTER_BIN'),
+      tradeLicense: optionalEnv('BOOTSTRAP_CENTER_TRADE_LICENSE'),
+      address: requiredEnv('BOOTSTRAP_CENTER_ADDRESS'),
+      phone: requiredEnv('BOOTSTRAP_CENTER_PHONE'),
+      ownerEmail: requiredEnv('BOOTSTRAP_CENTER_OWNER_EMAIL'),
+      ownerName: requiredEnv('BOOTSTRAP_CENTER_OWNER_NAME'),
+    },
+  ];
+}
+
 export async function bootstrap(): Promise<void> {
   const supabaseUrl = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,6 +117,9 @@ export async function bootstrap(): Promise<void> {
   if (!ownerPassword) {
     throw new Error('BOOTSTRAP_OWNER_PASSWORD is required to execute bootstrap script');
   }
+
+  // Fail before any network or database write when the centre configuration is unusable.
+  const centreSeeds = resolveCentreSeeds();
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -122,8 +211,8 @@ export async function bootstrap(): Promise<void> {
       code: string,
       name: string,
       legalEntityName: string,
-      binNumber: string,
-      tradeLicense: string,
+      binNumber: string | null,
+      tradeLicense: string | null,
       address: string,
       phone: string,
       centerOwnerEmail: string,
@@ -162,51 +251,41 @@ export async function bootstrap(): Promise<void> {
       );
     }
 
-    // Center 1: Mohakhali (MHK)
-    await provisionCenterIfMissing(
-      'MHK',
-      'Kumon Mohakhali Center',
-      'Mohakhali Learning Center Ltd',
-      '0000000000',
-      'MHK-TL-000001',
-      'Mohakhali, Dhaka',
-      '01700000001',
-      'owner.mhk@cosmoledger.local',
-      'Mohakhali Owner',
-    );
-
-    // Center 2: Rampura (RMP)
-    await provisionCenterIfMissing(
-      'RMP',
-      'Kumon Rampura Center',
-      'Rampura Education Center Ltd',
-      '0000000001',
-      'RMP-TL-000001',
-      'Rampura, Dhaka',
-      '01700000002',
-      'owner.rmp@cosmoledger.local',
-      'Rampura Owner',
-    );
+    for (const seed of centreSeeds) {
+      await provisionCenterIfMissing(
+        seed.code,
+        seed.name,
+        seed.legalEntityName,
+        seed.binNumber,
+        seed.tradeLicense,
+        seed.address,
+        seed.phone,
+        seed.ownerEmail,
+        seed.ownerName,
+      );
+    }
 
     // Write system.bootstrap audit log with center_id: NULL
     const { rows: existingAudit } = await client.query(
       "SELECT 1 FROM audit_log WHERE action = 'system.bootstrap' LIMIT 1",
     );
     if (existingAudit.length === 0) {
+      const provisionedCentres = Object.fromEntries(
+        centreSeeds.map((seed) => [seed.code, 'provisioned']),
+      );
       await client.query(
         `
         INSERT INTO audit_log (center_id, actor, action, target_table, target_id, after)
-        VALUES (NULL, $1::uuid, 'system.bootstrap', 'system', 'bootstrap', jsonb_build_object(
-          'status', 'completed',
-          'centers', jsonb_build_object('MHK', 'provisioned', 'RMP', 'provisioned')
-        ))
+        VALUES (NULL, $1::uuid, 'system.bootstrap', 'system', 'bootstrap',
+                jsonb_build_object('status', 'completed', 'centers', $2::jsonb))
       `,
-        [superAdminUserId],
+        [superAdminUserId, JSON.stringify(provisionedCentres)],
       );
     }
 
     await client.query('COMMIT');
-    process.stdout.write('Bootstrap completed successfully.\n');
+    const provisionedCodes = centreSeeds.map((seed) => seed.code).join(', ');
+    process.stdout.write(`Bootstrap completed successfully. Centres: ${provisionedCodes}\n`);
   } catch (err) {
     try {
       await client.query('ROLLBACK');
