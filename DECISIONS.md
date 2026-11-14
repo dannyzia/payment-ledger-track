@@ -421,6 +421,15 @@ and stays `error`; the centered branch still refuses to pull.
 
 ---
 
+Machine-readable markers for Rule 20 (the single-line form `scripts/build-android.sh` greps before an `--aab` store build):
+
+Q1: Status: CONFIRMED
+Q2: Status: CONFIRMED
+Q3: Status: CONFIRMED
+Q4: Status: CONFIRMED
+
+The four answer blocks below hold the actual policies; `scripts/ops/deploy-check.ts` reads those sections, and the marker lines above satisfy the store-build gate. Both carry the owner's 2026-11-13 confirmation; neither is a new decision.
+
 ## CLT-POLICY-Q1: VAT Treatment Rule
 Status: CONFIRMED
 Decided by: Zia (Project Owner)

@@ -1,10 +1,10 @@
 # PRD: Payment Ledger App (working name `ledger`)
 
-- Version: 1.19 (final convergence specification; resolved leftover HTTP 426 shorthand in recovery matrix, grounded AGENTS.md in repo layout, assigned explicit sync.calc_mismatch audit event name, retitled §9.2.2 recovery matrix for scope hygiene, synchronized protocol note and error codes across all sections, aligned Gate 3 rejection enumeration, and finalized complete 65-test regression suite)
-- Date: 2026-10-29
+- Version: 1.26 (the owner's Q1–Q4 answers replace the OPEN defaults in section 4, and the production-release note records Rule 20 as satisfied; section 7.4 is unchanged from 1.25, where the seed centre is environment-driven and implemented: `BOOTSTRAP_CENTER_CODE`, name, owner and the required legal fields select the first centre, provisioned through `rpc_create_center` under advisory lock 1004 after the platform `super_admin`; the two development fixtures remain only as the fallback when the code is unset)
+- Date: 2026-11-14
 - Owner: Zia (Bangladesh)
 - Audience: AI coding agents and AI reviewers. Humans may read it, but it is written to be executed.
-- Status of the spec: calculation rules are CONFIGURABLE because the business has not confirmed them. Section 4 lists every open item and the default that agents must implement. Section 18 establishes the mandatory Implementation Readiness Gate before production deployment.
+- Status of the spec: Q1–Q4 are DECIDED (owner, 2026-11-13) and section 4 carries the answers. The remaining calculation inputs stay CONFIGURABLE because the business has not confirmed them. Section 4 lists every open item and the default that agents must implement. Section 18 establishes the mandatory Implementation Readiness Gate before production deployment.
 
 ---
 
@@ -50,7 +50,16 @@ Non-goals (v1):
 
 ## 3. Roles and permissions
 
-Exactly one active Owner account (enforced by a unique partial index `one_owner` for maximum 1, plus a DB constraint trigger `trg_prevent_zero_owners` evaluated on `UPDATE` OR `DELETE` on `profiles` and initial migration check to guarantee at least 1; ownership transfers are performed atomically via `transfer_ownership()` RPC). Roles are enforced server-side (RLS plus server checks). Hiding UI is not enforcement.
+Four roles exist. The enum is `create type user_role as enum ('super_admin', 'owner', 'admin', 'staff')` (`supabase/migrations/20261029000001_core_schema.sql`).
+
+| Role | Scope | Who may create it |
+|---|---|---|
+| `super_admin` | Platform tier, belongs to no center: `profiles.center_id` is NULL for this role (`supabase/migrations/20261029000001_core_schema.sql`). | Not creatable through the invite flow: `admin_invite_user` raises `403 cannot_invite_super_admin` (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). See §7.5 for what the seat can currently do. |
+| `owner` | One center (`profiles.center_id` set). | Exactly one active Owner per center: unique partial index `one_owner` on `profiles (center_id) where role = 'owner' and active = true` (`supabase/migrations/20261029000001_core_schema.sql`). Not creatable through the invite flow (`403 cannot_invite_owner`); ownership moves through the atomic `transfer_ownership()` RPC. |
+| `admin` | One center. | An Owner invites an Admin (`admin_invite_user` rejects `p_role = 'admin'` from an Admin caller with `403 unauthorized`). |
+| `staff` | One center. | An Admin or an Owner invites Staff. |
+
+Exactly one active Owner per center is also enforced by the constraint trigger `trg_prevent_zero_owners` calling `fn_prevent_zero_owners`, which counts active owners per `center_id` and raises `422 exactly_one_owner_required` when the last one is removed (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). Rows with a NULL `center_id` fall outside that count. Roles are enforced server-side (RLS plus server checks). Hiding UI is not enforcement.
 
 | Capability | Staff | Admin | Owner |
 |---|---|---|---|
@@ -76,14 +85,14 @@ Exactly one active Owner account (enforced by a unique partial index `one_owner`
 Auth & Provisioning: Supabase Auth, email plus password. Public user signup is explicitly disabled in Supabase (`ENABLE_SIGNUP = false`); all users are provisioned exclusively by Admin/Owner invitation via `POST /api/v1/admin/users/invite` (calling Supabase Auth Admin API `inviteUserByEmail` or `createUser` setting `raw_app_meta_data: { role }`), with a database trigger `trg_auth_users_create_profile` creating the corresponding `profiles` row derived strictly from `raw_app_meta_data`. A device must log in online once. After that the app opens and works offline from the cached session and local data. Refresh tokens renew on reconnect.
 ## 4. Open items (blocking or configurable)
 
-Format: item, status, default agents implement until answered.
+Format: item, status, default agents implement until answered. Q1–Q4 are no longer defaults: the owner answered them on 2026-11-13, the answers live in `DECISIONS.md` as `CLT-POLICY-Q1`–`Q4`, and the fourth column below reproduces them. `OPEN` still means the default applies.
 
 | # | Item | Status | Default to implement |
 |---|---|---|---|
-| Q1 | VAT rule. Ledger values are not a flat rate: 3300 to 300, 5909 to 509, 8384 to 584. | OPEN | `vat_mode = manual`: staff type a VAT amount per entry (as in historical paper ledger). Also support `percent_of_gross` and `percent_inclusive` as forward-looking admin options. |
-| Q2 | Meaning of the ledger "Final" column and who receives it. | OPEN | Field `net_after_deductions`, shown with an admin-editable label. |
-| Q3 | Commission ("BKL 42%" in the ledger): flat for everyone or varies by product or partner. | OPEN | One commission rate per rate profile. Per-entry commission override with reason. |
-| Q4 | Who bears method charges. | OPEN | `charges_borne_by = business` (charge is deducted in `net_after_deductions`, as in the ledger). When `charges_borne_by = customer`, method charge is not deducted from net and does not form a business settlement liability with the provider. |
+| Q1 | VAT rule. Ledger values are not a flat rate: 3300 to 300, 5909 to 509, 8384 to 584. | DECIDED 2026-11-13 (`CLT-POLICY-Q1`) | Each center sets a default VAT mode and rate in its rate profile. The entry form shows that default percentage and the computed amount, and staff may override either the amount or the percentage on an individual entry. Whether VAT is statutorily required in that form remains UNVERIFIED (Rule 15, local accountant). |
+| Q2 | Meaning of the ledger "Final" column and who receives it. | DECIDED 2026-11-13 (`CLT-POLICY-Q2`) | `net_after_deductions = gross − VAT − commission − business-borne method charge`, labelled "Net after deductions" (admin-editable label). The center business receives it. |
+| Q3 | Commission ("BKL 42%" in the ledger): flat for everyone or varies by product or partner. | DECIDED 2026-11-13 (`CLT-POLICY-Q3`) | Base is gross minus VAT. Each center sets one default rate in its rate profile; entries snapshot the rate active at entry time and a later profile change never alters history (Rule 4). Per-entry override with a reason is allowed. |
+| Q4 | Who bears method charges. | DECIDED 2026-11-13 (`CLT-POLICY-Q4`) | `charges_borne_by = 'business'`: the charge is deducted in `net_after_deductions` and tracked as a center liability to the provider. Rates are set per center through the published rate profile. `charges_borne_by = 'customer'` remains supported and creates no provider liability. |
 | Q5 | Visa and Mastercard rates equal or different. | OPEN | Separate `method_rates` row per method. |
 | Q6 | Other methods (cash, bank transfer, Nagad, Rocket, cheque). | OPEN | Seed: Cash, Bank transfer, bKash, Visa, Mastercard. Cash and Bank transfer charge 0. Admin can add more. |
 | Q7 | Recalculate old entries under new rates. | DECIDED default | Not supported in v1. Entries retain immutable snapshots. |
@@ -105,7 +114,7 @@ Decided by the owner:
 - Staff enter a transaction (tracing) ID with each payment where applicable (mandatory whenever `payment_methods.requires_txn_ref = true`, optional for cash/unreferenced methods).
 - Sub field in the ledger represents a countable integer quantity of sessions or service units (values 1 and 2 in the paper ledger, which explicitly sum to 16 in the paper totals). Stored as `sub_qty int not null default 1 check (sub_qty >= 0)`, with an optional `sub_description text` for qualitative notes. Reports include `sum(sub_qty)` in monthly totals.
 - All percentages come from the admin panel. Nothing is assumed from the paper ledger.
-- **Production Release Precondition (Review finding)**: Prior to production deployment (Milestone M5), the business owner must confirm the default values or specify actual business values for Q1 (VAT rule), Q2 (Net/Final definition), Q3 (Commission structure), and Q4 (Who bears payment method charges). The software remains fully configurable via `rate_profiles`, but production sign-off requires business owner confirmation recorded in `DECISIONS.md`.
+- **Production Release Precondition (Review finding)**: Prior to production deployment (Milestone M5), the business owner must confirm the default values or specify actual business values for Q1 (VAT rule), Q2 (Net/Final definition), Q3 (Commission structure), and Q4 (Who bears payment method charges). **Satisfied 2026-11-13:** the owner confirmed all four, recorded as `CLT-POLICY-Q1`–`Q4` in `DECISIONS.md`. The software remains configurable via `rate_profiles`, so a later change of policy does not require a code change; the store release itself stays gated on the Rule 19 approval line.
 
 ## 5. Core concepts
 
@@ -357,47 +366,79 @@ The following invariants are mathematically binding across the shared calculatio
 
 All money columns are `bigint` poisha. `entry_date` is a `date` (business date in Asia/Dhaka). Month grouping uses `date_trunc('month', entry_date)`.
 
+The schema is multi-tenant: `centers` is the tenant root, tenant tables carry `center_id`, and §7.5 lists the `centers` columns and the tenancy rules that govern every table below (`supabase/migrations/20261029000001_core_schema.sql`).
+
 ```sql
-create type user_role as enum ('owner','admin','staff');
+create type user_role as enum ('super_admin', 'owner', 'admin', 'staff');
+
+create table centers (                              -- tenant root (20261029000001_core_schema.sql; columns listed in §7.5)
+  id uuid primary key default gen_random_uuid(),
+  center_number int generated always as identity unique,
+  code varchar(8) not null unique check (code ~ '^[A-Z0-9]{2,8}$'),
+  name text not null,
+  legal_entity_name text not null,
+  bin_number varchar(16),
+  trade_license_number varchar(32),
+  vat_circle text,
+  address text not null,
+  phone varchar(20) not null,
+  status text not null default 'active' check (status in ('active', 'suspended', 'archived')),
+  created_at timestamptz not null default now()
+);
+-- Immutability (trg_centers_immutable_code): code and center_number can never change,
+-- because the display entry id and the advisory-lock key depend on them (§7.5).
+
+create table center_counters (                       -- per-center sequential entry numbers
+  center_id uuid primary key references centers(id) on delete cascade,
+  next_entry_number bigint not null default 1 check (next_entry_number > 0)
+);
 
 create table profiles (
   id uuid primary key references auth.users on delete cascade,
+  center_id uuid references centers(id),              -- NULL only for role = 'super_admin'
   full_name text not null,
   role user_role not null default 'staff',
   active boolean not null default true,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()     -- set by trigger on update
+  updated_at timestamptz not null default now(),    -- set by trigger on update
+  unique (center_id, id)                            -- composite tenant target for child foreign keys
 );
--- Dual Owner Invariant (F11, F15):
--- Max 1 owner: enforced via partial unique index.
-create unique index one_owner on profiles ((role)) where role = 'owner';
+-- Dual Owner Invariant (F11, F15), now per center (20261029000001_core_schema.sql):
+-- Max 1 active owner per center: enforced via partial unique index on (center_id).
+create unique index one_owner on profiles (center_id) where role = 'owner' and active = true;
 -- Min 1 owner: enforced via deferrable constraint trigger evaluated at transaction commit.
 -- Prevents zero active owners while permitting atomic ownership handoff in a single transaction.
 -- Initial owner is provisioned via migration bootstrap.
 
 create table devices (                              -- H3, M4, H4, L3: composite registry, killswitch, and rate watermark tracking
   id uuid default gen_random_uuid() primary key,
+  center_id uuid not null references centers(id),
   device_id text not null check (device_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'), -- client-generated device UUID (normalized lowercase)
-  user_id uuid not null references profiles on delete cascade,
+  user_id uuid not null,
   device_name text,                                 -- e.g., "Counter Tablet #1"
   last_seen_at timestamptz not null default now(),
   last_rate_version int not null default 0,         -- tracks highest rate profile version pulled by this device session
   last_rate_version_at timestamptz not null default now(), -- timestamp when highest rate profile version was delivered
   revoked boolean not null default false,           -- remote killswitch (revoking device_id blocks all users on that hardware)
   created_at timestamptz not null default now(),
-  constraint uq_devices_device_user unique (device_id, user_id)
+  constraint uq_devices_device_user unique (center_id, device_id, user_id),
+  constraint fk_devices_center_user foreign key (center_id, user_id)
+    references profiles(center_id, id) on delete cascade
 );
--- L-1: uq_devices_device_user indexes (device_id, user_id); device_id is leftmost prefix, rendering separate device_id index redundant
-create index idx_devices_user on devices (user_id);
+-- L-1: uq_devices_device_user indexes (center_id, device_id, user_id); (center_id, device_id) is the leftmost prefix, so no separate device_id index is added
+create index idx_devices_user on devices (center_id, user_id);
 create table payment_methods (
   id uuid primary key default gen_random_uuid(),
-  code text unique not null,                        -- immutable machine code (e.g., 'bkash', 'visa')
+  center_id uuid not null references centers(id),
+  code text not null,                               -- immutable machine code (e.g., 'bkash', 'visa'); unique per center
   name text not null,                               -- display name (can be updated safely)
   requires_txn_ref boolean not null default false,
   active boolean not null default true,
   sort_order int not null default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()     -- set by trigger on update
+  updated_at timestamptz not null default now(),    -- set by trigger on update
+  unique (center_id, id),
+  unique (center_id, code)
 );
 -- F43: Trigger trg_payment_methods_immutable_code blocks any UPDATE modifying code.
 -- F53: Trigger trg_payment_methods_active_rate_check blocks activating a method (active = true)
@@ -406,7 +447,8 @@ create table payment_methods (
 
 create table rate_profiles (                        -- Draft -> Published lifecycle (F18)
   id uuid primary key default gen_random_uuid(),
-  version int,                                      -- assigned upon publish via pg_advisory_xact_lock
+  center_id uuid not null references centers(id),
+  version int,                                      -- assigned upon publish, per center, under that center's 1003 lock (§7.2)
   status text not null default 'draft' check (status in ('draft','published')),
   effective_from date not null,
   vat_mode text not null default 'manual'
@@ -420,10 +462,14 @@ create table rate_profiles (                        -- Draft -> Published lifecy
   note text,                                        -- optional explanatory note on rate profile
   created_by uuid references profiles,
   created_at timestamptz not null default now(),
-  published_at timestamptz                          -- immutable timestamp once published
+  published_at timestamptz,                         -- immutable timestamp once published
+  unique (center_id, id)
 );
--- Unique version across published profiles:
-create unique index uq_rate_profile_version on rate_profiles (version) where status = 'published';
+-- Unique version across the published profiles of one center:
+create unique index uq_rate_profile_version on rate_profiles (center_id, version) where status = 'published';
+-- Published profiles are open-ended from effective_from until the next published profile of the same center,
+-- so the only possible overlap is an equal start date:
+create unique index uq_rate_profile_effective_from on rate_profiles (center_id, effective_from) where status = 'published';
 -- Active profile query: SELECT * FROM rate_profiles WHERE status = 'published' AND effective_from <= $entry_date ORDER BY effective_from DESC, version DESC LIMIT 1;
 -- Immutability enforcement (F18, F41):
 -- Triggers strictly block UPDATE and DELETE on rate_profiles once status = 'published'.
@@ -431,28 +477,33 @@ create unique index uq_rate_profile_version on rate_profiles (version) where sta
 -- F41, F57: publish_rate_profile() enforces effective_from >= (now() at time zone 'Asia/Dhaka')::date (backdating prohibited; calculated in Asia/Dhaka calendar date).
 
 create table method_rates (
-  rate_profile_id uuid references rate_profiles on delete cascade,
-  method_id uuid references payment_methods on delete restrict,
+  center_id uuid not null references centers(id),
+  rate_profile_id uuid not null,
+  method_id uuid not null,
   charge_bp int not null check (charge_bp between 0 and 10000),
-  primary key (rate_profile_id, method_id)
+  primary key (rate_profile_id, method_id),
+  constraint fk_method_rates_profile foreign key (center_id, rate_profile_id)
+    references rate_profiles(center_id, id) on delete cascade,
+  constraint fk_method_rates_method foreign key (center_id, method_id)
+    references payment_methods(center_id, id) on delete restrict
 );
 
 create type entry_status as enum ('active','voided','superseded');
 
-create sequence entry_seq;
-create sequence entry_number_seq;                   -- F44: monotonic global sequence (never resets monthly)
+create sequence entry_seq;                           -- server_seq only; entry numbers come from center_counters
 create table entries (
   id uuid primary key,                               -- client generated UUID (idempotent sync)
-  server_seq bigint not null,                        -- F54: sole authoritative allocator is BEFORE INSERT OR UPDATE trigger under sequence lock
-  entry_number bigint unique default nextval('entry_number_seq'), -- human-readable ID; UI: E-YYYYMM-XXXXXX (e.g. E-202610-000042)
+  center_id uuid not null references centers(id),
+  server_seq bigint not null,                        -- F54: sole authoritative allocator is BEFORE INSERT OR UPDATE trigger under the center's 1002 lock
+  entry_number bigint,                               -- per-center counter; display id E-{CENTER_CODE}-YYYYMM-XXXXXX (§7.5)
   entry_date date not null,
   customer_name text not null,
   sub_qty int not null default 1 check (sub_qty >= 0), -- countable quantity (m3: sub_qty >= 0 allows 0 for fee-only/retainer deposits with no physical service units)
   sub_description text,                              -- optional qualitative description
   txn_ref text,
-  method_id uuid not null references payment_methods,
+  method_id uuid not null,
   gross_poisha bigint not null check (gross_poisha > 0),
-  rate_profile_id uuid not null references rate_profiles,
+  rate_profile_id uuid not null,
   snapshot jsonb not null,                           -- RateSnapshot used (must reference published profile)
 
   -- Calculation Inputs (explicitly stored for server recomputation, F2, F20)
@@ -477,12 +528,12 @@ create table entries (
   stale_reviewed_by uuid references profiles,
   stale_reviewed_at timestamptz,
   dup_txn_flag boolean not null default false,       -- same txn_ref + method seen before (soft flag, never blocks sync)
-  created_by uuid not null references profiles,
+  created_by uuid not null,
   device_id text,
   client_created_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),     -- set by trigger on update
-  supersedes_id uuid references entries,
+  supersedes_id uuid,
   superseded_at timestamptz,
   original_entry_date date,                          -- M5: preserves original intended date when reassigned from closed month
   reassign_reason text,                              -- Finding #8: mandatory when reassigned from closed month
@@ -492,6 +543,19 @@ create table entries (
   voided_by uuid references profiles,
   voided_at timestamptz,
   void_reason text,                                  -- mandatory when void is approved/executed (F25)
+
+  -- Tenant keys and composite foreign keys (20261029000001_core_schema.sql):
+  -- a row of one center can never reference a parent row of another.
+  unique (center_id, id),
+  unique (center_id, entry_number),
+  constraint fk_entries_method foreign key (center_id, method_id)
+    references payment_methods(center_id, id),
+  constraint fk_entries_rate_profile foreign key (center_id, rate_profile_id)
+    references rate_profiles(center_id, id),
+  constraint fk_entries_creator foreign key (center_id, created_by)
+    references profiles(center_id, id),
+  constraint fk_entries_supersedes foreign key (center_id, supersedes_id)
+    references entries(center_id, id),
 
   -- Database Financial & Audit Invariant Constraints
   constraint chk_charge_partition check (business_charge_poisha + customer_charge_poisha = charge_poisha),
@@ -518,14 +582,15 @@ create table entries (
   constraint chk_void_fields check (status != 'voided' or (voided_by is not null and voided_at is not null and void_reason is not null and length(trim(void_reason)) > 0)),
   constraint chk_superseded_fields check (status != 'superseded' or superseded_at is not null)
 );
-create index on entries (entry_date);
-create index on entries (method_id);
+create index idx_entries_center_date on entries (center_id, entry_date);
+create index idx_entries_center_method on entries (center_id, method_id);
+create index idx_entries_center_rate_profile on entries (center_id, rate_profile_id);
 create index on entries (server_seq);
-create index on entries (txn_ref);
-create index on entries (entry_number);
-create index on entries (created_by, entry_date);   -- M3: speeds up staff-scoped RLS and personal metric queries
-create index idx_entries_created_by_server_seq on entries (created_by, server_seq); -- H6: accelerates staff cursor pull scans
-create unique index uq_active_superseding_entry on entries (supersedes_id) where status = 'active';
+create index idx_entries_txn_ref on entries (center_id, txn_ref);
+create index idx_entries_entry_number on entries (center_id, entry_number);
+create index idx_entries_created_by_date on entries (center_id, created_by, entry_date);   -- M3: speeds up staff-scoped RLS and personal metric queries
+create index idx_entries_created_by_server_seq on entries (center_id, created_by, server_seq); -- H6: accelerates staff cursor pull scans
+create unique index uq_active_superseding_entry on entries (center_id, supersedes_id) where status = 'active';
 -- Immutability trigger (F19): blocks DELETE unconditionally; blocks UPDATE on financial, snapshot,
 -- and identity fields. Only authorized status transitions (void, supersede, void_request) permitted.
 ```
@@ -533,15 +598,20 @@ create unique index uq_active_superseding_entry on entries (supersedes_id) where
 ```sql
 create table payables (                 -- seed: VAT, bKash charges, Visa charges, Mastercard charges
   id uuid primary key default gen_random_uuid(),
-  code text unique not null,
+  center_id uuid not null references centers(id),
+  code text not null,                               -- unique per center
   name text not null,
   kind text not null check (kind in ('vat','method_charge')),
-  method_id uuid references payment_methods,        -- mandatory for kind = method_charge, null for vat (Finding 4)
+  method_id uuid,                                    -- mandatory for kind = method_charge, null for vat (Finding 4)
   due_day int not null check (due_day between 1 and 28), -- due day of the FOLLOWING month
   remind_days_before int not null default 3,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),     -- set by trigger on update
+  unique (center_id, id),
+  unique (center_id, code),
+  constraint fk_payables_method foreign key (center_id, method_id)
+    references payment_methods(center_id, id),
   constraint chk_payable_method_consistency check (
     (kind = 'vat' and method_id is null)
     or
@@ -549,14 +619,15 @@ create table payables (                 -- seed: VAT, bKash charges, Visa charge
   )
 );
 -- Finding 4: Unique active payables prevent duplicate liability representations:
-create unique index uq_active_vat_payable on payables (kind) where kind = 'vat' and active = true;
-create unique index uq_active_method_payable on payables (method_id) where kind = 'method_charge' and active = true;
+create unique index uq_active_vat_payable on payables (center_id, kind) where kind = 'vat' and active = true;
+create unique index uq_active_method_payable on payables (center_id, method_id) where kind = 'method_charge' and active = true;
 -- Deactivated payables (active = false) retain historical integrity; new months cover only active payables.
 
 create table entry_reconciliation_exceptions ( -- F65, F66, F67: scoped exception evidence per entry, payable, and month
   id uuid primary key default gen_random_uuid(),
-  entry_id uuid not null references entries(id) on delete restrict,
-  payable_id uuid not null references payables(id) on delete restrict,
+  center_id uuid not null references centers(id),
+  entry_id uuid not null,
+  payable_id uuid not null,
   month date not null check (month = date_trunc('month', month)::date),
   status text not null check (status in ('approved', 'rejected')),
   reason text not null check (length(trim(reason)) > 0),
@@ -564,14 +635,19 @@ create table entry_reconciliation_exceptions ( -- F65, F66, F67: scoped exceptio
   reviewed_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (entry_id, payable_id, month)
+  unique (center_id, entry_id, payable_id, month),
+  constraint fk_exceptions_entry foreign key (center_id, entry_id)
+    references entries(center_id, id) on delete restrict,
+  constraint fk_exceptions_payable foreign key (center_id, payable_id)
+    references payables(center_id, id) on delete restrict
 );
-create index on entry_reconciliation_exceptions (payable_id, month);
-create index on entry_reconciliation_exceptions (entry_id);
+create index idx_exceptions_payable_month on entry_reconciliation_exceptions (center_id, payable_id, month);
+create index idx_exceptions_entry on entry_reconciliation_exceptions (center_id, entry_id);
 
-create table settlements (              -- one row per payable per month
+create table settlements (              -- one row per payable per month of one center
   id uuid primary key default gen_random_uuid(),
-  payable_id uuid not null references payables on delete restrict,
+  center_id uuid not null references centers(id),
+  payable_id uuid not null,
   month date not null check (month = date_trunc('month', month)::date), -- enforced first day of month (Finding 7)
   expected_poisha bigint not null check (expected_poisha >= 0),         -- dynamically updated from active entries until month close; frozen once month is closed
   paid_poisha bigint not null default 0 check (paid_poisha >= 0),       -- denormalized sum: (regular payments - reversals); updated by trigger
@@ -589,7 +665,10 @@ create table settlements (              -- one row per payable per month
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),     -- set by trigger on update
-  unique (payable_id, month),
+  unique (center_id, id),
+  unique (center_id, payable_id, month),
+  constraint fk_settlements_payable foreign key (center_id, payable_id)
+    references payables(center_id, id) on delete restrict,
   constraint chk_overpayment_approval check (
     (overpayment_review_status = 'none' and overpayment_reason is null and overpayment_approved_by is null and overpayment_approved_at is null and overpayment_approved_amount_poisha is null)
     or
@@ -618,7 +697,8 @@ $$;
 
 create table settlement_payments (      -- supports multiple partial payments & audited reversals (F17, F19, F36)
   id uuid primary key default gen_random_uuid(),
-  settlement_id uuid not null references settlements on delete restrict,
+  center_id uuid not null references centers(id),
+  settlement_id uuid not null,
   amount_poisha bigint not null check (amount_poisha > 0),
   paid_on date not null,
   reference text,
@@ -629,13 +709,16 @@ create table settlement_payments (      -- supports multiple partial payments & 
   recorded_by uuid references profiles,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  unique (center_id, id),
+  constraint fk_settlement_payments_settlement foreign key (center_id, settlement_id)
+    references settlements(center_id, id) on delete restrict,
   constraint chk_reversal_reference check (
     (is_reversal = false and reverses_payment_id is null)
     or
     (is_reversal = true and reverses_payment_id is not null)
   )
 );
-create index on settlement_payments (settlement_id);
+create index idx_settlement_payments_settlement on settlement_payments (center_id, settlement_id);
 -- Trigger on settlement_payments (F17, F36, F50, Finding 6, F68):
 -- 1. Serializes concurrent payment operations by row-locking parent settlement:
 --    SELECT id INTO v_settlement_id FROM settlements WHERE id = NEW.settlement_id FOR UPDATE;
@@ -656,6 +739,7 @@ create index on settlement_payments (settlement_id);
 
 create table statements (               -- F21, F37, F55: supports single payable and combined card reconciliation
   id uuid primary key default gen_random_uuid(),
+  center_id uuid not null references centers(id),
   kind text not null default 'single_payable' check (kind in ('single_payable','combined_card')),
   month date not null check (month = date_trunc('month', month)::date), -- enforced first day of month (Finding 7)
   source text not null check (source in ('manual_total','file')),
@@ -665,29 +749,36 @@ create table statements (               -- F21, F37, F55: supports single payabl
   expected_poisha bigint not null check (expected_poisha >= 0),               -- business-borne charge sum or VAT sum from active entries
   variance_poisha bigint generated always as (statement_total_poisha - expected_poisha) stored, -- B4: Authoritative stored generated column
   status text not null default 'open' check (status in ('open','reconciled','superseded')),
-  superseded_by uuid references statements on delete restrict,
+  superseded_by uuid,
   note text,
   created_by uuid references profiles,
   reconciled_by uuid references profiles,
   reconciled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),     -- set by trigger on update
-  unique (id, month),                                -- F55: composite target for foreign key
+  unique (center_id, id),
+  unique (center_id, id, month),                     -- F55: composite target for foreign key
+  constraint fk_statements_superseded_by foreign key (center_id, superseded_by)
+    references statements(center_id, id) on delete restrict,
   constraint chk_statement_source check (
     source != 'file' or (file_storage_path is not null and file_sha256 is not null and length(trim(file_sha256)) = 64)
   )
 );
 
 create table statement_payables (       -- F37, F55: normalized statement-payable coverage with composite FK
+  center_id uuid not null references centers(id),
   statement_id uuid not null,
-  payable_id uuid not null references payables on delete restrict,
+  payable_id uuid not null,
   month date not null check (month = date_trunc('month', month)::date),
   status text not null default 'open' check (status in ('open','reconciled','superseded')),
   primary key (statement_id, payable_id),
-  foreign key (statement_id, month) references statements (id, month) on delete restrict  -- F55: month agreement guaranteed
+  constraint fk_statement_payables_statement foreign key (center_id, statement_id, month)
+    references statements(center_id, id, month) on delete restrict,  -- F55: month agreement guaranteed
+  constraint fk_statement_payables_payable foreign key (center_id, payable_id)
+    references payables(center_id, id) on delete restrict
 );
--- F37: Uniqueness index prevents overlapping active statements for the same payable/month:
-create unique index uq_active_statement_coverage on statement_payables (payable_id, month) where status != 'superseded';
+-- F37: Uniqueness index prevents overlapping active statements for the same payable/month of one center:
+create unique index uq_active_statement_coverage on statement_payables (center_id, payable_id, month) where status != 'superseded';
 -- F47: Parent-child state invariant and invalidation trigger:
 -- statements.status = 'reconciled' <=> all child statement_payables.status = 'reconciled'.
 -- When live recalculation detects modified entries in an open month, it invalidates statements back to 'open'
@@ -695,12 +786,13 @@ create unique index uq_active_statement_coverage on statement_payables (payable_
 
 create table statement_lines (
   id uuid primary key default gen_random_uuid(),
-  statement_id uuid not null references statements on delete restrict,
+  center_id uuid not null references centers(id),
+  statement_id uuid not null,
   line_date date,
   reference text,
   gross_poisha bigint,
   fee_poisha bigint,
-  matched_entry_id uuid references entries on delete restrict,
+  matched_entry_id uuid,
   is_active_match boolean not null default true, -- F22: set to false when parent statement is superseded
   match_status text not null default 'unmatched'
     check (match_status in ('matched','unmatched','accepted')),
@@ -710,6 +802,11 @@ create table statement_lines (
   raw jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),     -- set by trigger on update
+  unique (center_id, id),
+  constraint fk_statement_lines_statement foreign key (center_id, statement_id)
+    references statements(center_id, id) on delete restrict,
+  constraint fk_statement_lines_entry foreign key (center_id, matched_entry_id)
+    references entries(center_id, id) on delete restrict,
   constraint chk_statement_line_acceptance check ( -- F69: strict reviewer evidence enforcement
     (match_status = 'accepted' and reviewed_by is not null and reviewed_at is not null and review_note is not null and length(trim(review_note)) > 0)
     or
@@ -718,11 +815,12 @@ create table statement_lines (
     (match_status = 'unmatched' and matched_entry_id is null)
   )
 );
-create unique index uq_active_statement_line_entry on statement_lines (statement_id, matched_entry_id)
+create unique index uq_active_statement_line_entry on statement_lines (center_id, statement_id, matched_entry_id)
   where matched_entry_id is not null and is_active_match = true;
 
 create table month_closes (
-  month date primary key check (month = date_trunc('month', month)::date), -- enforced first day of month (Finding 7)
+  center_id uuid not null references centers(id),
+  month date not null check (month = date_trunc('month', month)::date), -- enforced first day of month (Finding 7)
   status text not null default 'closed' check (status in ('closed', 'open')),
   closed_by uuid references profiles,
   closed_at timestamptz,
@@ -730,25 +828,30 @@ create table month_closes (
   reopened_at timestamptz,
   reopen_reason text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  primary key (center_id, month)
 );
 -- F70 First-Time Month Close Semantics:
 -- By default, any calendar month lacking a record in month_closes is implicitly in the 'open' state.
 -- A month record is created only when close_month() is first invoked for that month.
--- Sync push checks 'EXISTS (SELECT 1 FROM month_closes WHERE month = v_month AND status = 'closed')';
+-- Sync push checks 'EXISTS (SELECT 1 FROM month_closes WHERE center_id = v_center_id AND month = v_month AND status = 'closed')';
 -- if no row exists, the month is open and mutations are accepted.
 
-create table month_close_events (       -- append-only history of all close/reopen lifecycle events
+create table month_close_events (       -- append-only history of all close/reopen lifecycle events of one center
   id uuid primary key default gen_random_uuid(),
+  center_id uuid not null references centers(id),
   month date not null check (month = date_trunc('month', month)::date),
   action text not null check (action in ('close', 'reopen')),
   actor uuid not null references profiles,
   reason text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint fk_month_close_events_close foreign key (center_id, month)
+    references month_closes(center_id, month) on delete restrict
 );
 
 create table audit_log (
   id bigint generated always as identity primary key,
+  center_id uuid references centers(id),             -- NULL for a platform (super_admin) event
   at timestamptz not null default now(),
   actor uuid references profiles,
   action text not null,
@@ -757,9 +860,11 @@ create table audit_log (
   before jsonb,
   after jsonb
 );
+create index idx_audit_log_center_at on audit_log (center_id, at desc);
 
 create table sync_ops (                 -- idempotency table for sync push operations (retained 90 days, F35)
   op_id uuid primary key,
+  center_id uuid not null references centers(id),
   actor_id uuid not null references profiles,        -- F35: authenticated caller ID for ownership validation
   device_id text not null,
   op_type text not null,
@@ -771,14 +876,15 @@ create table sync_ops (                 -- idempotency table for sync push opera
   result text not null check (result in ('ok','duplicate','rejected')),
   resolution_status text not null default 'pending' check (resolution_status in ('pending', 'resolved', 'discarded')),
   reason text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (center_id, op_id)
 );
-create index on sync_ops (actor_id, created_at);
-create index on sync_ops (device_id, created_at);
-create unique index uq_sync_ops_superseded on sync_ops (supersedes_rejected_op_id) where result = 'ok';
+create index idx_sync_ops_center_actor on sync_ops (center_id, actor_id, created_at);
+create index idx_sync_ops_center_device on sync_ops (center_id, device_id, created_at);
+create unique index uq_sync_ops_superseded on sync_ops (center_id, supersedes_rejected_op_id) where result = 'ok';
 
-create table app_settings (            -- single row (M6: timezone, currency, locale are fixed system invariants in v1)
-  id boolean primary key default true check (id),
+create table app_settings (            -- one row per center (M6: timezone, currency, locale are fixed system invariants in v1)
+  center_id uuid primary key references centers(id) on delete cascade,
   timezone text not null default 'Asia/Dhaka',
   currency text not null default 'BDT',
   locale text not null default 'en-BD',
@@ -793,26 +899,29 @@ create table app_settings (            -- single row (M6: timezone, currency, lo
 create or replace view view_device_stale_rate_anomalies
 with (security_invoker = true) as
 select
+  so.center_id,
   so.device_id,
   so.actor_id,
   count(*) as stale_ops_last_hour,
   max(so.created_at) as latest_stale_op_at
 from sync_ops so
-join entries e on e.id = so.entry_id
+join entries e on e.id = so.entry_id and e.center_id = so.center_id
 where so.op_type = 'create_entry'
   and e.stale_rates = true
   and e.stale_review_status in ('none', 'flagged') -- L-4: counts all stale submissions (both standard and >৳50k flagged) so high-value bursts cannot bypass device anomaly detection
   and so.created_at > now() - interval '1 hour'
-group by so.device_id, so.actor_id
+group by so.center_id, so.device_id, so.actor_id
 having count(*) >= 5;
 ```
 
 ### 7.1 Database Security, Table Revocations & Single Trust Model (Findings A4, A5)
 
-1. **Table-Level Direct Write Revocation on All 18 Tables (Finding A4, H3, M4)**:
-   To guarantee that no user (including Admin and Owner) can bypass financial constraints, overpayment gates, or draft-publish lifecycle checks via direct PostgREST table access, direct `INSERT`, `UPDATE`, and `DELETE` privileges are explicitly revoked across all 18 public tables from `anon` and `authenticated`:
+1. **Table-Level Direct Write Revocation on All 20 Public Tables (Finding A4, H3, M4)**:
+   To guarantee that no user (including Admin and Owner) can bypass financial constraints, overpayment gates, or draft-publish lifecycle checks via direct PostgREST table access, direct `INSERT`, `UPDATE`, and `DELETE` privileges are explicitly revoked across all 20 public tables from `anon` and `authenticated` (`supabase/migrations/20261029000004_security_and_rls.sql` issues `REVOKE ALL` and then grants `SELECT` to `authenticated`; `center_counters` and `sync_ops` receive no client `SELECT`):
    ```sql
    REVOKE INSERT, UPDATE, DELETE ON
+     centers,
+     center_counters,
      entries,
      rate_profiles,
      method_rates,
@@ -834,6 +943,8 @@ having count(*) >= 5;
    FROM anon, authenticated;
 
    -- Row Level Security explicitly enabled on all tables
+   ALTER TABLE centers ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE center_counters ENABLE ROW LEVEL SECURITY;
    ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
    ALTER TABLE payment_methods ENABLE ROW LEVEL SECURITY;
    ALTER TABLE rate_profiles ENABLE ROW LEVEL SECURITY;
@@ -852,18 +963,22 @@ having count(*) >= 5;
    ALTER TABLE sync_ops ENABLE ROW LEVEL SECURITY;
    ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
    ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+   -- and forced, so even the table owner is subject to policy
+   ALTER TABLE centers FORCE ROW LEVEL SECURITY;
    ```
-   All table mutations execute exclusively through privileged `SECURITY DEFINER` RPCs running with `search_path = public, pg_temp` invoked by the server under `service_role`.
+   The migration runs the same `ENABLE` and `FORCE ROW LEVEL SECURITY` pair on all 20 tables (`supabase/migrations/20261029000004_security_and_rls.sql`). All table mutations execute exclusively through privileged `SECURITY DEFINER` RPCs running with `search_path = public, pg_temp` invoked by the server under `service_role`.
 
 2. **Single Trust & Identity Architecture (Finding A5)**:
    - **Access Channel**: Clients interact strictly with SvelteKit server endpoints (`/api/v1/*`) or authenticated Supabase client calls.
    - **Identity Derivation**: The server verifies the Supabase Auth session JWT, extracts `auth.uid()`, queries `profiles` where `id = auth.uid()`, and asserts `active = true`. Caller identity and role parameters passed to RPCs (`p_caller_id`, `p_caller_role`) are strictly verified against the authenticated JWT session claims rather than untrusted client parameters.
-   - **Table RLS**: Read-level access (`SELECT`) is permitted via RLS for authenticated users:
+   - **Table RLS**: Read-level access (`SELECT`) is permitted via RLS for authenticated users, always within the caller's own center: every policy predicate is `center_id = <caller's center> OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'` (`supabase/migrations/20261029000004_security_and_rls.sql`). "all" below means all rows of the caller's center:
      - `entries`: Staff `select` where `created_by = auth.uid()`; Admin and Owner `select` all.
      - `profiles`: Staff `select` where `id = auth.uid()`; Admin and Owner `select` all.
      - `devices`: Staff `select` where `user_id = auth.uid()`; Admin and Owner `select` all (M4). (Mutations execute strictly through `upsert_device_sync_state` during `/sync/push` and `/sync/pull`, or `admin_manage_device` for Admin/Owner killswitch).
      - `rate_profiles`: Staff `select` where `status = 'published'`; Admin and Owner `select` all.
      - `method_rates`: Staff `select` where associated `rate_profiles.status = 'published'`; Admin and Owner `select` all.
+     - `centers`: every authenticated user `select`s the row of their own center; `super_admin` selects all.
      - `payment_methods`, `payables`, `app_settings`: all authenticated users `select`.
      - `entry_reconciliation_exceptions`: Admin and Owner `select`.
      - `settlements`, `settlement_payments`, `statements`, `statement_payables`, `statement_lines`, `month_closes`, `month_close_events`, `audit_log`: Admin and Owner `select`.
@@ -879,13 +994,18 @@ having count(*) >= 5;
 
 ### 7.2 Deterministic Lock Hierarchy & Sequence Lock Throughput Budget (Findings A8, B10)
 
-To eliminate deadlocks and lock hash collisions, all operations use PostgreSQL two-integer advisory locks `pg_advisory_xact_lock(classid integer, objid integer)` with dedicated namespaces:
-- `classid = 1001`: Month Locks. `objid = (extract(year from m)::int * 12 + extract(month from m)::int)` (exact numeric month identifier; 0 collisions).
-- `classid = 1002`: Sequence Allocation Lock. `objid = 1`.
-- `classid = 1003`: Rate Profile Version Lock. `objid = 1`.
+To eliminate deadlocks and lock hash collisions, all operations use PostgreSQL two-integer advisory locks. The class and the center are packed into the first coordinate, and the domain target is the second (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`, `supabase/migrations/20261029000006_functions_settlement_recon_month.sql`):
+
+`perform pg_advisory_xact_lock((<class> << 16) | (center_number & 65535), <objid>);`
+
+- `class = 1001`: Month Locks. `objid = (extract(year from m)::int * 12 + extract(month from m)::int)` (exact numeric month identifier; 0 collisions).
+- `class = 1002`: Sequence Allocation Lock. `objid = 1`.
+- `class = 1003`: Rate Profile Version Lock. `objid = 1`.
+
+`center_number` is `centers.center_number` of the center being written, so two centers never share a key. The packed value stays inside `int4`: the largest class, `1003`, yields `1003 << 16` = `65,732,608`.
 
 #### Sequence Lock Throughput Budget (Finding A8)
-The global transaction sequence advisory lock `pg_advisory_xact_lock(1002, 1)` serializes monotonic sequence allocation to guarantee that pull cursors never skip uncommitted or late-committing rows.
+The per-center sequence advisory lock `pg_advisory_xact_lock((1002 << 16) | (center_number & 65535), 1)` serializes entry-number allocation in that center, while `server_seq` stays globally monotonic from `entry_seq`, so pull cursors never skip uncommitted or late-committing rows.
 - **Benchmarked Execution Duration**: Holding this advisory lock during sequence assignment (`nextval('entry_seq')`) and row insertion/update completes in ~0.2–0.5 ms per single row in PostgreSQL on standard SSD instances.
 - **Batch Transaction Granularity**: In batch mode, the sequence lock is acquired once per push request transaction, holding for ~5–25 ms across an entire 50-operation batch while assigning contiguous `server_seq` values.
 - **Throughput Capacity**: Yields ~2,000–2,500 operations/second (~120,000–150,000 operations/hour), exceeding the expected boutique ledger peak load (< 500 entries/day, maximum burst 50 ops/second across 5 staff devices) by more than 40x.
@@ -895,14 +1015,14 @@ The global transaction sequence advisory lock `pg_advisory_xact_lock(1002, 1)` s
 1. **Ascending Month Advisory Locks**:
    Every financial procedure (`record_settlement_payment`, `approve_settlement_overpayment`, `accept_statement_line`, `review_entry_reconciliation_exception`, `rpc_push_sync_op`, `rpc_supersede_entry`, `admin_review_stale_entry`, `reconcile_statement`, `close_month`, `reopen_month`) MUST acquire month advisory locks as Step 1.
    For any batch or operation affecting months $M_1, M_2, \dots, M_k$, gather all unique months, sort in **ascending numeric order** ($M_1 < M_2 < \dots$), and acquire:
-   `perform pg_advisory_xact_lock(1001, extract(year from m)::int * 12 + extract(month from m)::int);`
+   `perform pg_advisory_xact_lock((1001 << 16) | (center_number & 65535), extract(year from m)::int * 12 + extract(month from m)::int);`
 2. **Sequence Allocation Lock**:
-   `perform pg_advisory_xact_lock(1002, 1);`
+   `perform pg_advisory_xact_lock((1002 << 16) | (center_number & 65535), 1);`
    **CRITICAL (Finding 2)**: Every operation that writes or updates an entry (`create_entry`, `request_void`, `void_entry`, `supersede_entry`) MUST acquire this sequence lock **before** acquiring any entry row locks (`SELECT ... FOR UPDATE`) or executing table writes. No transaction ever holds an entry row lock while waiting for the sequence lock.
 3. **Cross-Table Row Locks in Trigger-Aligned Order (Finding B10, Item 2.1)**:
    When acquiring row-level locks across multiple tables, lock in strict trigger-aligned top-down order, and in ascending primary key order within each table:
    $$\text{payables (FOR KEY SHARE)} \longrightarrow \text{entries} \longrightarrow \text{settlements} \longrightarrow \text{statements} \longrightarrow \text{statement\_payables} \longrightarrow \text{statement\_lines} \longrightarrow \text{entry\_reconciliation\_exceptions}$$
-   Because all operations touching a month serialize on `pg_advisory_xact_lock(1001, month)` as Step 1, cross-table trigger interactions within that month cannot deadlock.
+   Because all operations touching a month of one center serialize on that center's `1001` key as Step 1, cross-table trigger interactions within that month cannot deadlock.
 
 ### 7.3 Core Database Functions & Atomic Procedures
 
@@ -1363,88 +1483,161 @@ Database Triggers:
 
 ### 7.4 Bootstrap Runbook & Seed Script (M0, H6)
 
-Because `profiles.id` references Supabase `auth.users`, and `publish_rate_profile()` strictly prohibits backdating, initial database provisioning cannot execute via pure static DDL. The initial system baseline is provisioned via an automated bootstrap runner script (`scripts/bootstrap.ts`) using Supabase Auth Admin API and `service_role` credentials:
+Because `profiles.id` references Supabase `auth.users`, and `publish_rate_profile()` strictly prohibits backdating, initial database provisioning cannot execute via pure static DDL. The initial baseline is provisioned by `scripts/bootstrap.ts` using the Supabase Auth Admin API and `service_role` credentials. The runbook is multi-tenant: it creates one platform `super_admin` (a profile with a NULL `center_id`), then provisions the first franchise centre through `rpc_create_center`, which seeds that centre's methods, payables, published rate profile v1, settings and counter in one transaction. No step inserts a tenant row without a `center_id`.
 
-1. **Step 1: Provision Initial Owner Auth User (C1)**:
-   Invokes Supabase Auth Admin API with `raw_app_meta_data: { role: 'owner' }`:
+The seed centre is supplied by the environment, never hardcoded: the same runner provisions a production centre, a staging centre or a local fixture by reading different values. Further centres are created afterwards through the Super Admin centres route (§7.5).
+
+1. **Step 1: Provision the Platform Super Admin Auth User (C1)**:
+   Looks the email up through the Auth Admin API; if it exists, only its `app_metadata` is updated, otherwise the user is created. Either way the role is `super_admin`, never `owner`:
    ```ts
-   const { data: user, error } = await supabase.auth.admin.createUser({
+   // existing user
+   await supabase.auth.admin.updateUserById(userId, { app_metadata: { role: 'super_admin' } });
+   // new user
+   const { data, error } = await supabase.auth.admin.createUser({
      email: process.env.BOOTSTRAP_OWNER_EMAIL,
      password: process.env.BOOTSTRAP_OWNER_PASSWORD,
      email_confirm: true,
-     app_metadata: { role: 'owner' },
-     user_metadata: { full_name: 'Primary Owner' }
+     app_metadata: { role: 'super_admin' },
+     user_metadata: { full_name: 'Platform Super Admin' },
    });
    ```
-2. **Step 2: Upsert Owner Profile**:
-   Idempotent profile initialization guaranteeing zero collision with `trg_auth_users_create_profile`:
+2. **Step 2: Upsert the Platform Super Admin Profile**:
+   Idempotent profile initialization guaranteeing zero collision with `trg_auth_users_create_profile`. The platform row carries `center_id = NULL`:
    ```sql
-   INSERT INTO profiles (id, full_name, role, active)
-   VALUES (user.id, 'Primary Owner', 'owner', true)
-   ON CONFLICT (id) DO UPDATE SET role = 'owner', full_name = 'Primary Owner';
+   INSERT INTO profiles (id, full_name, role, center_id, active)
+   VALUES ($1, 'Platform Super Admin', 'super_admin', NULL, true)
+   ON CONFLICT (id) DO UPDATE
+     SET role = 'super_admin', center_id = NULL, active = true, updated_at = now();
    ```
-3. **Step 3: Seed Canonical Payment Methods**:
+3. **Step 3: Read the First Centre's Identity from the Environment**:
+   These variables are the source of truth for the first centre (they are declared in `.env.example`; values never enter the repository). The only fallback is the development fixture set described below, used when `BOOTSTRAP_CENTER_CODE` is unset:
+
+   | Variable | Required | Becomes |
+   |---|---|---|
+   | `BOOTSTRAP_CENTER_CODE` | yes | `p_code`: 2-8 uppercase alphanumeric characters, unique, immutable |
+   | `BOOTSTRAP_CENTER_NAME` | yes | `p_name` |
+   | `BOOTSTRAP_CENTER_OWNER_EMAIL` | yes | `p_owner_email`, recorded on the `center.create` audit row |
+   | `BOOTSTRAP_CENTER_OWNER_NAME` | yes | `p_owner_name` |
+   | `BOOTSTRAP_CENTER_LEGAL_ENTITY_NAME` | yes | `p_legal_entity_name` (the RPC rejects an empty value with `422 missing_center_profile_fields`) |
+   | `BOOTSTRAP_CENTER_ADDRESS` | yes | `p_address` (same rejection) |
+   | `BOOTSTRAP_CENTER_PHONE` | yes | `p_phone` (same rejection) |
+   | `BOOTSTRAP_CENTER_BIN` | no | `p_bin_number`; NULL when unset |
+   | `BOOTSTRAP_CENTER_TRADE_LICENSE` | no | `p_trade_license`; NULL when unset |
+
+   The runner aborts before any write when a required variable is missing, and when `BOOTSTRAP_CENTER_CODE` fails `^[A-Z0-9]{2,8}$` it fails fast instead of relying on the RPC's `422 invalid_center_code`.
+4. **Step 4: Open the Bootstrap Transaction and Take Its Advisory Lock**:
+   One transaction covers every remaining step, guarded by an advisory lock so two bootstrap runs cannot race:
    ```sql
-   INSERT INTO payment_methods (code, name, requires_txn_ref, sort_order, active) VALUES
-     ('cash', 'Cash', false, 1, true),
-     ('bkash', 'bKash', true, 2, true),
-     ('visa', 'Visa', true, 3, true),
-     ('mastercard', 'Mastercard', true, 4, true),
-     ('bank_transfer', 'Bank Transfer', true, 5, true);
+   BEGIN;
+   SELECT pg_advisory_xact_lock(1004, 1);   -- class 1004: bootstrap; not a tenant lock
    ```
-4. **Step 4: Seed Canonical Payables**:
+5. **Step 5: Provision the First Centre Through `rpc_create_center`**:
+   The runner skips the call when a centre with `BOOTSTRAP_CENTER_CODE` already exists, so a rerun is idempotent. The actor is the `super_admin` from Step 1; the RPC rejects any other actor with `403 unauthorized` (`supabase/migrations/20261029000007_center_provisioning.sql`):
    ```sql
-   INSERT INTO payables (code, name, kind, method_id, due_day, remind_days_before, active) VALUES
-     ('vat_payable', 'Government VAT Challan', 'vat', null, 15, 3, true),
-     ('bkash_charge_payable', 'bKash Merchant Charge', 'method_charge', (SELECT id FROM payment_methods WHERE code = 'bkash'), 10, 3, true),
-     ('visa_charge_payable', 'Visa Merchant Charge', 'method_charge', (SELECT id FROM payment_methods WHERE code = 'visa'), 15, 3, true),
-     ('mastercard_charge_payable', 'Mastercard Merchant Charge', 'method_charge', (SELECT id FROM payment_methods WHERE code = 'mastercard'), 15, 3, true);
-   ```
-5. **Step 5: Seed & Publish Rate Profile v1 (Bootstrap Exemption)**:
-   Inserts Profile v1 directly with `status = 'published'` backdated to `2026-01-01` to eliminate the day-one backdating trap:
-   ```sql
-   INSERT INTO rate_profiles (id, version, status, effective_from, vat_mode, vat_bp, commission_base, commission_bp, charges_borne_by, note, created_by, published_at)
-   VALUES (
-     gen_random_uuid(),
-     1,
-     'published',
-     '2026-01-01',
-     'manual',
-     0,
-     'gross_minus_vat',
-     4200,
-     'business',
-     'Initial system rate profile v1 (seeded via M0 bootstrap; effective 2026-01-01)',
-     user.id,
-     now()
+   SELECT rpc_create_center(
+     <super_admin id>,                      -- p_actor_id
+     <BOOTSTRAP_CENTER_CODE>,               -- p_code
+     <BOOTSTRAP_CENTER_NAME>,
+     <BOOTSTRAP_CENTER_LEGAL_ENTITY_NAME>,
+     <BOOTSTRAP_CENTER_BIN or NULL>,
+     <BOOTSTRAP_CENTER_TRADE_LICENSE or NULL>,
+     <BOOTSTRAP_CENTER_ADDRESS>,
+     <BOOTSTRAP_CENTER_PHONE>,
+     <BOOTSTRAP_CENTER_OWNER_EMAIL>,
+     <BOOTSTRAP_CENTER_OWNER_NAME>
    );
    ```
-   *(Note: Documented in `DECISIONS.md`: Seeding Profile v1 directly under `service_role` with `effective_from = '2026-01-01'` establishes the initial published rate profile so day-one transaction sync succeeds for payments recorded from 2026-01-01 onward without violating `publish_rate_profile()` runtime backdating constraints or triggering `rate_profile_date_mismatch`).*
-6. **Step 6: Seed `method_rates` for Profile v1**:
-   Covers all active payment methods:
-   ```sql
-   INSERT INTO method_rates (rate_profile_id, method_id, charge_bp)
-   SELECT p.id, m.id,
-     CASE m.code
-       WHEN 'bkash' THEN 115
-       WHEN 'visa' THEN 150
-       WHEN 'mastercard' THEN 150
-       ELSE 0
-     END
-   FROM rate_profiles p CROSS JOIN payment_methods m
-   WHERE p.version = 1 AND p.status = 'published';
-   ```
-   *(Note: Documented in `DECISIONS.md`: Rate profile operational defaults (42% commission, 115 bp bKash, 150 bp cards) are seeded at M0 as explicitly accepted baseline defaults pending final business owner confirmation per PRD §4 Production Release Precondition and AGENTS.md Rule 20).*
-7. **Step 7: Initialize `app_settings`**:
-   ```sql
-   INSERT INTO app_settings (id, timezone, currency, locale, net_label, reconcile_tolerance_poisha)
-   VALUES (true, 'Asia/Dhaka', 'BDT', 'en-BD', 'Net after deductions', 100)
-   ON CONFLICT (id) DO NOTHING;
-   ```
-8. **Step 8: Initialize Monthly Settlements**:
-   Executes `generate_monthly_settlements((now() at time zone 'Asia/Dhaka')::date)` to populate initial settlement rows.
+   (Each angle-bracket value is bound as an ordinary statement parameter by the runner.)
+   For that one centre the RPC creates, in the same transaction:
+   - the `centers` row (with its identity `center_number` and its immutable `code`);
+   - five payment methods — `cash` (no transaction reference), `bkash`, `visa`, `mastercard` (transaction reference required) and `bank_transfer` — created inactive and activated after the rate profile below exists;
+   - four payables — `vat_payable` (due day 15), `bkash_charge_payable` (day 10), `visa_charge_payable` (day 15), `mastercard_charge_payable` (day 15);
+   - the published rate profile v1 for that centre: `version = 1`, `effective_from = date '2026-01-01'`, `vat_mode = 'manual'`, `vat_bp = 0`, `commission_bp = 4200`, `commission_base = 'gross'`, `charges_borne_by = 'business'`, with method rates `cash 0`, `bkash 115`, `visa 150`, `mastercard 150`, `bank_transfer 0` basis points;
+   - one `app_settings` row for the centre (`reconcile_tolerance_poisha = 100`, `net_label = 'Net after deductions'`) and one `center_counters` row at `next_entry_number = 1`;
+   - a `center.create` audit row carrying the centre code, name, owner email and rate profile id.
 
-Verification: The M0 Definition of Done requires running `scripts/bootstrap.ts` against a blank Supabase instance, asserting all 18 tables, profile v1, payables, and settlements exist.
+   The RPC does not create Auth users. Owner accounts for the provisioned centres are created by the Super Admin centres route (`POST /api/v1/admin/super/centers`, §7.5) or by the operator, and their `app_metadata` must carry `{ role: 'owner', center_id }`.
+
+   *(Note: Documented in `DECISIONS.md`: creating profile v1 inside the provisioning transaction under `service_role` with `effective_from = '2026-01-01'` establishes the initial published rate profile so day-one sync succeeds without violating `publish_rate_profile()` runtime backdating constraints or triggering `rate_profile_date_mismatch`. The operational defaults — 42% commission, 115 bp bKash, 150 bp cards — are explicitly accepted baseline defaults pending the business owner's confirmation under §4 and AGENTS.md Rule 20).*
+6. **Step 6: Commit and Write the Bootstrap Audit Row**:
+   Before `COMMIT`, one `system.bootstrap` row is appended to `audit_log` with `center_id = NULL` (a platform event) and the actor set to the `super_admin`:
+   ```sql
+   -- written only when no system.bootstrap row exists yet
+   SELECT 1 FROM audit_log WHERE action = 'system.bootstrap' LIMIT 1;
+   INSERT INTO audit_log (center_id, actor, action, target_table, target_id, after)
+   VALUES (NULL, $1, 'system.bootstrap', 'system', 'bootstrap',
+           jsonb_build_object('status', 'completed', 'centers', ...));
+   ```
+   `audit_log` has no unique constraint to lean on, and it is append-only (UPDATE and DELETE are blocked), so the guard is that `SELECT`: a rerun finds the row and inserts nothing.
+
+**Development fallback.** When `BOOTSTRAP_CENTER_CODE` is unset, `scripts/bootstrap.ts` provisions its two built-in development fixtures instead: `MHK` (Kumon Mohakhali Center) and `RMP` (Kumon Rampura Center), with placeholder owner addresses, BIN and trade licence values. That path exists so a local or test database gets a known baseline without configuration; it is never used once `BOOTSTRAP_CENTER_CODE` is set, which always provisions exactly one centre. Production runs must set the variables, because the fixtures are test data, not business data.
+
+**Not done by the bootstrap.** Settlement rows are not seeded: `generate_monthly_settlements` runs when a centre's first month is opened (§8.4). No `entry_number_seq` exists; entry numbers come from each centre's `center_counters` row (§7.5).
+
+Verification: The M0 Definition of Done requires running `scripts/bootstrap.ts` against a blank Supabase instance with the variables of Step 3 set, asserting all 20 tables exist, one `super_admin` profile with a NULL `center_id`, exactly one `centers` row whose `code` equals `BOOTSTRAP_CENTER_CODE`, and for that centre five payment methods, four payables, one published rate profile v1 with five method rates, one `app_settings` row, one `center_counters` row and a `center.create` audit row, plus the single `system.bootstrap` audit row.
+
+### 7.5 Multi-tenant centers and the Super Admin seat (CLT-T-083)
+
+The database is multi-tenant. Everything in this subsection is taken from the migrations on disk on 2026-11-14, and the migrations are authoritative for §7 as well.
+
+#### `centers`
+
+`create table centers` (`supabase/migrations/20261029000001_core_schema.sql`) has exactly these columns:
+
+| Column | Definition |
+|---|---|
+| `id` | `uuid primary key default gen_random_uuid()` |
+| `center_number` | `int generated always as identity unique` |
+| `code` | `varchar(8) not null unique check (code ~ '^[A-Z0-9]{2,8}$')` |
+| `name` | `text not null` |
+| `legal_entity_name` | `text not null` |
+| `bin_number` | `varchar(16)` |
+| `trade_license_number` | `varchar(32)` |
+| `vat_circle` | `text` |
+| `address` | `text not null` |
+| `phone` | `varchar(20) not null` |
+| `status` | `text not null default 'active' check (status in ('active', 'suspended', 'archived'))` |
+| `created_at` | `timestamptz not null default now()` |
+
+`code` and `center_number` are immutable. Trigger `trg_centers_immutable_code` calls `fn_centers_prevent_code_mutation`, which raises `409 centers_code_immutable` on any change to `code` and `409 centers_center_number_immutable` on any change to `center_number` (same migration).
+
+#### `center_id` on tenant tables
+
+Every tenant table declares `center_id uuid not null references centers(id)`: `payment_methods`, `rate_profiles`, `entries`, `payables`, `entry_reconciliation_exceptions` (`supabase/migrations/20261029000001_core_schema.sql`), and `settlements`, `settlement_payments`, `statements`, `statement_payables`, `statement_lines`, `month_closes`, `month_close_events`, `sync_ops`, `devices` (`supabase/migrations/20261029000002_settlements_and_statements.sql`). Three tables differ: `profiles.center_id` is nullable and is NULL for a `super_admin`; `audit_log.center_id` is nullable and is NULL for a platform event; `center_counters.center_id` is its primary key.
+
+Row level security is enabled and forced on all 20 public tables (`supabase/migrations/20261029000004_security_and_rls.sql`), and each policy adds the tenant predicate plus a platform bypass: `... OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'super_admin'`.
+
+#### One owner per center
+
+The maximum is the unique partial index `one_owner` on `profiles (center_id) where role = 'owner' and active = true` (`supabase/migrations/20261029000001_core_schema.sql`). The minimum is the constraint trigger `trg_prevent_zero_owners` calling `fn_prevent_zero_owners`, which raises `422 exactly_one_owner_required` when a mutation removes the last active owner of a center; it is evaluated deferred at commit time so `transfer_ownership()` can demote before promoting (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). A `super_admin` row has a NULL `center_id` and is not an owner of any center.
+
+#### Per-center entry numbering
+
+`entries.entry_number` is allocated per center from `center_counters (center_id uuid primary key, next_entry_number ...)` by the trigger `fn_entries_server_seq`, holding that center's sequence lock; `entries.server_seq` stays globally monotonic from `entry_seq` (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). The display identifier is `E-{CENTER_CODE}-YYYYMM-XXXXXX`: `formatEntryId` composes it from `centers.code` and `entry_number` in `packages/shared/src/wire.ts`, and `parseEntryId` accepts only `^E-([A-Z0-9]{2,8})-(\d{6})-(\d{6})$`. Two centers therefore hold independent counters and cannot infer each other's volume from gaps.
+
+#### Per-center advisory lock formula
+
+Every advisory lock is taken as `pg_advisory_xact_lock((<class> << 16) | (center_number & 65535), <objid>)`, where `center_number` is `centers.center_number` of the center being written (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`, `supabase/migrations/20261029000006_functions_settlement_recon_month.sql`). Classes are `1001` (month lock, `objid = year*12 + month`), `1002` (sequence lock, `objid = 1`) and `1003` (rate-profile version lock, `objid = 1`). This replaces the first coordinate of the §7.2 layout: the class is packed into `key1` beside the center identity instead of being passed alone, so one center's month close does not block another center's sync.
+
+#### The Super Admin seat
+
+A `super_admin` is a platform role, not a fourth level of the per-center hierarchy: `profiles.role = 'super_admin'` with `center_id` NULL (`supabase/migrations/20261029000001_core_schema.sql`), and platform rows in `audit_log` carry a NULL `center_id`. It cannot be created through the invite flow (`403 cannot_invite_super_admin`) and is reached only through service-role mediated routes that call `requireRole(caller, ['super_admin'])`: `apps/web/src/routes/api/v1/admin/super/centers/+server.ts`, `apps/web/src/routes/api/v1/admin/super/centers/[id]/+server.ts` and `apps/web/src/routes/api/v1/admin/super/search/+server.ts`.
+
+`rpc_create_center` is revoked from `public`, `anon` and `authenticated`, granted to `service_role` only, requires a `super_admin` actor whose `center_id` is NULL and `active = true`, and writes a `center.create` row through `log_audit_event` in the same transaction (`supabase/migrations/20261029000007_center_provisioning.sql`). It creates the center, the five canonical payment methods, the four canonical payables, a published rate profile v1 with its method rates, `app_settings` and the `center_counters` row.
+
+Implemented today:
+
+| Surface | What it does |
+|---|---|
+| `GET /api/v1/admin/super/centers` | Lists all centers with their owner. |
+| `POST /api/v1/admin/super/centers` | Calls `rpc_create_center`, then sets the owner's GoTrue `app_metadata`. |
+| `PATCH /api/v1/admin/super/centers/[id]` | Updates center profile fields and `status`; writes `center.update`, `center.owner_update` and `center.owner_password_reset` audit rows. |
+| `GET /api/v1/admin/super/search` | Cross-center entry search by customer name, transaction reference, entry number or gross amount. Read-only, no audit row. |
+| `/admin/super/centers`, `/admin/super/search` | The only two Super Admin screens in the app. |
+
+`PATCH` accepts `status` values `active`, `suspended` and `archived` and stores them. No RLS policy, RPC, API route or sync path reads `centers.status`, so suspension and archive currently block nothing; they record a status value and an audit row. Suspension and archive enforcement is PLANNED and not yet registered as a plan.
+
+The following are also PLANNED and not yet registered as a plan; none of them exists in the code: enforcement of `suspended` and `archived`, forced two-factor authentication, server-checked re-authentication for destructive actions, an impact preview before a ledger edit, a Super Admin dashboard, cross-center user and device management, and retention or purge screens. They are recorded as requirements in `docs/plans/super-admin-panel-requirements-v0.4.md` and reviewed in `docs/orchestration/reports/super-admin-panel-goldfish-brief.md` (2026-11-14).
 
 ## 8. Functional requirements
 
@@ -2334,3 +2527,15 @@ The five Implementation Readiness Gates establish mandatory verification criteri
 | Supabase free tier limits or pausing | Plan for a paid tier in production; verify current limits |
 | Statement formats unknown | Adapter interface plus manual-total path ships first |
 | Scope creep | Strict milestones; non-goals in section 2 |
+
+## 20. Changelog
+
+| Version | Date | Change |
+|---|---|---|
+| 1.26 | 2026-11-14 | Q1–Q4 moved from OPEN to DECIDED in §4, carrying the owner's 2026-11-13 answers (`CLT-POLICY-Q1`–`Q4` in `DECISIONS.md`, recorded in `LEDGER.md` row 43). §4's production-release note records Rule 20 as satisfied. The header's "calculation rules are CONFIGURABLE because the business has not confirmed them" is narrowed to the items still OPEN. No other section changed. |
+| 1.25 | 2026-11-14 | `scripts/bootstrap.ts` and `.env.example` implement §7.4's environment-driven first centre (`BOOTSTRAP_CENTER_*`); the MHK/RMP fixtures remain only as the fallback when `BOOTSTRAP_CENTER_CODE` is unset. The runbook's temporary UNVERIFIED note is replaced by that description. |
+| 1.24 | 2026-11-14 | §7.4's bootstrap runbook now specifies an environment-driven first centre (`BOOTSTRAP_CENTER_CODE`, `BOOTSTRAP_CENTER_NAME`, `BOOTSTRAP_CENTER_OWNER_EMAIL`, `BOOTSTRAP_CENTER_OWNER_NAME`, plus the legal fields the RPC requires), provisioned by `rpc_create_center` after the platform `super_admin`. Records that `scripts/bootstrap.ts` still hardcodes `MHK` and `RMP` (UNVERIFIED). |
+| 1.23 | 2026-11-14 | CLT-T-085 completed at the owner's direction: §7.4's bootstrap runbook rewritten to `scripts/bootstrap.ts` as it exists — platform `super_admin` auth user and profile with `center_id` NULL, one transaction under `pg_advisory_xact_lock(1004, 1)`, centres provisioned by `rpc_create_center` (MHK and RMP fixtures), `system.bootstrap` audit row with `center_id` NULL, settlements no longer claimed as seeded. |
+| 1.22 | 2026-11-14 | CLT-T-085 completed at the owner's direction: §7's baseline DDL rewritten to the multi-tenant schema in `20261029000001_core_schema.sql` and `...0002_settlements_and_statements.sql` — `centers` and `center_counters` added, `center_id` on every tenant table, composite keys and foreign keys, per-center `entry_number` from `center_counters` (`entry_number_seq` removed), per-center uniques and indexes, `app_settings` keyed by `center_id`, anomaly view grouped per center. §7.4's bootstrap SQL still seeds a single centre and is listed as open. |
+| 1.21 | 2026-11-14 | CLT-T-085: reconciled §7 with the migrations — `user_role` enum now `('super_admin', 'owner', 'admin', 'staff')`, `one_owner` stated as the per-center partial index on `profiles (center_id)`, §7.1 revocation and RLS lists extended to the 20 public tables, §7.2 documents the packed per-center advisory-lock key, §7.4 asserts 20 tables. Sections 3 and 7.5 unchanged. |
+| 1.20 | 2026-11-14 | CLT-T-083: added the four-role table to §3 (`super_admin`, `owner`, `admin`, `staff`, with the invite-flow exclusions), added §7.5 describing the multi-tenant `centers` model and the Super Admin seat as implemented, marked unbuilt Super Admin capabilities PLANNED, and added this changelog. No other section changed. |

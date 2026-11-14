@@ -3,7 +3,7 @@
 Instructions for any AI agent (coding, planning, auditing, or orchestrating) working in this repository.
 Read this file first, then `docs/plans/PRD-payment-ledger-app.md`.
 
-Last updated: 2026-10-29 (rev 8). Source: PRD v1.19 (read in full), `ORCHESTRATOR.md` v2.0, the Rhizome skills in `.agents/skills/`, and the repository as it exists today.
+Last updated: 2026-11-14 (rev 14). Source: PRD v1.25 (read in full), `ORCHESTRATOR.md` v2.0, the Rhizome skills in `.agents/skills/`, and the repository as it exists today.
 Anything marked UNVERIFIED, ESTIMATE, ASSUMPTION, or UNSET has not been confirmed. Do not turn it into fact.
 
 ---
@@ -58,7 +58,7 @@ The app does **not** collect money. Staff record payments already received.
   - `pnpm lint`: executes ESLint and strict TypeScript typechecking
   - `pnpm typecheck`: runs `tsc --noEmit` across all workspaces
   - `pnpm format`: runs Prettier formatting check/fix
-  - `pnpm db:bootstrap`: runs `scripts/bootstrap.ts` initialization script via `tsx`
+  - `pnpm db:bootstrap`: runs `scripts/bootstrap.ts` initialization script via `tsx`. It provisions the platform `super_admin` and one centre built from the `BOOTSTRAP_CENTER_*` variables, or the two `MHK`/`RMP` development fixtures when `BOOTSTRAP_CENTER_CODE` is unset (PRD §7.4)
   - `pnpm db:reset`: resets local Supabase database via Supabase CLI (`supabase db reset`)
   - `pnpm db:prune-devices [--apply] [--keep-per-user N] [--older-than-days N]`: prunes the device
     registry (`scripts/maintenance/prune-devices.ts`). Dry run by default. Never deletes a device referenced
@@ -77,42 +77,66 @@ The app does **not** collect money. Staff record payments already received.
   `PUBLIC_API_BASE` is baked into the bundle at build time and must be an absolute origin the phone can reach; the SPA otherwise calls relative paths and gets nothing.
 - **Android platform regeneration:** `android/` is generated and untracked, and the scaffold alone does not carry everything the app needs. `apps/web/scripts/prepare-android.mjs` repairs it and is idempotent; the package scripts run it for you: `pnpm --filter @clt/web android:add` (scaffold + repair) and `android:sync` (cap sync + repair). It reads `appName`/`appId` from `capacitor.config.ts` and: (a) points every `android:label` at `@string/app_name`, rewriting `app_name`/`title_activity_main` in `strings.xml` so a rename needs no manifest edit — Capacitor 6.2.3 already scaffolds this, but the script keeps it true if the template changes; (b) removes `usesCleartextTraffic` from the main manifest and (c) creates/repairs `app/src/debug/AndroidManifest.xml` with `usesCleartextTraffic="true"`. Skipping it after a regeneration leaves release builds able to speak plain HTTP, or debug builds unable to reach an HTTP LAN backend.
 - **Cleartext:** `capacitor.config.ts` keeps `cleartext: false`; plain-HTTP LAN backends work only in debug builds through the debug manifest above, and release builds stay HTTPS-only and need a deployed origin. Verified 2026-11-08 from the merged manifests and a freshly packaged debug APK: debug has `usesCleartextTraffic=true`, release merge has no cleartext attribute, and `aapt dump badging` reports `application-label:'Kumon Ledger Track'`.
-- Environment variables the PRD names: `BOOTSTRAP_OWNER_EMAIL`, `BOOTSTRAP_OWNER_PASSWORD` (bootstrap script), `PUBLIC_API_BASE` (native build). Supabase URL and key variable names are not specified; define them in `.env.example` at M0. Never commit real values (`.env*` is gitignored except `.env.example`).
+- Environment variables the PRD names: `BOOTSTRAP_OWNER_EMAIL` (the platform `super_admin` account, not a centre owner), `BOOTSTRAP_OWNER_PASSWORD`, `PUBLIC_API_BASE` (native build), and the bootstrap seed centre: `BOOTSTRAP_CENTER_CODE`, `BOOTSTRAP_CENTER_NAME`, `BOOTSTRAP_CENTER_LEGAL_ENTITY_NAME`, `BOOTSTRAP_CENTER_ADDRESS`, `BOOTSTRAP_CENTER_PHONE`, `BOOTSTRAP_CENTER_OWNER_EMAIL`, `BOOTSTRAP_CENTER_OWNER_NAME` (all required once `BOOTSTRAP_CENTER_CODE` is set), plus the optional `BOOTSTRAP_CENTER_BIN` and `BOOTSTRAP_CENTER_TRADE_LICENSE`. `.env.example` lists every one of them. Supabase URL and key variable names are not specified; define them in `.env.example` at M0. Never commit real values (`.env*` is gitignored except `.env.example`).
+- **Bootstrap is environment-driven (PRD §7.4).** `scripts/bootstrap.ts` creates the platform `super_admin` (profile `center_id` NULL), then provisions the first centre through `rpc_create_center` inside one transaction under advisory lock `1004`. With `BOOTSTRAP_CENTER_CODE` set it provisions exactly that one centre and fails fast if a required variable is missing or the code does not match `^[A-Z0-9]{2,8}$`. With it unset it provisions the two development fixtures, `MHK` (Mohakhali) and `RMP` (Rampura), which is why `tests/db/bootstrap.test.ts` expects exactly two centres. Production runs must set the variables; the fixtures are test data.
 - Intended toolchain (PRD §13): SvelteKit 2 + Svelte 5 runes, SPA mode (`ssr = false`), Tailwind CSS 4 + CSS variables, Dexie, Supabase (Postgres, Auth, RLS, private Storage), Zod, Vitest + fast-check, Playwright, `@vite-pwa/sveltekit`, Capacitor (Android first, `@capacitor/haptics`, `@capacitor/preferences`), Vercel (`adapter-vercel`; native build uses `adapter-static`), `pg_cron` for sync-op retention.
 
 ---
 
 ## 3. Repository map
 
-### What exists today (verified from the directory tree, 2026-10-29)
+### What exists today (verified from the tree plus one test and typecheck run, 2026-11-14)
 
 | Path | What it is |
 |---|---|
-| `docs/plans/PRD-payment-ledger-app.md` | **Source of truth.** PRD v1.19 (dated 2026-10-29). Written to be executed by AI agents. |
+| `docs/plans/PRD-payment-ledger-app.md` | **Source of truth.** PRD v1.25, including §7.5 (multi-tenant centres) and §20 (changelog). |
 | `AGENTS.md` | This file. |
 | `CLAUDE.md` | One line: `@AGENTS.md`. Do not edit. |
 | `ORCHESTRATOR.md` | Orchestrator operating manual v2.0: tracking, briefs, gates, records. Applies to every project. |
-| `docs/plans/000_TOC.md` | Registry of implementation plans 001–022: PRD references, dependencies, status. Created 2026-10-29. |
-| `docs/plans/PLANNER-PROMPT.md` | The brief given to the planning model to write the plan files, run in 5 batches. |
-| `docs/plans/NNN_*.md` | Implementation plans 001–022 (authored and registered in `docs/plans/000_TOC.md`; status `Not Implemented`). |
-| `.agents/skills/rhizome-orchestrator/`, `.agents/skills/rhizome-builder/` | Rhizome loop skills: multi-IDE agent communication. See §10. |
-| `README.md` | Overview. **Stale in places:** cites PRD v1.7 (actual v1.19), lists PostGIS (the PRD does not), says "Vanilla CSS" tokens (PRD says Tailwind 4 + CSS variables). The PRD wins. |
-| `Cosmo_Ledger_Track.code-workspace`, `.gitignore` | Editor and ignore config. |
+| `docs/plans/000_TOC.md` | Registry of plans 001–022 with their status words; the only place those statuses change. |
+| `docs/plans/001…022_*.md` | The 22 implementation plans. |
+| `docs/plans/super-admin-panel-requirements-v0.{2,3,4}.md` | Super Admin requirement drafts. Not plans; not registered in the TOC. |
+| `docs/plans/PLANNER-PROMPT.md` | The brief given to the planning model for the plan batch. |
+| `docs/designs/multi_center_row_level_multitenancy.md` | Approved multi-tenant design (2026-11-08). |
+| `docs/design/DESIGN.md`, `docs/Images/` | Design notes and exported assets (logo, splash, icon). |
+| `docs/runbooks/` | `BACKUP_RESTORE.md`, `CREDENTIAL_ROTATION.md`, `DEVICE_JOURNEY.md`, `INCIDENT_RESPONSE.md`, `ROLLBACK.md`. |
+| `docs/orchestration/` | `LEDGER.md`, `DECISIONS.md`, `RISKS.md`, `G0_READINESS_CHECKLIST.md`, `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`, `OWNER_DECISION_PACKET_Q1_Q4.md`, `briefs/`, `reports/`, `evidence/`. |
+| `packages/calc` | Calculation engine: `src/{calculate,errors,index,rounding,types}.ts`, `fixtures/`, `test/`. The only calculation implementation. |
+| `packages/shared` | `src/{index,money,types,wire}.ts` — DTOs, the `UserRole` union, `formatEntryId` / `parseEntryId`, money helpers — plus `test/`. |
+| `apps/web` | SvelteKit 2 app. `src/lib`: `db`, `sync`, `auth`, `ledger`, `reports`, `settlements`, `reconcile`, `server` (+`server/reconcile/adapters`), `ui` (+`ui/actions`, `ui/dashboards`), `pwa`, `native`, `i18n`, `dashboards`, `admin`, `api`, `supabase`. See the route list below. |
+| `apps/web/src/routes/(app)` | `dashboard`, `entries/new`, `ledger`, `reports`, `settlements` (+`[id]`), `reconcile` (+`manual`, `upload`), `months/close`, and `admin` (+`audit`, `devices`, `methods`, `payables`, `rates`, `settings`, `stale-reviews`, `users`, `super/centers`, `super/search`). |
+| `apps/web/src/routes/(auth)` | `login`, `callback`, `set-password`. |
+| `apps/web/src/routes/api/v1` | 35 `+server.ts` routes: `sync/push`, `sync/pull`, `auth/session`, `health`, admin (users, invite, devices, rates, methods, payables, settings, audit, transfer-ownership, stale reviews, super centres/search), settlements (payments, overpayment approval, receipts), reconcile (statements, upload, signed-url, match/accept/unmatch line, exceptions, supersede), months (close, reopen). |
+| `apps/web/android`, `apps/web/capacitor.config.ts` | Generated Capacitor Android project (untracked) and its config. `adapter-static` under `CAPACITOR_BUILD`, `adapter-vercel` otherwise. |
+| `apps/web/src/app.css`, `apps/web/static/` | Design tokens and glass components; `manifest.webmanifest`, icons, fonts. |
+| `supabase/migrations` | Seven migrations, `20261029000001`–`0007`: core schema, settlements/statements/audit, views, security/RLS, entries/rates/sync functions, settlement/recon/month functions, centre provisioning. |
+| `tests/`, `apps/web/tests/`, `e2e/` | `tests/db` (schema, entries_sync, settlement_recon, calc_parity, bootstrap), `tests/scripts` (device fixtures, preflight, gate checks, owner screens, sign-in flow), `tests/ops`, `tests/sanity`, `apps/web/tests` (regression suite, report view parity, calc parity, E2E specs), and `e2e/supabase` — the isolated second Supabase stack. |
+| `scripts/` | `bootstrap.ts`, `seed-recon-month.ts`, `verify-gates.ts`, `gate-device-check.ts`, `maintenance/{prune-devices,purge-entry}.ts`, `ops/{backup-export,deploy-check,restore-drill}.ts`, and `e2e/*` (isolated stack, device fixtures, journeys). |
+| `.github/workflows/` | `ci.yml`, `daily-backup.yml`. |
+| `DECISIONS.md` | Implementer decisions where the PRD is silent (PRD Rule 5). |
+| `README.md` | Overview. **Stale in places:** cites PRD v1.7 (actual v1.25), lists PostGIS (the PRD does not), says "Vanilla CSS" tokens (PRD says Tailwind 4 + CSS variables). The PRD wins. |
+| `start-tunnel.sh`, `mcp-local-tunnel.config.json` | Local tunnel helper for device testing. |
+| `concepts_brief.md`, `design_draft.md`, `Cosmo_Ledger_Track.code-workspace`, `.gitignore` | Working notes and editor/ignore config outside the docs tree. |
 
-**No application code, migrations, tests, or `docs/orchestration/` exist yet.** Everything below is planned, not built.
+Measured on 2026-11-14: `pnpm test` → 15 files passed, 1 skipped; 193 tests passed, 10 skipped. `pnpm typecheck` → 0 errors, 0 warnings. Database, E2E and gate runs are recorded in `docs/orchestration/LEDGER.md` and were not re-run for this edit.
 
-### Planned layout (PRD §13)
+### Layout as built (PRD §13)
 
 ```
-/packages/calc          pure calculation engine + tests + fixtures (PRD §6.6, §6.7)
-/packages/shared        types, zod schemas, money formatting
+/packages/calc          pure calculation engine + fixtures + tests (PRD §6.6, §6.7)
+/packages/shared        types, DTOs, wire format, money helpers
 /apps/web
-  /src/lib/db           dexie schema, outbox, sync runner
-  /src/lib/ui           design system components (PRD §14)
-  /src/routes/(app)     dashboard, entries/new, ledger, reports, settlements, reconcile, admin
-  /src/routes/api/v1    sync/push, sync/pull, admin/*, settlements/*, reconcile/*, months/*
-/supabase/migrations    SQL from PRD §7 + RLS + triggers
-/scripts/bootstrap.ts   bootstrap runbook script (PRD §7.4, M0)
+  /src/lib/db           dexie schema, outbox
+  /src/lib/sync         canonical, push, pull, runner, recovery
+  /src/lib/ui           design system components and actions (PRD §14)
+  /src/routes/(app)     dashboard, entries/new, ledger, reports, settlements, reconcile,
+                        months/close, admin (incl. admin/super)
+  /src/routes/(auth)    login, callback, set-password
+  /src/routes/api/v1    sync/*, auth/*, health, admin/*, settlements/*, reconcile/*, months/*
+  /src/lib/server       service-role access and reconcile adapters
+/supabase/migrations    SQL from PRD §7 + RLS + functions + centre provisioning
+/scripts/bootstrap.ts   bootstrap runbook script (PRD §7.4, M0): platform super_admin, then one
+                        centre from BOOTSTRAP_CENTER_*, or the MHK/RMP fixtures when unset
 /DECISIONS.md           choices an agent made where the spec was silent (PRD Rule 5)
 /docs/orchestration/    LEDGER.md, DECISIONS.md, RISKS.md, briefs/, reports/ (ORCHESTRATOR.md §13)
 ```
@@ -131,23 +155,29 @@ Two decision logs, two purposes: root `DECISIONS.md` records implementer choices
 
 **Entries are immutable snapshots.** A rate change never alters an existing entry. Only void and supersede change entry state. Offline entries made under a profile later superseded are kept with `stale_rates = true` and raise an Admin alert. Anti-cherry-picking: a client that already knew a newer applicable profile and submitted an older one is rejected with `403 rate_profile_date_mismatch`.
 
-**Server mediation.** All mutations go through SvelteKit `+server.ts` routes under `/api/v1/*` that verify the Supabase JWT (`auth.uid()`), validate with Zod, then call a `SECURITY DEFINER` RPC under `service_role`, which writes `audit_log` in the same transaction. Direct `INSERT/UPDATE/DELETE` on all 18 public tables is revoked from `anon` and `authenticated`. RLS is enabled on all 18. Routine `EXECUTE` is revoked from `PUBLIC`, `anon`, `authenticated` and granted to `service_role`. Only the server holds the service role key. Server never trusts the client: snapshots, role, `created_by`, hash, and calculated components are re-derived or re-verified.
+**Server mediation.** All mutations go through SvelteKit `+server.ts` routes under `/api/v1/*` that verify the Supabase JWT (`auth.uid()`), validate with Zod, then call a `SECURITY DEFINER` RPC under `service_role`, which writes `audit_log` in the same transaction. Direct `INSERT/UPDATE/DELETE` on all 20 public tables is revoked from `anon` and `authenticated`. RLS is enabled and forced on all 20 (`supabase/migrations/20261029000004_security_and_rls.sql`). Routine `EXECUTE` is revoked from `PUBLIC`, `anon`, `authenticated` and granted to `service_role`. Only the server holds the service role key. Server never trusts the client: snapshots, role, `created_by`, hash, and calculated components are re-derived or re-verified.
 
 **Sync.** Local save to Dexie is instant and never blocked by connectivity. The client flushes `/sync/push` to completion **before** calling `/sync/pull`. Outbox ops carry `opId`, `supersedesRejectedOpId`, `clientCreatedAt`, `maxKnownRateVersion`; the server hashes the canonical op (SHA-256) itself. Every retry of a rejected op uses a **fresh** `opId`. Per-op subtransaction fault isolation. Key numbers: push max 50 ops per request; pull page 200 rows; pull rate limit 60 requests/min; clock skew limit 5 min; ops older than 90 days go to the Admin review queue; `sync_ops` retained 90 days (resolved/discarded only; pending rejections are kept). Pull cursor order is protected by the sequence advisory lock.
 
-**Lock hierarchy (every mutation path).** Advisory locks via `pg_advisory_xact_lock(classid, objid)`: `1001` month locks (`objid = year*12 + month`), taken first in **ascending** month order; `1002` sequence lock `(1002, 1)`, taken before any entry row lock; `1003` rate-profile version lock. Then row locks in this order: `payables (FOR KEY SHARE)` → `entries` → `settlements` → `statements` → `statement_payables` → `statement_lines` → `entry_reconciliation_exceptions`. Violating this order creates deadlocks.
+**Lock hierarchy (every mutation path).** Advisory locks via `pg_advisory_xact_lock(key1, key2)`, where `key1 = (class << 16) | (center_number & 65535)` for the center being written (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`, `supabase/migrations/20261029000006_functions_settlement_recon_month.sql`): `1001` month locks (`key2 = year*12 + month`), taken first in **ascending** month order; `1002` sequence lock (`key2 = 1`), taken before any entry row lock; `1003` rate-profile version lock (`key2 = 1`). Centers hold different lock keys, so one center's write never serializes another's. Then row locks in this order: `payables (FOR KEY SHARE)` → `entries` → `settlements` → `statements` → `statement_payables` → `statement_lines` → `entry_reconciliation_exceptions`. Violating this order creates deadlocks.
 
-**Roles.** Staff, Admin, Owner, enforced in RLS **and** server routes. Exactly one active Owner (unique partial index `one_owner`, deferrable trigger, atomic `transfer_ownership()`, demote-before-promote). Hiding UI is not enforcement.
+**Roles.** Four roles: `super_admin`, `owner`, `admin`, `staff` (`supabase/migrations/20261029000001_core_schema.sql`). `super_admin` is the platform seat with `profiles.center_id` NULL and cannot be created by the invite flow (`admin_invite_user` raises `403 cannot_invite_super_admin`, `supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). Staff, Admin and Owner are center-scoped, enforced in RLS **and** server routes. Exactly one active Owner **per center** (unique partial index `one_owner` on `profiles (center_id)` where `role = 'owner' and active = true`, constraint trigger `trg_prevent_zero_owners`, atomic `transfer_ownership()`, demote-before-promote). Hiding UI is not enforcement.
 
 **Settlement.** Exactly five states: `not_applicable`, `due`, `partly_paid`, `paid`, `overpaid`, computed by `calc_settlement_status()` and recomputed by trigger. `overpaid` needs an Owner-only approval bound to the exact surplus; it invalidates automatically when the balance changes. Customer-borne charges create zero merchant liability. Payment corrections are reversal rows, never edits.
 
 **Reconciliation.** Mode A (totals-only, `source = 'manual_total'`, default tolerance 100 poisha) ships in M2. Mode B (line-item, `source = 'file'`) ships in M4 after real sample statements exist. Month close is gated on reconciliation and overpayment approvals. Closing is an idempotent upsert; a month with no `month_closes` row is open.
 
-**Hosting and data.** Supabase on Postgres 15+, region Singapore or Mumbai. No SQLite. All business dates and month boundaries are Asia/Dhaka; `entry_date` is a `date`. Human-readable entry ID `E-YYYYMM-XXXXXX` (month from `entry_date`, number from the global `entry_number_seq`); `#LOCAL-xxxx` until synced.
+**Hosting and data.** Supabase on Postgres 15+, region Singapore or Mumbai. No SQLite. All business dates and month boundaries are Asia/Dhaka; `entry_date` is a `date`. Entry numbering is per center: see **Per-center numbering** below. `#LOCAL-xxxx` until synced.
+
+**Multi-tenant centers.** `centers` is the tenant root (`supabase/migrations/20261029000001_core_schema.sql`): `id`, `center_number` (identity, unique), `code` (unique, `^[A-Z0-9]{2,8}$`), `name`, `legal_entity_name`, `bin_number`, `trade_license_number`, `vat_circle`, `address`, `phone`, `status` (`active` | `suspended` | `archived`), `created_at`. `code` and `center_number` are immutable (`trg_centers_immutable_code` / `fn_centers_prevent_code_mutation` raise `409 centers_code_immutable` and `409 centers_center_number_immutable`). Every tenant table declares `center_id uuid not null references centers(id)`; `profiles.center_id` and `audit_log.center_id` are nullable, where NULL marks a platform row. RLS is forced on all 20 public tables with the tenant predicate in `supabase/migrations/20261029000004_security_and_rls.sql`. `centers.status` is written by `PATCH /api/v1/admin/super/centers/[id]` and read by no policy, RPC, route or sync path, so suspension and archive currently block nothing (CLT-T-083).
+
+**Per-center numbering.** `entries.entry_number` is allocated per center from `center_counters` by trigger `fn_entries_server_seq` under that center's sequence lock, while `entries.server_seq` stays globally monotonic from `entry_seq` (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). The display id is `E-{CENTER_CODE}-YYYYMM-XXXXXX`, composed from `centers.code` and `entry_number` by `formatEntryId` and parsed only in that shape by `parseEntryId` (`packages/shared/src/wire.ts`).
+
+**Super Admin seat.** `super_admin` is a platform role with `profiles.center_id` NULL (`supabase/migrations/20261029000001_core_schema.sql`) and no invite path (`403 cannot_invite_super_admin`). It is reached only through service-role routes that call `requireRole(caller, ['super_admin'])` (`apps/web/src/routes/api/v1/admin/super/*`). `rpc_create_center` is granted to `service_role` only, requires an active `super_admin` actor with a NULL `center_id`, and writes a `center.create` audit row in the same transaction (`supabase/migrations/20261029000007_center_provisioning.sql`). Implemented surfaces: `GET`/`POST /api/v1/admin/super/centers`, `PATCH /api/v1/admin/super/centers/[id]`, `GET /api/v1/admin/super/search`, and the `/admin/super/centers` and `/admin/super/search` screens. Suspension enforcement, 2FA, re-authentication, impact preview, dashboards and cross-center user/device management are PLANNED and not built (`docs/orchestration/reports/super-admin-panel-goldfish-brief.md`, 2026-11-14).
 
 **Design system.** Frosted-glass / pearl-grain, WCAG AA (>= 4.5:1) in light and dark, 44px touch targets, `prefers-reduced-motion`, `prefers-reduced-transparency`, `prefers-contrast: more`. Backdrop blur only on menu, sheets, and buttons. Solid-colour fallback for engraved button text. Fonts self-hosted: Geist, Geist Mono (tabular figures), Noto Sans Bengali fallback. i18n-ready: no UI strings outside the message catalog.
 
-Decided by the owner: Admin changes rates alone (no Owner approval); single Owner; fixed monthly due date per payable set in admin; reconciliation is in v1; transaction ID mandatory only where `payment_methods.requires_txn_ref = true`; all percentages come from the admin panel.
+Decided by the owner: Admin changes rates alone (no Owner approval); one active Owner per center; fixed monthly due date per payable set in admin; reconciliation is in v1; transaction ID mandatory only where `payment_methods.requires_txn_ref = true`; all percentages come from the admin panel.
 
 ---
 
@@ -161,7 +191,7 @@ Briefs and reports cite these by number.
 4. **Entries are immutable.** No recalculation of old entries (Q7). Only void or supersede, both audited.
 5. **Every state change** on entries, rates, users, settlements, reconciliation, devices, and month close writes an `audit_log` row inside the same transaction (PRD §15.1). `audit_log` is append-only.
 6. **Never block a Save on connectivity.** The app is usable offline.
-7. **All financial and config writes go through `SECURITY DEFINER` RPCs under `service_role`** with `search_path = public, pg_temp`. Routine execution is revoked from `PUBLIC`, `anon`, `authenticated`. Table-level writes stay revoked. RLS stays on for all 18 tables.
+7. **All financial and config writes go through `SECURITY DEFINER` RPCs under `service_role`** with `search_path = public, pg_temp`. Routine execution is revoked from `PUBLIC`, `anon`, `authenticated`. Table-level writes stay revoked. RLS stays on for every public table (20, `supabase/migrations/20261029000004_security_and_rls.sql`).
 8. **Secrets never reach the client, logs, briefs, reports, or the repo.** That includes the service role key and `BOOTSTRAP_OWNER_PASSWORD`. Briefs say "from the secret manager, name `<NAME>`".
 9. **Server trusts nothing from the client:** role, `created_by`, snapshot, hash, and calculated components are re-derived and verified (PRD §6.5).
 10. **Respect the lock hierarchy** in §4 on every mutation path.
@@ -207,22 +237,24 @@ Briefs and reports cite these by number.
 
 ## 7. Status
 
-Verified 2026-10-29 from the repository tree and a full read of the PRD.
+Verified 2026-11-14 from the repository tree, `pnpm test` and `pnpm typecheck`. Milestone states below say what is on disk; the Definition-of-Done runs and gate evidence are quoted from `docs/orchestration/LEDGER.md` and were not re-executed for this edit.
 
 | Item | State |
 |---|---|
 | PRD v1.19 | Production-ready specification (final convergence). Resolved: removed leftover (HTTP 426) shorthand in recovery matrix, grounded AGENTS.md in repo layout, assigned explicit sync.calc_mismatch audit event name, retitled §9.2.2 recovery matrix for scope hygiene, synchronized protocol note and error codes across all sections, and finalized complete 65-test regression suite. |
-| M0 Monorepo, Supabase, migrations, `packages/calc`, tokens, bootstrap script | NOT_BUILT |
-| M1 Auth, roles, entry screen, Dexie + outbox, first sync | NOT_BUILT |
-| M2 Full sync, reports, settlements, Mode A reconciliation, month close, exports | NOT_BUILT |
-| M3 PWA, stale-rate handling, sync edge cases | NOT_BUILT |
-| M4 File-based reconciliation adapters (Mode B) | NOT_BUILT. Blocked on real sample statements from Zia. |
-| M5 Capacitor Android, haptics, push, store packaging | NOT_BUILT. Blocked on Q1–Q4 confirmation. |
-| `docs/orchestration/` (ledger, decisions, risks) | Does not exist. Created at G0. |
-| Rhizome hub | Not created. Hub ID UNSET. |
-| Agent roster | UNSET. Zia fills the table in `ORCHESTRATOR.md` §5. |
+| PRD v1.20 | CLT-T-083 documented the multi-tenant model: four roles in §3, new §7.5 for `centers`, `center_id`, per-center numbering, the per-center lock formula and the Super Admin seat as implemented, and §20 changelog. |
+| PRD v1.21–v1.25 | CLT-T-085 closed the single-tenant drift: §7.1 and §7.4 say 20 tables, §7's DDL is multi-tenant (`centers`, `center_counters`, `center_id`, composite keys, per-center numbering), and §7.4's bootstrap runbook is environment-driven and implemented by `scripts/bootstrap.ts`. |
+| M0 Monorepo, Supabase, migrations, `packages/calc`, tokens, bootstrap script | BUILT. Seven migrations (`20261029000001`–`0007`), `packages/calc` with fixtures and tests, `packages/shared`, `scripts/bootstrap.ts`, design tokens, CI workflows. Covered by the 2026-11-14 `pnpm test` run. |
+| M1 Auth, roles, entry screen, Dexie + outbox, first sync | BUILT. `(auth)` login/callback/set-password, role gates in RLS and routes, `entries/new`, `lib/db` + `lib/sync` (canonical, push, pull, runner, recovery), `tests/db/entries_sync.test.ts`, `apps/web/tests/regression/suite.test.ts`. DoD evidence recorded in `LEDGER.md`; not re-run here. |
+| M2 Full sync, reports, settlements, Mode A reconciliation, month close, exports | BUILT. `lib/reports` (aggregates, CSV, XLSX, PDF export), `settlements` and `settlements/[id]`, `reconcile/manual`, `months/close`, and the matching `api/v1` routes. `LEDGER.md` records Gates 1–4 at M2 as passing on the isolated stack (`GATE_EVIDENCE.json`, 2026-11-11); not re-run here. |
+| M3 PWA, stale-rate handling, sync edge cases | BUILT. `@vite-pwa/sveltekit` in `vite.config.ts`, `apps/web/static/manifest.webmanifest`, `lib/pwa/{clock,retention,storage}.ts`, `admin/stale-reviews`, `admin/entries/stale-anomalies`, `lib/sync/recovery.ts`. |
+| M4 File-based reconciliation adapters (Mode B) | PARTIALLY_BUILT. Two CSV adapters exist — `apps/web/src/lib/server/reconcile/adapters/{bkash-csv,card-combined-csv}.ts` — behind the `statements/upload`, `match-line`, `accept-line` and `supersede` routes. Their formats are UNVERIFIED against real statements, which PRD §4 Q14 still lists as OPEN. |
+| M5 Capacitor Android, haptics, push, store packaging | PARTIALLY_BUILT. `apps/web/android/` (generated, untracked) and `capacitor.config.ts` exist, and §2 records a verified debug APK build on hardware (2026-11-08). Rule 20 is satisfied (`CLT-POLICY-Q1`–`Q4`, 2026-11-13, `LEDGER.md` row 43), so the remaining store-release gate is Rule 19: no `ZIA-APPROVED` release line exists. |
+| `docs/orchestration/` (ledger, decisions, risks) | Exists: `LEDGER.md`, `DECISIONS.md`, `RISKS.md`, `briefs/`, `reports/`, `evidence/`, the G0 and Gate 5 checklists and `OWNER_DECISION_PACKET_Q1_Q4.md`. `LEDGER.md` records creation on 2026-11-06. |
+| Rhizome hub | UNSET. No hub ID is recorded in this file or in `LEDGER.md`. |
+| Agent roster | Unfilled in the manual, in use in practice: `ORCHESTRATOR.md` §5 still shows `<fill>` for `A-PLN-1`, `A-IMP-1`, `A-AUD-1`, `A-TST-1`, while `LEDGER.md` work rows name `A-IMP-1`, `A-IMP-2` and `A-AUD-1`. |
 
-Gate in effect (ORCHESTRATOR.md §6): **G0 Intake.** Needs this file confirmed by Zia, the roster, and `docs/orchestration/` created. G1 (planning) needs an audited PRD with P0/P1 findings closed.
+Gate position, quoted from `docs/orchestration/LEDGER.md` §3 and the 2026-11-14 runs: Gates 1–4 at M2 **pass** (tracked `reports/GATE_EVIDENCE.json`, 2026-11-11). On the throwaway isolated stack (`pnpm test:e2e:isolated --gate5`, then `pnpm test:gates --milestone production`), Gates 1–5 automated **pass** and are recorded in `reports/GATE_EVIDENCE_production_2026-11-14.json` (Gate 5 `automated_checks_passed`; save latency 17.3 ms). **Gate 5 is not signed off:** `Gate 5 (Physical Device)` is `not_run_no_environment` because no handset is attached — `adb` 36.0.0 is installed at `/home/zia/android-sdk` and `apps/web/android/local.properties` records `sdk.dir`, but `adb devices` lists nothing — so that report reads `allSatisfied: false` for that one reason. G0 is not signed, and the roster entries in `ORCHESTRATOR.md` §5 are still blank.
 
 Mandatory regression tests: 65, listed in PRD §16.2. Each milestone's Definition of Done names the tests that must pass.
 
@@ -243,13 +275,13 @@ Prior findings status:
 
 Open findings / pending owner inputs:
 1. **README drift:** Cites PRD v1.7 (actual v1.19), lists PostGIS (PRD does not), says "Vanilla CSS" tokens (PRD says Tailwind 4 + CSS variables). Update on Zia's word.
-2. **PRD §4 items Q1–Q4:** Real VAT rule, Final/Net definition, commission structure, and fee bearer are OPEN and implemented as configurable defaults; requires Zia confirmation before production release (Rule 20).
+2. **PRD §4 items Q1–Q4:** SETTLED 2026-11-13. Zia's answers are `CLT-POLICY-Q1`–`Q4` in `DECISIONS.md` and are reproduced as DECIDED in PRD §4 (v1.26). Rule 20's precondition is met; the store release is still gated on Rule 19.
 
 ---
 
 ## 8. Unverified (do not state as fact)
 
-- Real VAT rule, the "Final" column meaning, commission structure, and who bears method charges (Q1–Q4). Historical VAT values do not fit any flat percentage.
+- Whether VAT must be applied in the configured form at all: `CLT-POLICY-Q1` leaves statutory applicability to a local accountant. The Q1–Q4 business rules themselves are decided (2026-11-13); do not restate the policy as unconfirmed.
 - Real bKash, Visa, Mastercard rates. PRD fixtures use 115 / 150 / 150 bp for testing only.
 - Formats of the bKash merchant statement, card settlement report, and VAT challan (Q14).
 - Whether hosted staging exists (CI workflows exist in `.github/workflows/{ci,daily-backup}.yml`). Whether Rhizome is installed and available for this project (`rhizome-mcp` is available in MCP tools; Hub ID UNSET).
