@@ -145,10 +145,16 @@ begin
     raise exception '403 %', fn_center_write_block_reason(p_center_id);
   end if;
 
-  -- The caller must be an active member of the center it pushes into.
+  -- The caller must be an active member of the center it pushes into, or the platform
+  -- seat (center_id NULL), which has no device and pushes only audited void operations.
+  -- This body is re-created after 20261029000009; the seat alternatives it added to
+  -- this function have to be repeated here, or the later definition silently drops them.
   if not exists (
     select 1 from profiles
     where id = p_caller_id and center_id = p_center_id and active = true
+  ) and not exists (
+    select 1 from profiles
+    where id = p_caller_id and center_id is null and role = 'super_admin' and active = true
   ) then
     raise exception '403 unauthorized';
   end if;
@@ -189,7 +195,12 @@ begin
     select 1 from devices where center_id = p_center_id and device_id = p_device_id and revoked = true
   ) into v_device_revoked;
 
-  if not v_device_revoked then
+  -- A platform caller has no device row in this center (devices reference a center
+  -- profile), so there is no presence to register; the revocation check above already
+  -- found no device and therefore does not block it.
+  if not v_device_revoked and exists (
+    select 1 from profiles where id = p_caller_id and center_id = p_center_id
+  ) then
     perform upsert_device_sync_state(p_center_id, p_device_id, p_caller_id, null);
   end if;
 
@@ -577,7 +588,8 @@ begin
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
 
       elsif v_op_type = 'void_entry' then
-        if p_caller_role is null or p_caller_role not in ('admin', 'owner') then
+        -- The platform seat may void through this chain (plan 023 step 11).
+        if p_caller_role is null or p_caller_role not in ('admin', 'owner', 'super_admin') then
           raise exception '403 unauthorized';
         end if;
 
