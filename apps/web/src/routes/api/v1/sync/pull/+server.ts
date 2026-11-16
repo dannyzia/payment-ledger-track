@@ -111,9 +111,13 @@ export const GET: RequestHandler = async (event) => {
              count(*) as scanned_count
       from scanned
     )
-    select s.*, m.watermark, m.scanned_count
+    select s.*, p.role::text as created_by_role, m.watermark, m.scanned_count
     from batch_meta m
     left join scanned s on ($2 in ('admin','owner','super_admin') or s.created_by = $3)
+    -- Plan 023 step 12 (design §6.7): a platform-created entry is authored by a
+    -- super-admin profile that is not in the center's profile list, so the role has to
+    -- travel with the row or the device shows a bare user id.
+    left join profiles p on p.id = s.created_by
     order by s.server_seq asc nulls last;
   `;
 

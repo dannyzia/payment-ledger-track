@@ -24,6 +24,7 @@ export interface LocalEntry {
   status: 'active' | 'voided' | 'superseded';
   sync_status: 'pending' | 'synced' | 'rejected';
   created_by: string;
+  created_by_role?: 'staff' | 'admin' | 'owner' | 'super_admin' | undefined; // Plan 023 §6.7: super_admin marks a platform row
   created_at: string;
   server_seq?: string | undefined;
   stale_rates: boolean;
