@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { signIn } from './sign-in';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,13 +38,8 @@ const STAFF_PASSWORD = process.env.E2E_STAFF_PASSWORD || '';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || '';
 
-async function signIn(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.fill('#login-email', email);
-  await page.fill('#login-password', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/dashboard', { timeout: 20000 });
-}
+// Shared with the other specs: the seat account clears its mandatory TOTP gate
+// here (plan 023 step 6), so an owner login does not stall on /admin/super/security.
 
 /**
  * The entry screen reads db.methods once on mount, so the initial pull must

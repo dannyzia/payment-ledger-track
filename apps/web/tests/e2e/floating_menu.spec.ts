@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
+import { signIn } from './sign-in';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
@@ -64,13 +65,11 @@ test.describe('CLT-T-050 FloatingMenu real input activation', () => {
       'BOOTSTRAP_OWNER_EMAIL / BOOTSTRAP_OWNER_PASSWORD are not configured in the root .env; e2e login cannot proceed.',
     );
 
+    // The bootstrap owner is the platform seat, so the shared helper proves its
+    // second factor before the dashboard opens (plan 023 step 6).
     async function attemptLogin(): Promise<boolean> {
-      await page.goto('/login');
-      await page.fill('#login-email', OWNER_EMAIL);
-      await page.fill('#login-password', OWNER_PASSWORD);
-      await page.click('button[type="submit"]');
       try {
-        await page.waitForURL('**/dashboard', { timeout: 15000 });
+        await signIn(page, OWNER_EMAIL, OWNER_PASSWORD, undefined, 15000);
         return page.url().includes('/dashboard');
       } catch {
         return false;

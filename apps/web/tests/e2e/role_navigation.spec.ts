@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { signIn } from './sign-in';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -40,13 +41,8 @@ const OWNER_PASSWORD = process.env.BOOTSTRAP_OWNER_PASSWORD || '';
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 393, height: 851 };
 
-async function signIn(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.fill('#login-email', email);
-  await page.fill('#login-password', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/dashboard', { timeout: 20000 });
-}
+// Shared with the other specs: the seat account clears its mandatory TOTP gate
+// here (plan 023 step 6), so an owner login does not stall on /admin/super/security.
 
 /** Desktop sidebar links, after a role-appropriate wait for it to render. */
 async function desktopNav(page: Page): Promise<string[]> {
@@ -99,8 +95,12 @@ test.describe('CLT-T-063 role-scoped navigation', () => {
 
     await signIn(page, STAFF_EMAIL, STAFF_PASSWORD);
     await page.goto('/reports');
-    await page.waitForURL('**/dashboard', { timeout: 15000 });
-    expect(new URL(page.url()).pathname).toBe('/dashboard');
+    // Plan 023 step 8 replaced the silent bounce to /dashboard with an explicit
+    // access-denied screen that names the path it refused.
+    await page.waitForURL('**/access-denied**', { timeout: 15000 });
+    const url = new URL(page.url());
+    expect(url.pathname).toBe('/access-denied');
+    expect(url.searchParams.get('from')).toBe('/reports');
   });
 
   test('privileged center admin or owner sees the Reports and Settlements links', async ({

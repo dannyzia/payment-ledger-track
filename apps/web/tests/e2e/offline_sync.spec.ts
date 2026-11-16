@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { signIn } from './sign-in';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as dotenv from 'dotenv';
@@ -51,13 +52,11 @@ test.describe('E2E Local-First Offline Save, Latency, and Reconnect Sync', () =>
 
     // Login with one tolerance retry: local GoTrue rate limits after several
     // automated attempts, so a single delay-and-retry absorbs transient 429s.
+    // The shared helper also clears the seat's mandatory TOTP gate when the
+    // fallback owner account is the one signing in (plan 023 step 6).
     async function attemptLogin(): Promise<boolean> {
-      await page.goto('/login');
-      await page.fill('#login-email', TEST_EMAIL);
-      await page.fill('#login-password', TEST_PASSWORD);
-      await page.click('button[type="submit"]');
       try {
-        await page.waitForURL('**/dashboard', { timeout: 15000 });
+        await signIn(page, TEST_EMAIL, TEST_PASSWORD, undefined, 15000);
         return page.url().includes('/dashboard');
       } catch {
         return false;

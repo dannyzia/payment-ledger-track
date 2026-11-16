@@ -72,10 +72,22 @@ function run(command: string, args: string[], env?: NodeJS.ProcessEnv): void {
   }
 }
 
-function capture(command: string, args: string[]): string {
-  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8' });
+function capture(command: string, args: string[], env?: NodeJS.ProcessEnv): string {
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', env: env ?? process.env });
   if (result.error) throw result.error;
   return `${result.stdout ?? ''}${result.stderr ?? ''}`;
+}
+
+/** `enrol-totp.ts` prints exactly one JSON line; the secret never reaches the log. */
+function readTotpSecret(output: string): string {
+  const line = output
+    .split('\n')
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith('{"secret":"') && entry.endsWith('}'));
+  if (!line) {
+    throw new Error(`TOTP enrolment did not return a secret: ${output.trim().slice(-400)}`);
+  }
+  return (JSON.parse(line) as { secret: string }).secret;
 }
 
 type StackStatus = {
@@ -188,6 +200,15 @@ async function main(): Promise<void> {
   };
   run('pnpm', ['exec', 'tsx', 'scripts/bootstrap.ts'], stackEnv);
 
+  // Plan 023 step 6: the seat's second factor is mandatory, so the bootstrap owner
+  // is redirected to /admin/super/security at sign-in. The stack is rebuilt per run,
+  // so a factor is enrolled here and its secret handed to Playwright; without it
+  // every owner-authenticated spec stops on that screen.
+  console.info('→ enrolling a TOTP factor for the seat account in the isolated stack');
+  const seatTotpSecret = readTotpSecret(
+    capture('pnpm', ['exec', 'tsx', 'scripts/e2e/enrol-totp.ts'], stackEnv),
+  );
+
   // Non-owner accounts the role-based specs sign in as: a staff member for the
   // navigation and ledger-scope assertions, an admin so the privileged side of
   // that scope is exercised by a role that is not the bootstrap owner, and a
@@ -228,6 +249,7 @@ async function main(): Promise<void> {
     E2E_ADMIN_PASSWORD: adminPassword,
     E2E_RMP_STAFF_EMAIL: rmpStaffEmail,
     E2E_RMP_STAFF_PASSWORD: rmpStaffPassword,
+    E2E_SEAT_TOTP_SECRET: seatTotpSecret,
     PUBLIC_API_BASE: '',
     CLT_E2E_ISOLATED: '1',
     PLAYWRIGHT_TEST_BASE_URL: `http://localhost:${APP_PORT}`,

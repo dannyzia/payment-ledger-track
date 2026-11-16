@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { signIn } from './sign-in';
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,13 +50,8 @@ const RMP_STAFF_PASSWORD = process.env.E2E_RMP_STAFF_PASSWORD || '';
 
 const DESKTOP = { width: 1280, height: 900 };
 
-async function signIn(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.fill('#login-email', email);
-  await page.fill('#login-password', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/dashboard', { timeout: 20000 });
-}
+// Shared with the other specs: the seat account clears its mandatory TOTP gate
+// here (plan 023 step 6), so an owner login does not stall on /admin/super/security.
 
 /** Non-legacy cache databases, one per franchise center. */
 async function franchiseDatabases(page: Page): Promise<string[]> {
@@ -129,11 +125,19 @@ async function pendingOutbox(page: Page): Promise<number> {
 async function optionValueFor(page: Page, selectLabel: string, code: string): Promise<string> {
   const select = page.getByLabel(selectLabel);
   await expect(select).toBeVisible({ timeout: 20000 });
-  return select.evaluate((element, wanted) => {
-    const options = Array.from((element as HTMLSelectElement).options);
-    const match = options.find((option) => option.text.trim().startsWith(wanted));
-    return match ? match.value : '';
-  }, code);
+
+  const read = (): Promise<string> =>
+    select.evaluate((element, wanted) => {
+      const options = Array.from((element as HTMLSelectElement).options);
+      const match = options.find((option) => option.text.trim().startsWith(wanted));
+      return match ? match.value : '';
+    }, code);
+
+  // The switcher fills from GET /api/v1/admin/super/centers after mount, and since
+  // plan 023 the seat reaches that route only once its session has proven aal2. Poll
+  // so this measures the loaded list rather than the empty first paint.
+  await expect.poll(read, { timeout: 20000 }).not.toBe('');
+  return read();
 }
 
 /** A super-admin with no center of its own caches into the legacy database. */
