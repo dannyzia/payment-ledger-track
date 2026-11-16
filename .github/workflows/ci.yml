@@ -50,6 +50,9 @@ jobs:
       - name: Execute linter
         run: pnpm lint
 
+      - name: Verify the plan's claims against the tree
+        run: pnpm plan:verify docs/plans/023_super_admin_panel.md
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
