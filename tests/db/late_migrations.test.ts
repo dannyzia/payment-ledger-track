@@ -31,6 +31,8 @@ const RATE = 'aa000000-0000-4000-8000-000000000022';
 const DEVICE = 'aa000000-0000-4000-8000-0000000000d1';
 
 const VOID_ENTRY = 'aa000000-0000-4000-8000-000000000031';
+const OWNER_VOID_ENTRY = 'aa000000-0000-4000-8000-000000000034';
+const STAFF_VOID_ENTRY = 'aa000000-0000-4000-8000-000000000035';
 const SUPERSEDE_ENTRY = 'aa000000-0000-4000-8000-000000000032';
 const REPLACEMENT_ENTRY = 'aa000000-0000-4000-8000-000000000033';
 const SEAT_OP = 'aa000000-0000-4000-8000-000000000041';
@@ -127,7 +129,7 @@ async function seed(): Promise<void> {
 
   await db.query(`
     ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
-    DELETE FROM entries WHERE id IN ('${VOID_ENTRY}', '${SUPERSEDE_ENTRY}', '${REPLACEMENT_ENTRY}');
+    DELETE FROM entries WHERE id IN ('${VOID_ENTRY}', '${OWNER_VOID_ENTRY}', '${STAFF_VOID_ENTRY}', '${SUPERSEDE_ENTRY}', '${REPLACEMENT_ENTRY}');
     ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
   `);
 
@@ -146,6 +148,12 @@ async function seed(): Promise<void> {
        '${RATE}', '${JSON.stringify(SNAPSHOT)}'::jsonb, 0, 0, 42000, 0, 0, 0, 58000,
        '${OWNER}', '${DEVICE}', now()),
       ('${SUPERSEDE_ENTRY}', '${ACTIVE}', '2026-10-06', 'Supersede candidate', 1, '${METHOD}', 100000,
+       '${RATE}', '${JSON.stringify(SNAPSHOT)}'::jsonb, 0, 0, 42000, 0, 0, 0, 58000,
+       '${OWNER}', '${DEVICE}', now()),
+      ('${OWNER_VOID_ENTRY}', '${ACTIVE}', '2026-10-07', 'Owner control', 1, '${METHOD}', 100000,
+       '${RATE}', '${JSON.stringify(SNAPSHOT)}'::jsonb, 0, 0, 42000, 0, 0, 0, 58000,
+       '${OWNER}', '${DEVICE}', now()),
+      ('${STAFF_VOID_ENTRY}', '${ACTIVE}', '2026-10-08', 'Staff control', 1, '${METHOD}', 100000,
        '${RATE}', '${JSON.stringify(SNAPSHOT)}'::jsonb, 0, 0, 42000, 0, 0, 0, 58000,
        '${OWNER}', '${DEVICE}', now());
   `);
@@ -182,7 +190,7 @@ describe('Late migrations keep their intent on a clean database', () => {
     if (!db) return;
     await db.query(`
       ALTER TABLE entries DISABLE TRIGGER trg_entries_immutability;
-      DELETE FROM entries WHERE id IN ('${VOID_ENTRY}', '${SUPERSEDE_ENTRY}', '${REPLACEMENT_ENTRY}');
+      DELETE FROM entries WHERE id IN ('${VOID_ENTRY}', '${OWNER_VOID_ENTRY}', '${STAFF_VOID_ENTRY}', '${SUPERSEDE_ENTRY}', '${REPLACEMENT_ENTRY}');
       ALTER TABLE entries ENABLE TRIGGER trg_entries_immutability;
       DELETE FROM sync_ops WHERE center_id IN ('${ACTIVE}', '${WITHHELD}');
     `);
@@ -249,6 +257,59 @@ describe('Late migrations keep their intent on a clean database', () => {
     // The amendment carries the role too, not only entry.create: otherwise a platform
     // void and an owner's void read the same in the trail.
     expect(audit.rows.map((row) => row.actor_role)).toContain('super_admin');
+
+    // The two controls the evidence probe also runs
+    // (docs/orchestration/evidence/plan-023-void-seat-probe.sql): a center role still
+    // voids, and a staff member is still refused. Without them, a body that admitted
+    // everyone would pass the seat assertion for the wrong reason.
+    const ownerVoid = await db.query(
+      `SELECT rpc_push_sync_op($1::uuid, $2, $3::uuid, $4::user_role, $5::jsonb) AS res`,
+      [
+        ACTIVE,
+        DEVICE,
+        OWNER,
+        'owner',
+        JSON.stringify([
+          {
+            opId: 'aa000000-0000-4000-8000-000000000042',
+            type: 'void_entry',
+            clientCreatedAt: new Date().toISOString(),
+            maxKnownRateVersion: 1,
+            payload: { entryId: OWNER_VOID_ENTRY, reason: 'owner control void' },
+          },
+        ]),
+      ],
+    );
+    expect(ownerVoid.rows[0].res.results[0].status).toBe('ok');
+    const ownerEntry = await db.query('SELECT status FROM entries WHERE id = $1', [
+      OWNER_VOID_ENTRY,
+    ]);
+    expect(ownerEntry.rows[0].status).toBe('voided');
+
+    const staffVoid = await db.query(
+      `SELECT rpc_push_sync_op($1::uuid, $2, $3::uuid, $4::user_role, $5::jsonb) AS res`,
+      [
+        ACTIVE,
+        DEVICE,
+        STAFF,
+        'staff',
+        JSON.stringify([
+          {
+            opId: 'aa000000-0000-4000-8000-000000000043',
+            type: 'void_entry',
+            clientCreatedAt: new Date().toISOString(),
+            maxKnownRateVersion: 1,
+            payload: { entryId: STAFF_VOID_ENTRY, reason: 'staff control void' },
+          },
+        ]),
+      ],
+    );
+    expect(staffVoid.rows[0].res.results[0].status).toBe('rejected');
+    expect(staffVoid.rows[0].res.results[0].reason).toBe('unauthorized');
+    const staffEntry = await db.query('SELECT status FROM entries WHERE id = $1', [
+      STAFF_VOID_ENTRY,
+    ]);
+    expect(staffEntry.rows[0].status).toBe('active');
   });
 
   it('rpc_supersede_entry admits the platform seat at its role gate', async () => {
