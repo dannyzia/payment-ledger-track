@@ -1,6 +1,8 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getCallerContext, requireRole } from '$lib/server/auth';
+import { requireAssurance } from '$lib/server/assurance';
+import { requireCapability } from '$lib/server/capabilities';
 import { getServiceSupabase } from '$lib/server/supabase';
 
 const createCenterSchema = z.object({
@@ -23,6 +25,9 @@ const createCenterSchema = z.object({
 export const GET: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   requireRole(caller, ['super_admin']);
+  // Plan 023 step 7: the seat must have proven its second factor in THIS session.
+  requireAssurance(caller, 'aal2');
+  requireCapability(caller, 'center.read_all');
 
   const status = event.url.searchParams.get('status');
   const supabase = getServiceSupabase();
@@ -65,6 +70,8 @@ export const GET: RequestHandler = async (event) => {
 export const POST: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   requireRole(caller, ['super_admin']);
+  requireAssurance(caller, 'aal2');
+  requireCapability(caller, 'center.create');
 
   let body: unknown;
   try {

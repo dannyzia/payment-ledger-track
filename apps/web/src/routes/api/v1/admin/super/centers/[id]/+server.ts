@@ -1,6 +1,8 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getCallerContext, requireRole } from '$lib/server/auth';
+import { requireAssurance } from '$lib/server/assurance';
+import { requireCapability } from '$lib/server/capabilities';
 import { getServiceSupabase } from '$lib/server/supabase';
 import type { Database, Json } from '$lib/database.types';
 
@@ -29,6 +31,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const PATCH: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   requireRole(caller, ['super_admin']);
+  // Plan 023 step 7: suspending, archiving or editing a center requires aal2.
+  requireAssurance(caller, 'aal2');
 
   const centerId = event.params.id ?? '';
   if (!UUID_RE.test(centerId)) {
@@ -50,6 +54,30 @@ export const PATCH: RequestHandler = async (event) => {
     return new Response(JSON.stringify({ error: 'invalid_payload', issues: parsed.error.issues }), {
       status: 400,
     });
+  }
+
+  // Plan 023 §6.1: name the licensed power, not only the role. Archive and suspend are
+  // separate capabilities because they are separate decisions; any reactivation is the
+  // same power as suspension.
+  if (parsed.data.status === 'archived') {
+    requireCapability(caller, 'center.archive');
+  } else if (parsed.data.status !== undefined) {
+    requireCapability(caller, 'center.suspend');
+  }
+
+  const touchesProfile =
+    parsed.data.name !== undefined ||
+    parsed.data.legalEntityName !== undefined ||
+    parsed.data.address !== undefined ||
+    parsed.data.phone !== undefined ||
+    parsed.data.binNumber !== undefined ||
+    parsed.data.tradeLicense !== undefined;
+  const touchesOwner =
+    parsed.data.ownerEmail !== undefined ||
+    parsed.data.ownerName !== undefined ||
+    parsed.data.ownerPassword !== undefined;
+  if (touchesProfile || touchesOwner) {
+    requireCapability(caller, 'center.edit');
   }
 
   const supabase = getServiceSupabase();
@@ -118,11 +146,14 @@ export const PATCH: RequestHandler = async (event) => {
         const currentEmail = authUserData?.user?.email?.toLowerCase();
 
         if (newOwnerEmail && newOwnerEmail !== currentEmail) {
-          let matchedExistingUser: { id: string; user_metadata?: Record<string, unknown> } | null = null;
+          let matchedExistingUser: { id: string; user_metadata?: Record<string, unknown> } | null =
+            null;
           let page = 1;
           for (;;) {
             const { data: listed } = await supabase.auth.admin.listUsers({ page, perPage: 50 });
-            const match = (listed?.users ?? []).find((u) => u.email?.toLowerCase() === newOwnerEmail);
+            const match = (listed?.users ?? []).find(
+              (u) => u.email?.toLowerCase() === newOwnerEmail,
+            );
             if (match) {
               matchedExistingUser = match;
               break;
@@ -132,11 +163,14 @@ export const PATCH: RequestHandler = async (event) => {
           }
 
           if (!matchedExistingUser) {
-            const { error: emailErr } = await supabase.auth.admin.updateUserById(currentOwnerProf.id, {
-              email: newOwnerEmail,
-              email_confirm: true,
-              user_metadata: newOwnerName ? { full_name: newOwnerName } : undefined,
-            });
+            const { error: emailErr } = await supabase.auth.admin.updateUserById(
+              currentOwnerProf.id,
+              {
+                email: newOwnerEmail,
+                email_confirm: true,
+                user_metadata: newOwnerName ? { full_name: newOwnerName } : undefined,
+              },
+            );
             if (emailErr) throw emailErr;
           } else {
             // Reassign center ownership to existing user
@@ -148,7 +182,10 @@ export const PATCH: RequestHandler = async (event) => {
               id: matchedExistingUser.id,
               center_id: centerId,
               role: 'owner',
-              full_name: newOwnerName || (matchedExistingUser.user_metadata?.full_name as string) || 'Center Owner',
+              full_name:
+                newOwnerName ||
+                (matchedExistingUser.user_metadata?.full_name as string) ||
+                'Center Owner',
               active: true,
             });
             await supabase.auth.admin.updateUserById(matchedExistingUser.id, {
@@ -162,14 +199,23 @@ export const PATCH: RequestHandler = async (event) => {
             action: 'center.owner_update',
             target_table: 'profiles',
             target_id: currentOwnerProf.id,
-            before: { email: currentEmail, full_name: currentOwnerProf.full_name } as unknown as Json,
-            after: { email: newOwnerEmail, full_name: newOwnerName || currentOwnerProf.full_name } as unknown as Json,
+            before: {
+              email: currentEmail,
+              full_name: currentOwnerProf.full_name,
+            } as unknown as Json,
+            after: {
+              email: newOwnerEmail,
+              full_name: newOwnerName || currentOwnerProf.full_name,
+            } as unknown as Json,
           });
           ownerUpdated = true;
         }
 
         if (newOwnerName && newOwnerName !== currentOwnerProf.full_name) {
-          await supabase.from('profiles').update({ full_name: newOwnerName }).eq('id', currentOwnerProf.id);
+          await supabase
+            .from('profiles')
+            .update({ full_name: newOwnerName })
+            .eq('id', currentOwnerProf.id);
           await supabase.auth.admin.updateUserById(currentOwnerProf.id, {
             user_metadata: { full_name: newOwnerName },
           });
@@ -232,7 +278,10 @@ export const PATCH: RequestHandler = async (event) => {
           target_table: 'profiles',
           target_id: currentOwnerProf.id,
           before: null,
-          after: { reset_by: caller.userId, timestamp: new Date().toISOString() } as unknown as Json,
+          after: {
+            reset_by: caller.userId,
+            timestamp: new Date().toISOString(),
+          } as unknown as Json,
         });
         ownerUpdated = true;
       } else {

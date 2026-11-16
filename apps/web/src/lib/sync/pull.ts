@@ -11,6 +11,7 @@ import {
 import { getOrGenerateDeviceId } from '$lib/auth/device';
 import { supabase } from '$lib/supabase/client';
 import { session } from '$lib/auth/session.svelte';
+import { isWithheldReason } from '$lib/ui/withheld-notice';
 import { syncRunner } from './runner.svelte';
 import {
   clearSuperCenterCache,
@@ -265,6 +266,17 @@ export async function executeIncrementalPull(): Promise<void> {
           }
           throw new Error('device_revoked');
         }
+
+        // Plan 023 step 3: a withheld center is cut off at the screen, not left
+        // behind a sync error banner. Queued ops stay queued.
+        const withheldCode =
+          (err.error as string | undefined) ?? (err.message as string | undefined);
+        if (isWithheldReason(withheldCode)) {
+          syncRunner.stop();
+          await session.withhold(withheldCode);
+          throw new Error('center_withheld');
+        }
+
         throw new Error('user_forbidden');
       }
 

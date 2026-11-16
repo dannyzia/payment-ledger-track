@@ -1,5 +1,7 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { getCallerContext, requireRole } from '$lib/server/auth';
+import { requireAssurance } from '$lib/server/assurance';
+import { requireCapability } from '$lib/server/capabilities';
 import { getServiceSupabase } from '$lib/server/supabase';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -13,6 +15,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export const GET: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   requireRole(caller, ['super_admin']);
+  // Plan 023 step 7: cross-center ledger reads require aal2.
+  requireAssurance(caller, 'aal2');
+  requireCapability(caller, 'ledger.read_all');
 
   const q = (event.url.searchParams.get('q') ?? '').trim();
   const centerIdParam = event.url.searchParams.get('centerId');

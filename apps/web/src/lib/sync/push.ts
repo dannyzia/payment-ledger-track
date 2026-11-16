@@ -2,6 +2,7 @@ import { db, type LocalEntry, type LocalOutboxOp } from '$lib/db';
 import { getOrGenerateDeviceId } from '$lib/auth/device';
 import { supabase } from '$lib/supabase/client';
 import { session } from '$lib/auth/session.svelte';
+import { isWithheldReason } from '$lib/ui/withheld-notice';
 import { computeJcsSha256 } from './canonical';
 import { handleOpRejection } from './recovery';
 
@@ -201,6 +202,12 @@ export async function flushOutboxPush(): Promise<{
           for (const op of batch) {
             await handleOpRejection(op.opId, 'user_deactivated');
           }
+        } else if (isWithheldReason(errCode)) {
+          // Plan 023 step 3: the center is suspended or archived. Nothing is
+          // rejected — the ops stay queued and sync after reactivation — but the
+          // user is taken to the withheld screen now.
+          await session.withhold(errCode);
+          return { success: false, pushedCount: totalPushed };
         }
       }
       return { success: false, pushedCount: totalPushed };

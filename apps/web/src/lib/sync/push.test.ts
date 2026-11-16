@@ -39,10 +39,32 @@ vi.mock('$lib/db', () => {
 });
 
 const { flushOutboxPush } = await import('./push');
+const { session } = await import('$lib/auth/session.svelte');
 
 describe('Push transport classification (CLT-R-016)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    session.withheldReason = null;
+  });
+
+  it('withholds a suspended center without rejecting its queued ops (Plan 023 step 3)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ message: 'center_suspended' }), { status: 403 }),
+        ),
+    );
+    const { handleOpRejection } = await import('./recovery');
+    vi.mocked(handleOpRejection).mockClear();
+
+    const result = await flushOutboxPush();
+
+    expect(result.success).toBe(false);
+    expect(session.withheldReason).toBe('center_suspended');
+    // The op stays queued: suspension preserves work, it does not discard it.
+    expect(handleOpRejection).not.toHaveBeenCalled();
   });
 
   it('reports a dropped connection as network_offline, not a sync error', async () => {
