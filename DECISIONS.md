@@ -459,3 +459,13 @@ Decided by: Zia (Project Owner)
 Date: 2026-11-13
 Outcome: The center bears method charges (charges_borne_by = 'business'). The charges are deducted from Net and tracked as center liabilities to the payment method providers. Rates (e.g. bKash 1.15%, card 1.50%) are changeable by each center admin via their published rate profile.
 
+
+### CLT-D-036: Center suspension is enforced on the tables, not at each call site
+- **Date**: 2026-11-15
+- **Scope**: Multi-tenancy / `centers.status` / all write paths (Plan 023 §6.3, CLT-T-083)
+- **Context**: `centers.status` was written by the super-admin panel and read by nothing, so suspending a center blocked no sign-in, sync or write. The app layer already refuses a withheld center on every request; `rpc_push_sync_op` already refuses a push. Every other write — settlement payments, reconciliation, month close and reopen, rate publishing, configuration — would have needed its own check.
+- **Decision**: A `before insert or update` trigger (`fn_center_write_guard`) on the fifteen tenant tables that hold business state refuses a write to a center whose status is not `active`, raising `403 center_suspended` / `403 center_archived` — the same text the push guard uses, so a route that maps it keeps working. Checks at each RPC would rot the first time a new RPC or route appeared; the trigger cannot be skipped by a caller that never passes through a route.
+- **Exemptions, each for a reason**: `centers` (reactivation must be possible), `audit_log` (Hard Rule 5 requires the audit row inside the same transaction, so blocking it would turn allowed actions into failures and make a withheld center unauditable), `sync_ops` (bookkeeping for pushes already refused earlier, plus the paused retention sweep), `profiles` and `devices` (the platform must keep managing people and revocation on a withheld center).
+- **Deletion is not guarded**: nothing a user does removes a tenant row (entries are immutable, corrections are reversal/supersede rows), and the only deletion paths are the owner-authorised `maintenance_purge_entries` and fixture cleanup. Guarding DELETE broke both while protecting nothing reachable.
+- **Foreign keys keep their authority**: a row naming a center that does not exist is left to the FK rather than raising a new code, so the schema's pinned assertions still describe the behaviour.
+- **Consequence**: a suspended center accepts no writes from anyone, the platform seat included, which matches the push guard's existing rule. Reads still work for the seat and are stopped for the center's own users by `getCallerContext`.

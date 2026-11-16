@@ -3,7 +3,7 @@
 Instructions for any AI agent (coding, planning, auditing, or orchestrating) working in this repository.
 Read this file first, then `docs/plans/PRD-payment-ledger-app.md`.
 
-Last updated: 2026-11-14 (rev 14). Source: PRD v1.25 (read in full), `ORCHESTRATOR.md` v2.0, the Rhizome skills in `.agents/skills/`, and the repository as it exists today.
+Last updated: 2026-11-15 (rev 19). Source: PRD v1.25 (read in full), `ORCHESTRATOR.md` v2.0, the Rhizome skills in `.agents/skills/`, and the repository as it exists today.
 Anything marked UNVERIFIED, ESTIMATE, ASSUMPTION, or UNSET has not been confirmed. Do not turn it into fact.
 
 ---
@@ -58,6 +58,7 @@ The app does **not** collect money. Staff record payments already received.
   - `pnpm lint`: executes ESLint and strict TypeScript typechecking
   - `pnpm typecheck`: runs `tsc --noEmit` across all workspaces
   - `pnpm format`: runs Prettier formatting check/fix
+  - `pnpm skills:link`: recreates `.claude/skills` as symlinks into `.agents/skills` (`scripts/skills-link.ts`). The seven design skills are shared by both agent trees and `.claude/` is gitignored, so a fresh clone needs this once. Idempotent; a real directory in the way is reported and left alone. Covered by `tests/scripts/skills-link.test.ts`
   - `pnpm db:bootstrap`: runs `scripts/bootstrap.ts` initialization script via `tsx`. It provisions the platform `super_admin` and one centre built from the `BOOTSTRAP_CENTER_*` variables, or the two `MHK`/`RMP` development fixtures when `BOOTSTRAP_CENTER_CODE` is unset (PRD §7.4)
   - `pnpm db:reset`: resets local Supabase database via Supabase CLI (`supabase db reset`)
   - `pnpm db:prune-devices [--apply] [--keep-per-user N] [--older-than-days N]`: prunes the device
@@ -99,7 +100,7 @@ The app does **not** collect money. Staff record payments already received.
 | `docs/plans/PLANNER-PROMPT.md` | The brief given to the planning model for the plan batch. |
 | `docs/designs/multi_center_row_level_multitenancy.md` | Approved multi-tenant design (2026-11-08). |
 | `docs/design/DESIGN.md`, `docs/Images/` | Design notes and exported assets (logo, splash, icon). |
-| `docs/runbooks/` | `BACKUP_RESTORE.md`, `CREDENTIAL_ROTATION.md`, `DEVICE_JOURNEY.md`, `INCIDENT_RESPONSE.md`, `ROLLBACK.md`. |
+| `docs/runbooks/` | `BACKUP_RESTORE.md`, `CREDENTIAL_ROTATION.md`, `DEVICE_JOURNEY.md`, `GATE_PARITY.md`, `INCIDENT_RESPONSE.md`, `ROLLBACK.md`. |
 | `docs/orchestration/` | `LEDGER.md`, `DECISIONS.md`, `RISKS.md`, `G0_READINESS_CHECKLIST.md`, `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`, `OWNER_DECISION_PACKET_Q1_Q4.md`, `briefs/`, `reports/`, `evidence/`. |
 | `packages/calc` | Calculation engine: `src/{calculate,errors,index,rounding,types}.ts`, `fixtures/`, `test/`. The only calculation implementation. |
 | `packages/shared` | `src/{index,money,types,wire}.ts` — DTOs, the `UserRole` union, `formatEntryId` / `parseEntryId`, money helpers — plus `test/`. |
@@ -111,7 +112,7 @@ The app does **not** collect money. Staff record payments already received.
 | `apps/web/src/app.css`, `apps/web/static/` | Design tokens and glass components; `manifest.webmanifest`, icons, fonts. |
 | `supabase/migrations` | Seven migrations, `20261029000001`–`0007`: core schema, settlements/statements/audit, views, security/RLS, entries/rates/sync functions, settlement/recon/month functions, centre provisioning. |
 | `tests/`, `apps/web/tests/`, `e2e/` | `tests/db` (schema, entries_sync, settlement_recon, calc_parity, bootstrap), `tests/scripts` (device fixtures, preflight, gate checks, owner screens, sign-in flow), `tests/ops`, `tests/sanity`, `apps/web/tests` (regression suite, report view parity, calc parity, E2E specs), and `e2e/supabase` — the isolated second Supabase stack. |
-| `scripts/` | `bootstrap.ts`, `seed-recon-month.ts`, `verify-gates.ts`, `gate-device-check.ts`, `maintenance/{prune-devices,purge-entry}.ts`, `ops/{backup-export,deploy-check,restore-drill}.ts`, and `e2e/*` (isolated stack, device fixtures, journeys). |
+| `scripts/` | `bootstrap.ts`, `seed-recon-month.ts`, `verify-gates.ts`, `gate-device-check.ts`, `skills-link.ts`, `maintenance/{prune-devices,purge-entry}.ts`, `ops/{backup-export,deploy-check,restore-drill}.ts`, and `e2e/*` (isolated stack, device fixtures, journeys). |
 | `.github/workflows/` | `ci.yml`, `daily-backup.yml`. |
 | `DECISIONS.md` | Implementer decisions where the PRD is silent (PRD Rule 5). |
 | `README.md` | Overview. **Stale in places:** cites PRD v1.7 (actual v1.25), lists PostGIS (the PRD does not), says "Vanilla CSS" tokens (PRD says Tailwind 4 + CSS variables). The PRD wins. |
@@ -169,11 +170,11 @@ Two decision logs, two purposes: root `DECISIONS.md` records implementer choices
 
 **Hosting and data.** Supabase on Postgres 15+, region Singapore or Mumbai. No SQLite. All business dates and month boundaries are Asia/Dhaka; `entry_date` is a `date`. Entry numbering is per center: see **Per-center numbering** below. `#LOCAL-xxxx` until synced.
 
-**Multi-tenant centers.** `centers` is the tenant root (`supabase/migrations/20261029000001_core_schema.sql`): `id`, `center_number` (identity, unique), `code` (unique, `^[A-Z0-9]{2,8}$`), `name`, `legal_entity_name`, `bin_number`, `trade_license_number`, `vat_circle`, `address`, `phone`, `status` (`active` | `suspended` | `archived`), `created_at`. `code` and `center_number` are immutable (`trg_centers_immutable_code` / `fn_centers_prevent_code_mutation` raise `409 centers_code_immutable` and `409 centers_center_number_immutable`). Every tenant table declares `center_id uuid not null references centers(id)`; `profiles.center_id` and `audit_log.center_id` are nullable, where NULL marks a platform row. RLS is forced on all 20 public tables with the tenant predicate in `supabase/migrations/20261029000004_security_and_rls.sql`. `centers.status` is written by `PATCH /api/v1/admin/super/centers/[id]` and read by no policy, RPC, route or sync path, so suspension and archive currently block nothing (CLT-T-083).
+**Multi-tenant centers.** `centers` is the tenant root (`supabase/migrations/20261029000001_core_schema.sql`): `id`, `center_number` (identity, unique), `code` (unique, `^[A-Z0-9]{2,8}$`), `name`, `legal_entity_name`, `bin_number`, `trade_license_number`, `vat_circle`, `address`, `phone`, `status` (`active` | `suspended` | `archived`), `created_at`. `code` and `center_number` are immutable (`trg_centers_immutable_code` / `fn_centers_prevent_code_mutation` raise `409 centers_code_immutable` and `409 centers_center_number_immutable`). Every tenant table declares `center_id uuid not null references centers(id)`; `profiles.center_id` and `audit_log.center_id` are nullable, where NULL marks a platform row. RLS is forced on all 20 public tables with the tenant predicate in `supabase/migrations/20261029000004_security_and_rls.sql`. `centers.status` is written by `PATCH /api/v1/admin/super/centers/[id]` and enforced in three places (CLT-T-083, `supabase/migrations/20261114000009_center_write_guard.sql`): `getCallerContext` refuses a suspended or archived center on every request (`403 center_suspended` / `403 center_archived`), so sign-in, sync and every API call stop; `rpc_push_sync_op` refuses a push before parsing any op; and a `before insert or update` trigger on fifteen tenant tables (`entries`, `settlements`, `settlement_payments`, `statements`, `statement_lines`, `statement_payables`, `entry_reconciliation_exceptions`, `month_closes`, `month_close_events`, `payables`, `payment_methods`, `rate_profiles`, `method_rates`, `app_settings`, `center_counters`) raises the same error for every other write path, RPC or route, platform callers included. Deliberately still writable: `centers` (reactivation), `audit_log` (Hard Rule 5), `sync_ops` (bookkeeping and the paused retention sweep), `profiles` and `devices` (the platform must keep managing people and revocation on a withheld center), and deletion anywhere (only the owner-authorised purge and fixture cleanup delete tenant rows).
 
 **Per-center numbering.** `entries.entry_number` is allocated per center from `center_counters` by trigger `fn_entries_server_seq` under that center's sequence lock, while `entries.server_seq` stays globally monotonic from `entry_seq` (`supabase/migrations/20261029000005_functions_entries_rates_sync.sql`). The display id is `E-{CENTER_CODE}-YYYYMM-XXXXXX`, composed from `centers.code` and `entry_number` by `formatEntryId` and parsed only in that shape by `parseEntryId` (`packages/shared/src/wire.ts`).
 
-**Super Admin seat.** `super_admin` is a platform role with `profiles.center_id` NULL (`supabase/migrations/20261029000001_core_schema.sql`) and no invite path (`403 cannot_invite_super_admin`). It is reached only through service-role routes that call `requireRole(caller, ['super_admin'])` (`apps/web/src/routes/api/v1/admin/super/*`). `rpc_create_center` is granted to `service_role` only, requires an active `super_admin` actor with a NULL `center_id`, and writes a `center.create` audit row in the same transaction (`supabase/migrations/20261029000007_center_provisioning.sql`). Implemented surfaces: `GET`/`POST /api/v1/admin/super/centers`, `PATCH /api/v1/admin/super/centers/[id]`, `GET /api/v1/admin/super/search`, and the `/admin/super/centers` and `/admin/super/search` screens. Suspension enforcement, 2FA, re-authentication, impact preview, dashboards and cross-center user/device management are PLANNED and not built (`docs/orchestration/reports/super-admin-panel-goldfish-brief.md`, 2026-11-14).
+**Super Admin seat.** `super_admin` is a platform role with `profiles.center_id` NULL (`supabase/migrations/20261029000001_core_schema.sql`) and no invite path (`403 cannot_invite_super_admin`). It is reached only through service-role routes that call `requireRole(caller, ['super_admin'])` (`apps/web/src/routes/api/v1/admin/super/*`). `rpc_create_center` is granted to `service_role` only, requires an active `super_admin` actor with a NULL `center_id`, and writes a `center.create` audit row in the same transaction (`supabase/migrations/20261029000007_center_provisioning.sql`). Implemented surfaces: `GET`/`POST /api/v1/admin/super/centers`, `PATCH /api/v1/admin/super/centers/[id]`, `GET /api/v1/admin/super/search`, `GET /api/v1/admin/super/ledger`, `POST /api/v1/admin/super/ledger/impact`, `POST /api/v1/admin/super/ledger/void`, `POST /api/v1/admin/super/ledger/supersede`, `GET /api/v1/admin/super/dashboard`, `GET`/`POST /api/v1/admin/super/users`, `GET`/`POST /api/v1/admin/super/devices`, plus the `/admin/super/*` screens for centers, search, ledger, dashboard, users and devices. `admin_manage_user` and `admin_manage_device` accept an active platform `super_admin` as well as a center admin/owner (`supabase/migrations/20261029000008_super_admin_fleet.sql`), and `force_signout` revokes the target's refresh sessions. Still PLANNED: the Owner-only overrides and re-authenticated purge, and audit visibility (`CLT-D-037`, DECISION PENDING) — see plan 023 steps 13 and 14 (`docs/orchestration/reports/super-admin-panel-goldfish-brief.md`, 2026-11-14).
 
 **Design system.** Frosted-glass / pearl-grain, WCAG AA (>= 4.5:1) in light and dark, 44px touch targets, `prefers-reduced-motion`, `prefers-reduced-transparency`, `prefers-contrast: more`. Backdrop blur only on menu, sheets, and buttons. Solid-colour fallback for engraved button text. Fonts self-hosted: Geist, Geist Mono (tabular figures), Noto Sans Bengali fallback. i18n-ready: no UI strings outside the message catalog.
 
@@ -232,6 +233,22 @@ Briefs and reports cite these by number.
 - Every PRD revision adds a version number and a changelog entry. Do not rewrite sections you were not asked to change.
 - Test against the fixtures in PRD §6.6 / §6.7 wherever possible. Do not trust a script you have not run. Paste real output as evidence.
 - Quote the paper-ledger fixtures exactly; do not "fix" odd-looking VAT values. They are hand-calculated, which is why `vat_mode = manual` is the only mode validated against history.
+
+### 6.1 Before you touch a screen
+
+Read `docs/runbooks/GATE_PARITY.md` first when changing a screen under
+`apps/web/src/routes/(app)`, a navigation surface (`Sidebar.svelte`, `FloatingMenu.svelte`,
+`CommandPalette.svelte`, `lib/ui/nav.ts`), or a capability in `lib/capabilities.ts`.
+
+A screen decides by capability, never by comparing the caller's role, and every capability
+gate in a screen or shell component must be declared in
+`apps/web/tests/admin/gate-parity.test.ts` with the route or shell reason it belongs to.
+That test also reads the shared nav list, so a new center destination is gated once, in
+`lib/ui/nav.ts`, and the Sidebar and the command palette both render it (the mobile
+`FloatingMenu` still keeps its own copy of the links and must be updated by hand). Run it
+on its own with `pnpm --filter @clt/web exec vitest run tests/admin/gate-parity.test.ts`;
+it also runs as part of `pnpm test` and CI. The runbook says what each failure means, how to convert a role
+branch, and why `RAW_ROLE_EXCEPTIONS` is empty.
 
 ---
 
