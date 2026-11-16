@@ -488,7 +488,10 @@ begin
         end;
 
       elsif v_op_type = 'supersede_entry' then
-        if p_caller_role is null or p_caller_role not in ('admin', 'owner') then
+        -- The platform seat may supersede through this chain too (plan 023 step 11). The
+        -- gate is separate from rpc_supersede_entry's own, so omitting it here refuses
+        -- the seat even though the RPC would have admitted it.
+        if p_caller_role is null or p_caller_role not in ('admin', 'owner', 'super_admin') then
           raise exception '403 unauthorized';
         end if;
         perform rpc_supersede_entry(

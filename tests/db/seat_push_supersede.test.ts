@@ -193,6 +193,79 @@ describe('the platform seat writes through the shipped migrations', () => {
     expect(audit.rows[0].actor_role).toBe('super_admin');
   });
 
+  it('supersede_as_seat through push: rpc_push_sync_op admits the seat to its supersede branch', async () => {
+    // The branch's role gate is separate from rpc_supersede_entry's own, so the direct
+    // test above passed while push still refused the seat: 20261114000008's copy of that
+    // gate listed only admin and owner. Exercising the push path is the only way to see it.
+    const originalId = 'cc000000-0000-4000-8000-000000000034';
+    const replacementId = 'cc000000-0000-4000-8000-000000000035';
+
+    const create = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) AS result',
+      [
+        CENTER,
+        DEVICE,
+        SEAT,
+        'super_admin',
+        JSON.stringify([
+          {
+            opId: 'cc000000-0000-4000-8000-000000000051',
+            type: 'create_entry',
+            clientCreatedAt: new Date().toISOString(),
+            maxKnownRateVersion: 1,
+            payload: entryPayload(originalId, 'Platform sale, to be superseded'),
+          },
+        ]),
+      ],
+    );
+    expect(create.rows[0].result.results[0].status).toBe('ok');
+
+    const result = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) AS result',
+      [
+        CENTER,
+        DEVICE,
+        SEAT,
+        'super_admin',
+        JSON.stringify([
+          {
+            opId: 'cc000000-0000-4000-8000-000000000052',
+            type: 'supersede_entry',
+            clientCreatedAt: new Date().toISOString(),
+            maxKnownRateVersion: 1,
+            payload: {
+              originalEntryId: originalId,
+              replacement: {
+                ...entryPayload(replacementId, 'Platform sale, superseded by push'),
+                deviceId: DEVICE,
+              },
+            },
+          },
+        ]),
+      ],
+    );
+    expect(result.rows[0].result.results[0].status, JSON.stringify(result.rows[0].result)).toBe(
+      'ok',
+    );
+
+    const rows = await pool.query(
+      'SELECT id, status, created_by, supersedes_id FROM entries WHERE id in ($1, $2) ORDER BY id',
+      [originalId, replacementId],
+    );
+    expect(rows.rows.map((row) => row.status)).toEqual(['superseded', 'active']);
+    expect(rows.rows[1].created_by).toBe(SEAT);
+    expect(rows.rows[1].supersedes_id).toBe(originalId);
+
+    const audit = await pool.query(
+      `SELECT actor, after->>'actor_role' AS actor_role FROM audit_log
+       WHERE action = 'entry.supersede' AND target_id = $1`,
+      [originalId],
+    );
+    expect(audit.rowCount).toBe(1);
+    expect(audit.rows[0].actor).toBe(SEAT);
+    expect(audit.rows[0].actor_role).toBe('super_admin');
+  });
+
   it('records the role on a void request as well as on a void', async () => {
     // `request_void` is the amendment a centre role performs, so its payload has to name
     // the role for the same reason entry.create does.
