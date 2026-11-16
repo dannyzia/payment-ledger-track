@@ -3,6 +3,7 @@ import { getCallerContext } from '$lib/server/auth';
 import { getServiceSupabase } from '$lib/server/supabase';
 import { getDbPool } from '$lib/server/db';
 import { checkRateLimit, getSafeClientIp } from '$lib/server/ratelimit';
+import { PULL_ENTRIES_SQL } from '$lib/server/pull-query';
 
 export const GET: RequestHandler = async (event) => {
   const clientIp = getSafeClientIp(event);
@@ -100,28 +101,7 @@ export const GET: RequestHandler = async (event) => {
     );
   }
 
-  const pullQuery = `
-    with scanned as (
-      select * from entries
-      where ($4::uuid is null or center_id = $4) and server_seq > $1
-      order by server_seq asc limit 200
-    ),
-    batch_meta as (
-      select coalesce(max(server_seq), $1) as watermark,
-             count(*) as scanned_count
-      from scanned
-    )
-    select s.*, p.role::text as created_by_role, m.watermark, m.scanned_count
-    from batch_meta m
-    left join scanned s on ($2 in ('admin','owner','super_admin') or s.created_by = $3)
-    -- Plan 023 step 12 (design §6.7): a platform-created entry is authored by a
-    -- super-admin profile that is not in the center's profile list, so the role has to
-    -- travel with the row or the device shows a bare user id.
-    left join profiles p on p.id = s.created_by
-    order by s.server_seq asc nulls last;
-  `;
-
-  const { rows } = await pool.query(pullQuery, [
+  const { rows } = await pool.query(PULL_ENTRIES_SQL, [
     sinceBigInt,
     caller.role,
     caller.userId,
