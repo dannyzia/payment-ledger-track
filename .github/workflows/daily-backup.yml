@@ -6,6 +6,12 @@ on:
     - cron: '0 20 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  # Needed so a failed night can raise (or comment on) an issue instead of
+  # failing silently, which is how six consecutive failures went unnoticed.
+  issues: write
+
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -25,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install PostgreSQL Client & GPG
+      - name: Install PostgreSQL Client, GPG & AWS CLI
         run: sudo apt-get update && sudo apt-get install -y postgresql-client gnupg awscli
 
       - name: Execute Backup Export
@@ -33,7 +39,31 @@ jobs:
           DIRECT_DATABASE_URL: ${{ secrets.PROD_DIRECT_DATABASE_URL }}
           BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
           BACKUP_STORAGE_BUCKET: ${{ secrets.BACKUP_STORAGE_BUCKET }}
+          BACKUP_STORAGE_SOURCE: ${{ secrets.BACKUP_STORAGE_SOURCE }}
           BACKUP_STORAGE_REGION: ${{ secrets.BACKUP_STORAGE_REGION || 'ap-southeast-1' }}
           BACKUP_ACCESS_KEY_ID: ${{ secrets.BACKUP_ACCESS_KEY_ID }}
           BACKUP_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_SECRET_ACCESS_KEY }}
+          BACKUP_MANIFEST_PATH: ${{ runner.temp }}/clt-backup-manifest.json
         run: npx tsx scripts/ops/backup-export.ts
+
+      - name: Verify the archive is fresh
+        env:
+          BACKUP_MANIFEST_PATH: ${{ runner.temp }}/clt-backup-manifest.json
+        run: npx tsx scripts/ops/backup-verify.ts
+
+      - name: Open or update the backup failure issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title="Nightly backup failed"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="The scheduled off-Supabase backup failed on ${GITHUB_SHA}. Run: ${run_url}"
+          existing=$(gh issue list --state open --limit 100 \
+            --search "${title} in:title" --json number --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body "${body}"
+          else
+            gh issue create --title "${title}" --body "${body}"
+          fi

@@ -28,14 +28,32 @@ To restore to a specific timestamp (e.g. prior to an incident):
 
 ## 2. Off-Supabase Disaster Recovery (Cold Restore)
 
+The nightly job writes to `s3://<BACKUP_STORAGE_BUCKET>/daily/`:
+
+| Object | Contents |
+|---|---|
+| `ledger_snapshot_<timestamp>.sql.gpg` | `public` schema, dumped with `--clean --if-exists` |
+| `auth_snapshot_<timestamp>.sql.gpg` | `auth` schema: users, identities, MFA factors. Without it a restore brings back no logins and no 2FA enrolment |
+| `manifest.json` | the latest run: `completedAt`, each file's S3 key, SHA-256 and size, and the Storage buckets synced |
+| `manifest_<timestamp>.json` | the same record, kept per run |
+| `storage/receipts/`, `storage/statements/` | the two private buckets the app creates (`receipts`, `statements`) |
+
 If the primary Supabase project is lost or inaccessible:
-1. Locate latest encrypted snapshot in `s3://cosmo-ledger-backups-prod/daily/`.
-2. Decrypt dump using stdin pipe (never shell arguments):
+1. Locate the latest `manifest.json` in `s3://<BACKUP_STORAGE_BUCKET>/daily/` and note the file names and sizes it records.
+2. Decrypt both dumps using stdin pipe (never shell arguments):
    ```bash
-   gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 -d -o restored.sql ledger_snapshot_<timestamp>.sql.gpg
+   for f in ledger_snapshot auth_snapshot; do
+     gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 -d \
+       -o "${f}.sql" "${f}_<timestamp>.sql.gpg"
+   done
    ```
 3. Provision new PostgreSQL 15+ instance.
-4. Pre-populate prerequisite roles, auth stub schema, and extension stubs before restoring public dump:
+4. Restore the auth schema **first** (it has no `--clean`, so it must land before the public dump references it):
+   ```bash
+   psql "$NEW_DATABASE_URL" -v ON_ERROR_STOP=1 -f auth_snapshot.sql
+   ```
+   Only if `auth_snapshot.sql` is unavailable (an archive predating this runbook) do you fall back to the stub below, and then every user must re-enrol:
+5. Pre-populate prerequisite roles and extension stubs before restoring the public dump:
    ```sql
    DO $$ BEGIN
      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
@@ -48,22 +66,45 @@ If the primary Supabase project is lost or inaccessible:
    CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT NULL::uuid $$;
    CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT '{}'::jsonb $$;
    ```
-5. Execute restoration script with `ON_ERROR_STOP=1`:
+6. Execute the public restoration script with `ON_ERROR_STOP=1`:
    ```bash
-   psql "$NEW_DATABASE_URL" -v ON_ERROR_STOP=1 -f restored.sql
+   psql "$NEW_DATABASE_URL" -v ON_ERROR_STOP=1 -f ledger_snapshot.sql
    ```
-6. Re-apply table write revocations and service role grants:
+7. Re-apply table write revocations and service role grants:
    ```sql
    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, anon, authenticated;
    GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
    REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated;
    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
    ```
-7. Sync storage files:
+8. Sync storage files back into the new project's buckets:
    ```bash
-   aws s3 sync "s3://cosmo-ledger-backups-prod/storage/" "s3://supabase-storage/"
+   for bucket in receipts statements; do
+     aws s3 sync "s3://<BACKUP_STORAGE_BUCKET>/storage/${bucket}/" "s3://<NEW_STORAGE_ENDPOINT>/${bucket}/"
+   done
    ```
-8. Execute verification suite against restored database.
+9. Execute verification suite against restored database.
+
+### 2.1 Verifying the archive is alive
+
+`scripts/ops/backup-verify.ts` answers one question: did a backup finish in the last 24 hours?
+
+```bash
+# CI: reads the manifest the export just wrote
+tsx scripts/ops/backup-verify.ts
+
+# Operator, against the bucket
+BACKUP_STORAGE_BUCKET=<bucket> tsx scripts/ops/backup-verify.ts
+
+# The verifier's own checks, offline, no AWS
+tsx scripts/ops/backup-verify.ts --self-test
+```
+
+It exits non-zero with `backup_stale` (older than 24 h), `backup_manifest_missing` or `backup_manifest_unavailable`. The nightly workflow runs it after the export and opens a `Nightly backup failed` issue on any failure, so a silent week cannot repeat.
+
+The export fails loudly on a missing secret rather than exiting quietly: `missing_environment: <names>`. `BACKUP_STORAGE_SOURCE` must name an S3-compatible base the backup keys can read; if the Supabase plan does not expose Storage over S3, that sync is the blocker, not something to skip.
+
+[UNVERIFIED] A 7-year lifecycle rule on the destination bucket is a requirement, not a verified configuration; confirm it in the bucket policy before claiming retention.
 
 ## 3. Scheduled Drills
 
