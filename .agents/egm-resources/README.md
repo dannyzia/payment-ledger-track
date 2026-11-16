@@ -13,4 +13,4 @@ instead of maintaining separate summaries of their requirements.
 
 For installation, usage, and design rationale, see the
 [documentation index](../docs/index.md). Workflow definitions live in
-[`skills/`](../skills/), and reviewer personas live in [`agents/`](../agents/).
+[`skills/`](../skills/), and reviewer personas live in [`agents/`](agents/).

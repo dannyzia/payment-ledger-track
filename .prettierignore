@@ -18,7 +18,6 @@ pnpm-lock.yaml
 .agents/skills/rhizome-*
 .agents/skills/impeccable
 .agents/skills/web-design-guidelines
-.agents/agents
 .agents/egm-resources
 .cloud-attachments
 .freebuff
