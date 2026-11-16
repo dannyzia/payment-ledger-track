@@ -1,5 +1,9 @@
 docs
 *.md
+# .claude/ is gitignored, and Prettier reads .gitignore too, so its copy of the skills is
+# skipped here. Both copies were formatted; to re-format the ignored one by hand:
+#   pnpm exec prettier --write .claude --ignore-unknown --ignore-path /dev/null
+!.agents/**/*.md
 dist
 node_modules
 .svelte-kit
@@ -7,7 +11,15 @@ build
 .pnpm-store
 supabase/.temp
 pnpm-lock.yaml
-.agents
+# The design bundle is duplicated in .claude/skills, so both copies are formatted and stay
+# in step. The project's own skills (rhizome, egm) and the extras that exist only here are
+# written by hand and left alone.
+.agents/skills/egm-*
+.agents/skills/rhizome-*
+.agents/skills/impeccable
+.agents/skills/web-design-guidelines
+.agents/agents
+.agents/egm-resources
 .cloud-attachments
 .freebuff
 0

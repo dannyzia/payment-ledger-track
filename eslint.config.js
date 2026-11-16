@@ -12,6 +12,8 @@ export default tseslint.config(
       '**/build/**',
       '**/.vercel/**',
       '**/output/**',
+      // Vendored agent skill scripts (third-party); linting them is not this project's job.
+      '.agents/**',
       'supabase/.temp/**',
       'e2e/supabase/.temp/**',
       'apps/web/android/**',

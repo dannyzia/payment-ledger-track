@@ -52,3 +52,8 @@ e2e/supabase/.branches/
 
 # Generated Capacitor Android project (untracked; rebuilt via android:add / android:sync)
 apps/web/android/
+
+# Claude Code's copy of the design skills: a duplicate of .agents/skills, read by no build,
+# test or CI step, and 4.6 MB of vendored data. Only the skills are ignored, so a shared
+# settings file can still be committed later.
+.claude/skills/

@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --build packages/calc packages/shared && pnpm --filter @clt/web check",
     "format": "prettier --check .",
+    "skills:link": "tsx scripts/skills-link.ts",
     "db:bootstrap": "tsx scripts/bootstrap.ts",
     "db:seed:recon-month": "tsx scripts/seed-recon-month.ts",
     "db:reset": "supabase db reset && docker restart supabase_kong_ledger >/dev/null 2>&1 || true",
