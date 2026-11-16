@@ -1,10 +1,12 @@
 -- Plan 023 probe: does the platform seat's void survive a database built from
 -- supabase/migrations in filename order?
 --
--- The defect it pins: 20261114000008_super_admin_panel.sql re-creates
+-- The defect it pins: 20261114000008_super_admin_panel.sql used to re-create
 -- rpc_push_sync_op after 20261029000009_super_admin_ledger_writes.sql added the
--- super_admin branch, so the later body wins and the seat's void is refused
--- 403 unauthorized on any database built from the migrations.
+-- super_admin branch, so the later body won and the seat's void was refused
+-- 403 unauthorized on any database built from the migrations. Since
+-- 20261116000010_push_rpc_seat_authoritative.sql the last definition is the
+-- seat-aware one; this probe stays as the regression check for that order.
 --
 -- Run against a throwaway database provisioned from the migrations:
 --   CLT_TEST_DB_NAME=clt_test_void_probe pnpm exec tsx \
