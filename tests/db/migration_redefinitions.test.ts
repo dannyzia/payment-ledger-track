@@ -70,6 +70,27 @@ const REISSUED: Record<
       ["v_caller_role = 'super_admin'", 'the platform seat revokes devices (20261029000008)'],
     ],
   },
+  // Step 13 re-issues these to resolve the actor from the platform row. The gate token
+  // is the point: the seat holds no centre profile, and these are the routines a centre
+  // owner otherwise calls.
+  reopen_month: {
+    requires: [["('owner', 'super_admin')", 'the seat may reopen a closed month (20261116000012)']],
+  },
+  approve_settlement_overpayment: {
+    requires: [
+      ["('owner', 'super_admin')", 'the seat may approve an overpayment (20261116000012)'],
+    ],
+  },
+  review_entry_reconciliation_exception: {
+    requires: [
+      ["('admin', 'owner', 'super_admin')", 'the seat may review an exception (20261116000012)'],
+    ],
+  },
+  publish_rate_profile: {
+    requires: [
+      ["('admin', 'owner', 'super_admin')", 'the seat may publish a profile (20261116000012)'],
+    ],
+  },
 };
 
 /** The file whose body must be the one that survives for the seat-aware push RPC. */
