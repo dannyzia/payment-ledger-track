@@ -45,6 +45,10 @@ const REISSUED: Record<
       ['fn_center_write_block_reason', 'the suspension guard (20261114000008)'],
       ["'super_admin'", 'the platform seat allowance (20261029000009)'],
       ["'void_entry'", 'the void_entry branch the seat reaches'],
+      [
+        "not in ('admin', 'owner', 'super_admin')",
+        'the seat reaches the supersede branch too (20261116000010)',
+      ],
       ['actor_role', 'the actor_role field on the entry.create audit payload'],
     ],
   },
@@ -70,6 +74,22 @@ const REISSUED: Record<
 
 /** The file whose body must be the one that survives for the seat-aware push RPC. */
 const PUSH_RPC_OWNER = '20261116000010_push_rpc_seat_authoritative.sql';
+
+/**
+ * Every file that has ever defined `rpc_push_sync_op`, in order. 0005 wrote it, 0009
+ * added the platform allowances, and 00010 took ownership so the seat-aware body is the
+ * last one applied. Anything else in this list is a re-issue that can drop behaviour —
+ * the panel migration's copy was exactly that, and it is why a clean build refused the
+ * seat's void and supersede for a while.
+ */
+const PUSH_RPC_DEFINITIONS = [
+  '20261029000005_functions_entries_rates_sync.sql',
+  '20261029000009_super_admin_ledger_writes.sql',
+  '20261116000010_push_rpc_seat_authoritative.sql',
+];
+
+/** Whitespace-insensitive comparison: intent, not formatting. */
+const normalize = (text: string): string => text.replace(/\s+/g, ' ');
 
 function migrationFiles(): string[] {
   return readdirSync(MIGRATIONS)
@@ -111,11 +131,17 @@ describe('migrations that re-issue a function', () => {
     ).toBe(PUSH_RPC_OWNER);
   });
 
-  it('does not re-create rpc_push_sync_op in the panel migration', () => {
-    // 20261114000008 sorts after 0009 and before the authoritative file; a copy here is
-    // exactly the shape of the original defect, even while 00010 still wins.
+  it('defines rpc_push_sync_op only in the files that are allowed to', () => {
+    // Stated as an allowlist rather than a ban on one filename: any new re-issue — the
+    // panel migration, a future hotfix, a renumbered file that sorts later — is the same
+    // shape of defect, and a bare "not 20261114000008" check would let it through.
     const defs = definitions('rpc_push_sync_op').map((definition) => definition.file);
-    expect(defs).not.toContain('20261114000008_super_admin_panel.sql');
+    expect(
+      defs,
+      'rpc_push_sync_op gained a definition outside the allowlist. A re-issued body that ' +
+        'sorts after 00010 replaces the seat-aware one; edit the owner file or register the ' +
+        'new owner here with what it must preserve.',
+    ).toEqual(PUSH_RPC_DEFINITIONS);
   });
 
   it.each(Object.keys(REISSUED))('keeps the behaviour earlier migrations gave %s', (name) => {
@@ -123,9 +149,10 @@ describe('migrations that re-issue a function', () => {
     expect(defs.length, `${name} is no longer defined more than once`).toBeGreaterThan(1);
 
     const winner = defs.at(-1)!;
-    const missing = REISSUED[name]!.requires.filter(([token]) => !winner.body.includes(token)).map(
-      ([token, behaviour]) => `${behaviour} — expected \`${token}\``,
-    );
+    const body = normalize(winner.body);
+    const missing = REISSUED[name]!.requires.filter(
+      ([token]) => !body.includes(normalize(token)),
+    ).map(([token, behaviour]) => `${behaviour} — expected \`${token}\``);
 
     expect(
       missing,
