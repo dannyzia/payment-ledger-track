@@ -2,6 +2,7 @@ import { supabase } from '$lib/supabase/client';
 import { db } from '$lib/db';
 import { goto } from '$app/navigation';
 import { isAuthRoute } from '$lib/auth/routes';
+import { isWithheldReason, type WithheldReason } from '$lib/ui/withheld-notice';
 import type { Session } from '@supabase/supabase-js';
 import type { UserRole } from '@clt/shared';
 
@@ -28,6 +29,18 @@ export class SessionStore {
    * (Sign Out, empty data) and /login bounced straight back to /dashboard.
    */
   authMissing = $state<boolean>(false);
+  /**
+   * Plan 023 step 3: set when the server refuses this center as suspended or
+   * archived. The shell must not open; /login shows the reason from this field.
+   */
+  withheldReason = $state<WithheldReason | null>(null);
+  /**
+   * Plan 023 step 6: the platform seat is mandatory-TOTP. `aal` is the assurance
+   * level of the current token; null means "not known yet" (offline, or before the
+   * first session event). Only an explicit `aal1` closes the panel, so an offline
+   * start never locks the owner of the seat out. The server check is step 7.
+   */
+  aal = $state<'aal1' | 'aal2' | null>(null);
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -134,6 +147,10 @@ export class SessionStore {
       return;
     }
 
+    // A successful sign-in clears an earlier withheld notice (the center was
+    // reactivated, or a different account signed in).
+    this.withheldReason = null;
+
     const userId = sbSession.user.id;
     const email = sbSession.user.email ?? '';
     const initialRole = (sbSession.user.app_metadata?.role ?? 'staff') as UserRole;
@@ -148,9 +165,24 @@ export class SessionStore {
       fullName: sbSession.user.user_metadata?.full_name,
     });
 
+    // Local JWT state, no network needed: this is what the guard gates the seat on.
+    await this.refreshAssurance();
+
     if (this.isOnline) {
       await this.revalidateActiveProfile(sbSession.access_token);
     }
+  }
+
+  /** Re-reads the token's assurance level after enrolling, challenging or refreshing. */
+  async refreshAssurance(): Promise<'aal1' | 'aal2' | null> {
+    try {
+      const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const level = data?.currentLevel as 'aal1' | 'aal2' | undefined;
+      this.aal = level ?? null;
+    } catch {
+      // Keep the last known level rather than inventing one.
+    }
+    return this.aal;
   }
 
   async revalidateActiveProfile(token?: string): Promise<void> {
@@ -168,12 +200,18 @@ export class SessionStore {
 
       if (res.status === 401 || res.status === 403) {
         const data = await res.json().catch(() => ({}));
-        if (
-          data.error === 'user_deactivated' ||
-          data.message === 'user_deactivated' ||
-          res.status === 401
-        ) {
+        const code = (data.error as string | undefined) ?? (data.message as string | undefined);
+
+        if (code === 'user_deactivated' || res.status === 401) {
           await this.signOut();
+          return;
+        }
+
+        // Plan 023 step 3: a withheld center is refused at login, not only when it
+        // tries to sync. Without this the shell opened and every call failed behind it.
+        if (isWithheldReason(code)) {
+          this.withheldReason = code;
+          await this.signOut(true);
           return;
         }
       }
@@ -194,6 +232,25 @@ export class SessionStore {
       }
     } catch {
       // Suppress network errors while offline/reconnecting (PRD §9.3)
+    }
+  }
+
+  /**
+   * Plan 023 step 3: the server refused this center as suspended or archived.
+   * Sign out without deleting the outbox — queued entries must survive until the
+   * center is reactivated — and send the user to the withheld screen rather than
+   * to a login form that cannot help them.
+   */
+  async withhold(reason: WithheldReason): Promise<void> {
+    this.withheldReason = reason;
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // A failed provider sign-out must not stop the local cut-off.
+    }
+    this.clearLocalSession();
+    if (typeof window !== 'undefined') {
+      goto('/withheld');
     }
   }
 

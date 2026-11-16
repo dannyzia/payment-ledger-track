@@ -1,12 +1,21 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
 import { getServiceSupabase } from '$lib/server/supabase';
 import type { UserRole } from '@clt/shared';
+import { PERMISSIONS, type Capability } from '$lib/server/capabilities';
+import { decodeAssurance, type AssuranceLevel } from '$lib/server/assurance';
 
 export interface CallerContext {
   userId: string;
   role: UserRole;
   centerId: string | null; // null strictly for super_admin
   active: boolean;
+  /** The role's licensed capabilities, resolved once from the registry (Plan 023 §6.1). */
+  capabilities: ReadonlySet<Capability>;
+  /**
+   * The verified token's assurance level (Plan 023 §6.4). Read from the same token
+   * `getUser` accepted, so it cannot be supplied by the client out of band.
+   */
+  aal: AssuranceLevel | null;
 }
 
 /**
@@ -59,11 +68,34 @@ export async function getCallerContext(event: RequestEvent): Promise<CallerConte
     throw error(403, 'unauthorized: profile has no center assigned');
   }
 
+  // Plan 023 §6.3: a withheld center keeps its users' tokens valid until they expire,
+  // so the center's status is enforced here, on every request that rebuilds context.
+  // The platform seat is exempt: it may still read and act on a suspended center.
+  if (role !== 'super_admin' && centerId) {
+    const { data: center, error: centerError } = await supabase
+      .from('centers')
+      .select('status')
+      .eq('id', centerId)
+      .single();
+
+    if (centerError || !center) {
+      throw error(403, 'center_not_found');
+    }
+    if (center.status === 'suspended') {
+      throw error(403, 'center_suspended');
+    }
+    if (center.status === 'archived') {
+      throw error(403, 'center_archived');
+    }
+  }
+
   return {
     userId: user.id,
     role,
     centerId,
     active: profile.active,
+    capabilities: PERMISSIONS[role],
+    aal: decodeAssurance(token),
   };
 }
 
