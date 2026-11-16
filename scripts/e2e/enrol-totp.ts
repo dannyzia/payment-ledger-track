@@ -12,41 +12,10 @@
  * `scripts/e2e/isolated-stack.ts` to pass to Playwright. Nothing else is printed
  * to stdout; the secret is throwaway and lives only in that child environment.
  */
-import { createHmac } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-
-const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-function base32Decode(input: string): Buffer {
-  const clean = input.toUpperCase().replace(/[=\s-]/g, '');
-  let bits = 0;
-  let value = 0;
-  const bytes: number[] = [];
-  for (const char of clean) {
-    const index = BASE32_ALPHABET.indexOf(char);
-    if (index === -1) throw new Error(`invalid base32 character in TOTP secret: ${char}`);
-    value = (value << 5) | index;
-    bits += 5;
-    if (bits >= 8) {
-      bytes.push((value >>> (bits - 8)) & 0xff);
-      bits -= 8;
-    }
-  }
-  return Buffer.from(bytes);
-}
-
-function totpCode(secret: string, at: number = Date.now()): string {
-  const message = Buffer.alloc(8);
-  message.writeBigUInt64BE(BigInt(Math.floor(at / 1000 / 30)));
-  const digest = createHmac('sha1', base32Decode(secret)).update(message).digest();
-  const offset = digest[digest.length - 1]! & 0x0f;
-  const binary =
-    ((digest[offset]! & 0x7f) << 24) |
-    ((digest[offset + 1]! & 0xff) << 16) |
-    ((digest[offset + 2]! & 0xff) << 8) |
-    (digest[offset + 3]! & 0xff);
-  return (binary % 1_000_000).toString().padStart(6, '0');
-}
+// Shared with apps/web/tests/e2e/sign-in.ts: the code that verifies this enrolment
+// and the code that answers the later challenge must be the same function.
+import { totpCode } from './totp';
 
 async function main(): Promise<void> {
   const url = process.env.SUPABASE_URL;

@@ -1,5 +1,7 @@
-import { createHmac } from 'node:crypto';
 import type { Page } from '@playwright/test';
+// The arithmetic lives in one module: `scripts/e2e/enrol-totp.ts` proves the factor it
+// enrols with the same code this helper answers the challenge with.
+import { totpCode } from '../../../../scripts/e2e/totp';
 
 /**
  * Plan 023 step 6 made TOTP mandatory for the platform seat: after a correct
@@ -14,46 +16,6 @@ import type { Page } from '@playwright/test';
  */
 
 const SEAT_TOTP_SECRET = process.env.E2E_SEAT_TOTP_SECRET ?? '';
-
-const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-/** RFC 4648 base32, the encoding GoTrue returns for a TOTP secret. */
-export function base32Decode(input: string): Buffer {
-  const clean = input.toUpperCase().replace(/[=\s-]/g, '');
-  let bits = 0;
-  let value = 0;
-  const bytes: number[] = [];
-
-  for (const char of clean) {
-    const index = BASE32_ALPHABET.indexOf(char);
-    if (index === -1) throw new Error(`invalid base32 character in TOTP secret: ${char}`);
-    value = (value << 5) | index;
-    bits += 5;
-    if (bits >= 8) {
-      bytes.push((value >>> (bits - 8)) & 0xff);
-      bits -= 8;
-    }
-  }
-
-  return Buffer.from(bytes);
-}
-
-/** RFC 6238 TOTP: 6 digits, SHA-1, 30-second step — what GoTrue verifies. */
-export function totpCode(secret: string, at: number = Date.now()): string {
-  const counter = Math.floor(at / 1000 / 30);
-  const message = Buffer.alloc(8);
-  message.writeBigUInt64BE(BigInt(counter));
-
-  const digest = createHmac('sha1', base32Decode(secret)).update(message).digest();
-  const offset = digest[digest.length - 1]! & 0x0f;
-  const binary =
-    ((digest[offset]! & 0x7f) << 24) |
-    ((digest[offset + 1]! & 0xff) << 16) |
-    ((digest[offset + 2]! & 0xff) << 8) |
-    (digest[offset + 3]! & 0xff);
-
-  return (binary % 1_000_000).toString().padStart(6, '0');
-}
 
 /**
  * Signs in through the real login form and, when the account is the platform
