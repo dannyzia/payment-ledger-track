@@ -15,13 +15,11 @@ const { Pool } = pg;
  * (`$lib/server/pull-query`) against them, so the attribution is read from rows the
  * database actually wrote.
  *
- * The platform case is blocked today, honestly and visibly: `fk_entries_creator`
- * points `(center_id, created_by)` at `profiles (center_id, id)`, and a super_admin's
- * `center_id` is NULL, so no entry may name a platform creator. The second case drops
- * that constraint inside a transaction that is rolled back, which is the only way to
- * prove the join resolves a platform profile before the constraint is relaxed. When
- * the real migration lands, that `ALTER` becomes unnecessary and the case stands
- * unchanged.
+ * The platform case needed a schema change before it could run honestly:
+ * `fk_entries_creator` used to point `(center_id, created_by)` at
+ * `profiles (center_id, id)`, which no super_admin can satisfy. `20261116000011`
+ * replaced it with `profiles (id)` plus a centre guard, so the seat now authors a real
+ * row here instead of one this suite fabricated by dropping the constraint.
  */
 
 const CENTER = 'bb000000-0000-4000-8000-000000000001';
@@ -178,78 +176,23 @@ describe('pull attributes an entry from Postgres rows (Plan 023 step 12)', () =>
     expect(entry!.created_by_role).toBe('owner');
   });
 
-  it('returns super_admin for a platform author, and the seat push is not refused', async () => {
-    const client = await pool.connect();
-    try {
-      // The platform row cannot exist while fk_entries_creator requires a profile in
-      // the same centre; dropping it here (rolled back below) is what proves the join
-      // and the seat's push, not a schema this repo has.
-      await client.query('BEGIN');
-      await client.query('ALTER TABLE entries DROP CONSTRAINT fk_entries_creator');
+  it('returns super_admin for a platform author whose entry the seat pushed', async () => {
+    const pushed = await push(pool, {
+      callerId: SEAT,
+      callerRole: 'super_admin',
+      entryId: SEAT_ENTRY,
+      opId: SEAT_OP,
+    });
+    expect(pushed.results[0]?.status).toBe('ok');
 
-      const pushed = await push(client, {
-        callerId: SEAT,
-        callerRole: 'super_admin',
-        entryId: SEAT_ENTRY,
-        opId: SEAT_OP,
-      });
-      expect(pushed.results[0]?.status).toBe('ok');
+    const rows = await pull(pool, 'super_admin', '00000000-0000-4000-8000-000000000000');
+    const seatEntry = rows.find((row) => row.id === SEAT_ENTRY);
+    const ownerEntry = rows.find((row) => row.id === OWNER_ENTRY);
 
-      const rows = await pull(client, 'super_admin', '00000000-0000-4000-8000-000000000000');
-      const seatEntry = rows.find((row) => row.id === SEAT_ENTRY);
-      const ownerEntry = rows.find((row) => row.id === OWNER_ENTRY);
-
-      expect(seatEntry, 'the platform entry is missing from the pull statement').toBeDefined();
-      expect(seatEntry!.created_by).toBe(SEAT);
-      expect(seatEntry!.created_by_role).toBe('super_admin');
-      // The same statement must not mislabel the centre-authored row beside it.
-      expect(ownerEntry?.created_by_role).toBe('owner');
-    } finally {
-      await client.query('ROLLBACK');
-      client.release();
-    }
-
-    const restored = await pool.query(
-      `SELECT 1 FROM pg_constraint WHERE conrelid = 'entries'::regclass AND conname = 'fk_entries_creator'`,
-    );
-    expect(restored.rowCount, 'fk_entries_creator was not restored').toBe(1);
-  });
-
-  it('still refuses a real platform create while the creator constraint is in place', async () => {
-    // Keeps the blocker visible: this is the tripwire that flips when the constraint is
-    // relaxed, at which point the case above no longer needs its ALTER.
-    const ops = [
-      {
-        opId: 'bb000000-0000-4000-8000-000000000043',
-        type: 'create_entry',
-        clientCreatedAt: new Date().toISOString(),
-        maxKnownRateVersion: 1,
-        payload: {
-          id: 'bb000000-0000-4000-8000-000000000033',
-          entryDate: ENTRY_DATE,
-          customerName: 'Blocked platform sale',
-          methodId: METHOD,
-          grossPoisha: '100000',
-          vatPoisha: '0',
-          vatInputPoisha: '0',
-          commissionPoisha: '42000',
-          chargePoisha: '0',
-          businessChargePoisha: '0',
-          customerChargePoisha: '0',
-          netPoisha: '58000',
-          rateProfileId: RATE,
-          snapshot: SNAPSHOT,
-        },
-      },
-    ];
-
-    const result = await pool.query(
-      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) AS result',
-      [CENTER, DEVICE, SEAT, 'super_admin', JSON.stringify(ops)],
-    );
-
-    // A rejected op is a per-op result, not a thrown error: the RPC isolates each op.
-    expect(result.rows[0].result.results[0].status).toBe('rejected');
-    expect(result.rows[0].result.results[0].reason).toMatch(/fk_entries_creator/);
+    expect(seatEntry, 'the platform entry is missing from the pull statement').toBeDefined();
+    expect(seatEntry!.created_by).toBe(SEAT);
+    expect(seatEntry!.created_by_role).toBe('super_admin');
+    // The same statement must not mislabel the centre-authored row beside it.
+    expect(ownerEntry?.created_by_role).toBe('owner');
   });
 });

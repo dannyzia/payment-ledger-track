@@ -237,13 +237,11 @@ describe('Late migrations keep their intent on a clean database', () => {
     ).rejects.toThrow('422 parent_entry_not_found');
   });
 
-  it('the schema still refuses a platform super_admin as an entry creator (open defect)', async () => {
-    // The role gate admits the seat, but `entries` carries
-    // `fk_entries_creator foreign key (center_id, created_by) references profiles (center_id, id)`
-    // (20261029000001). A super_admin's `center_id` is NULL, so no entry can record a
-    // platform creator: the seat's supersede is refused at the insert, not at the gate.
-    // Plan 023 §6.7 assumes such an entry exists. This test fails the day the
-    // constraint is relaxed, which is when it should be rewritten to assert success.
+  it('rpc_supersede_entry replaces an entry when the seat is the actor', async () => {
+    // Plan 023 §6.7 assumes a platform-created entry exists, so the seat's supersede
+    // has to insert a row whose `created_by` is the seat. `20261116000011` replaced the
+    // composite creator key (which no seat could satisfy) with `profiles (id)` plus a
+    // centre guard, so the insert now succeeds instead of raising fk_entries_creator.
     const replacement = {
       id: REPLACEMENT_ENTRY,
       entryDate: '2026-10-07',
@@ -262,20 +260,22 @@ describe('Late migrations keep their intent on a clean database', () => {
       reassignReason: 'late-migration seat supersede',
     };
 
-    await expect(
-      db.query('SELECT rpc_supersede_entry($1::uuid, $2::uuid, $3::jsonb, $4::uuid) AS res', [
-        ACTIVE,
-        SUPERSEDE_ENTRY,
-        JSON.stringify(replacement),
-        SEAT,
-      ]),
-    ).rejects.toThrow(/fk_entries_creator/);
+    const result = await db.query(
+      'SELECT rpc_supersede_entry($1::uuid, $2::uuid, $3::jsonb, $4::uuid) AS res',
+      [ACTIVE, SUPERSEDE_ENTRY, JSON.stringify(replacement), SEAT],
+    );
+    expect(result.rows[0].res.status).toBe('ok');
 
     const original = await db.query('SELECT status, superseded_at FROM entries WHERE id = $1', [
       SUPERSEDE_ENTRY,
     ]);
-    expect(original.rows[0].status).toBe('active');
-    expect(original.rows[0].superseded_at).toBeNull();
+    expect(original.rows[0].status).toBe('superseded');
+    expect(original.rows[0].superseded_at).not.toBeNull();
+
+    const created = await db.query('SELECT created_by FROM entries WHERE id = $1', [
+      REPLACEMENT_ENTRY,
+    ]);
+    expect(created.rows[0].created_by).toBe(SEAT);
   });
 
   it('the write guard is installed on exactly the fifteen tenant tables', async () => {
