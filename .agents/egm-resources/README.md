@@ -11,6 +11,6 @@ instead of maintaining separate summaries of their requirements.
 - [Re-implementation standard](document_standards/re-implementation-standard.md)
 - [Zoom-out standard](document_standards/zoom-out-standard.md)
 
-For installation, usage, and design rationale, see the
-[documentation index](../docs/index.md). Workflow definitions live in
-[`skills/`](../skills/), and reviewer personas live in [`agents/`](agents/).
+Workflow definitions live in [`skills/`](../skills/), and reviewer personas live
+in [`agents/`](agents/). The skill pack's upstream documentation index is not
+vendored here, so these resources and the skills that read them are the record.
