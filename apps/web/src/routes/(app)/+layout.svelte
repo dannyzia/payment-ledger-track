@@ -43,24 +43,35 @@
     } catch {
       // Private mode: switcher falls back to in-memory state only.
     }
-    if (hasCapability(session.user?.role ?? 'staff', 'center.read_all')) {
-      void (async () => {
-        try {
-          const res = await authFetch('/api/v1/admin/super/centers');
-          if (res.ok) {
-            const data = await res.json();
-            switcherCenters = (data.centers ?? []).map((c: SwitchableCenter) => ({
-              id: c.id,
-              code: c.code,
-              name: c.name,
-            }));
-          }
-        } catch {
-          // Switcher stays empty on network failure; badge still shows.
-        }
-      })();
-    }
+    if (hasCapability(session.user?.role ?? 'staff', 'center.read_all')) void loadSwitcherCenters();
     return () => syncRunner.stop();
+  });
+
+  async function loadSwitcherCenters(): Promise<void> {
+    try {
+      const res = await authFetch('/api/v1/admin/super/centers');
+      if (res.ok) {
+        const data = await res.json();
+        switcherCenters = (data.centers ?? []).map((c: SwitchableCenter) => ({
+          id: c.id,
+          code: c.code,
+          name: c.name,
+        }));
+      }
+    } catch {
+      // Switcher stays empty on network failure; badge still shows.
+    }
+  }
+
+  // Plan 023 steps 6-7: the security screen that proves aal2 lives inside this layout,
+  // so the mount-time fetch above runs on an aal1 token and the route refuses it with
+  // `403 assurance_required`. Retry once this session has proven its second factor,
+  // or the switcher stays empty until the user reloads.
+  let centersLoadedForAal2 = $state(false);
+  $effect(() => {
+    if (!isPlatform || session.aal !== 'aal2' || centersLoadedForAal2) return;
+    centersLoadedForAal2 = true;
+    void loadSwitcherCenters();
   });
 
   async function handleCenterSwitch(value: string) {
