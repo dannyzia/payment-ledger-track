@@ -11,6 +11,12 @@
 -- rpc_push_sync_op admits super_admin. Create, request_void and the push-side supersede
 -- handler are unchanged, as is every other rule (closed months, non-active entries,
 -- the audit rows, the lock order the routines already take).
+--
+-- SUPERSEDED for rpc_push_sync_op: 20261116000010_push_rpc_seat_authoritative.sql now
+-- owns that function, because the suspension guard needs fn_center_writable, which only
+-- exists from 20261114000008. This file's copy is history and the two later files are
+-- written to preserve what it added; rpc_supersede_entry is still defined here and is
+-- still authoritative.
 
 create or replace function rpc_supersede_entry(
   p_center_id uuid,

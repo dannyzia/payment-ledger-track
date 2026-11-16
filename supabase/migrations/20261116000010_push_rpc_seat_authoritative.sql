@@ -66,9 +66,9 @@ begin
   end if;
 
   -- The caller must be an active member of the center it pushes into, or the platform
-  -- seat (center_id NULL), which has no device and pushes only audited void operations.
-  -- This body is re-created after 20261029000009; the seat alternatives it added to
-  -- this function have to be repeated here, or the later definition silently drops them.
+  -- seat (center_id NULL), which has no device and pushes only audited amendments.
+  -- Both alternatives live in this file because it is the definition that survives; the
+  -- header explains why a re-issue anywhere else silently drops them.
   if not exists (
     select 1 from profiles
     where id = p_caller_id and center_id = p_center_id and active = true

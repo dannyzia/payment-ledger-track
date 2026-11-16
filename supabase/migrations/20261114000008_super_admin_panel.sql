@@ -1,11 +1,12 @@
 -- 023_super_admin_panel — steps 3 and 4 (CLT-PLAN-023)
 --
--- Step 3 (suspension enforcement): fn_center_writable / fn_center_write_block_reason,
---   and a guard inside rpc_push_sync_op so a suspended or archived center accepts no
---   writes from any caller, including service_role routes. That function is no longer
---   re-created in this file: this migration sorts after 20261029000009, so a copy here
---   would replace the seat-aware body 0009 installed. It lives in
---   20261116000010_push_rpc_seat_authoritative.sql, which sorts after both.
+-- Step 3 (suspension enforcement): fn_center_writable / fn_center_write_block_reason /
+--   fn_center_retention_offset, the helpers every write path asks whether a center may
+--   be written. The push RPC's guard is built on them but is not re-created here: this
+--   file sorts after 20261029000009, so a copy would replace the seat-aware body 0009
+--   installed. That function lives in
+--   20261116000010_push_rpc_seat_authoritative.sql, which sorts after both and is its
+--   only definition. This file is suspension and retention only.
 -- Step 4 (retention pause): a suspended center's sync-op retention clock stops. The
 --   clock restarts at reactivation, which is what keeps queued work from expiring
 --   into a review queue the center's own admins cannot open (Goldfish blocker 4).
