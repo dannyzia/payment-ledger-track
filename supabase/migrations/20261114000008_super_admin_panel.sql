@@ -548,7 +548,9 @@ begin
           perform log_audit_event(
             p_center_id, p_caller_id, 'entry.create', 'entries', v_entry_id::text,
             null,
-            jsonb_build_object('gross', v_gross, 'vat', v_vat, 'commission', v_comm, 'charge', v_charge, 'net', v_net, 'snapshot', v_snapshot, 'method_id', v_method_id, 'entry_date', v_entry_date)
+            -- Design §6.7: record the actor's role at the write boundary instead of
+            -- inventing a second audit action name for a platform write.
+            jsonb_build_object('gross', v_gross, 'vat', v_vat, 'commission', v_comm, 'charge', v_charge, 'net', v_net, 'snapshot', v_snapshot, 'method_id', v_method_id, 'entry_date', v_entry_date, 'actor_role', p_caller_role)
           );
 
           v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
