@@ -6,6 +6,7 @@
   import type { ChipVariant } from '$lib/ledger/types';
   import { formatPoishaToBdt, type UserRole } from '@clt/shared';
   import { hasCenterCapability } from '$lib/capabilities';
+  import { creatorLabel } from '$lib/ledger/creator-label';
 
   interface Props {
     entry: LocalEntry | null;
@@ -47,12 +48,15 @@
       : 'default',
   );
 
-  // Plan 023 step 12 (design §6.7): a platform entry's author is a super-admin whose
-  // profile is not in the center's cached list, so fall back to the role, not a UUID.
+  // Plan 023 step 12 (design §6.7): the attribution rule lives in `creatorLabel` so a
+  // badge, audit column or export cannot re-derive it differently.
   const creatorName = $derived(
     entry
-      ? profilesMap[entry.created_by]?.display_name ||
-          (entry.created_by_role === 'super_admin' ? 'Platform (Super Admin)' : entry.created_by)
+      ? creatorLabel({
+          id: entry.created_by,
+          role: entry.created_by_role,
+          name: profilesMap[entry.created_by]?.display_name,
+        })
       : '',
   );
 
