@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { beforeNavigate } from '$app/navigation';
+  import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { handleClientGuard } from '$lib/auth/guard';
   import InstallBanner from '$lib/ui/InstallBanner.svelte';
   import UpgradePromptModal from '$lib/ui/UpgradePromptModal.svelte';
@@ -18,10 +18,15 @@
     }
   });
 
-  onMount(() => {
-    // Initial page load guard check (Plan 008)
+  // Initial page load guard check (Plan 008). Run after the load settles: a goto issued
+  // while hydration is still committing the first navigation is dropped, which left a
+  // refused deep link showing the Access Denied screen while the address bar still said
+  // the refused path.
+  afterNavigate(() => {
     handleClientGuard(new URL(window.location.href), () => {});
+  });
 
+  onMount(() => {
     // Request persistent storage on initialization (PRD §12)
     initStoragePersistence().catch(console.error);
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import type { UserRole } from '@clt/shared';
+  import { visibleNav } from './nav';
 
   interface Props {
     role: UserRole;
@@ -13,62 +14,14 @@
   let selectedIndex = $state(0);
   let queryInput = $state<HTMLInputElement | null>(null);
 
-  interface CommandItem {
-    id: string;
-    title: string;
-    route: string;
-    roles: UserRole[];
-    shortcut?: string;
-  }
-
-  const allCommands: CommandItem[] = [
-    {
-      id: 'new-entry',
-      title: 'New Payment Entry',
-      route: '/entries/new',
-      roles: ['owner', 'admin', 'staff'],
-      shortcut: 'N',
-    },
-    {
-      id: 'dashboard',
-      title: 'Dashboard',
-      route: '/dashboard',
-      roles: ['owner', 'admin', 'staff'],
-    },
-    {
-      id: 'ledger',
-      title: 'Ledger',
-      route: '/ledger',
-      roles: ['owner', 'admin', 'staff'],
-      shortcut: 'L',
-    },
-    {
-      id: 'reports',
-      title: 'Monthly Reports',
-      route: '/reports',
-      roles: ['owner', 'admin'],
-      shortcut: 'R',
-    },
-    {
-      id: 'settlements',
-      title: 'Settlements & Payables',
-      route: '/settlements',
-      roles: ['owner', 'admin'],
-      shortcut: 'S',
-    },
-    { id: 'reconcile', title: 'Reconciliation', route: '/reconcile', roles: ['owner', 'admin'] },
-    {
-      id: 'admin-settings',
-      title: 'Admin Settings',
-      route: '/admin/settings',
-      roles: ['owner', 'admin'],
-    },
-  ];
+  /**
+   * The commands are the Sidebar's destinations, from the one list in `./nav.ts`, so the
+   * two surfaces cannot disagree about who may go where. Only the search filter is local.
+   */
+  const allCommands = $derived(visibleNav(role).filter((item) => item.inPalette));
 
   const filteredCommands = $derived(
-    allCommands
-      .filter((cmd) => cmd.roles.includes(role))
-      .filter((cmd) => cmd.title.toLowerCase().includes(query.trim().toLowerCase())),
+    allCommands.filter((cmd) => cmd.title.toLowerCase().includes(query.trim().toLowerCase())),
   );
 
   // Programmatic focus replaces the `autofocus` attribute (a11y: Avoid using

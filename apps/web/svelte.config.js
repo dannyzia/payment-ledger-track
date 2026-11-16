@@ -26,6 +26,14 @@ const config = {
           maxDuration: 15,
           regions: ['sin1'],
         }),
+    // SvelteKit loads $env/dynamic/* itself and does not follow Vite's `envDir`.
+    // Left at its default (apps/web) it finds no .env files there, so a plain
+    // `pnpm dev` ran with no service key and every server route 500'd until the
+    // shell happened to have .env.local sourced. Point it at the monorepo root,
+    // the same untracked file db:bootstrap reads.
+    env: {
+      dir: '../../',
+    },
     // Service worker registration is owned by @vite-pwa/sveltekit's virtual module
     // (vite-pwa docs: disable Kit's own registration when using pwa virtual modules).
     serviceWorker: {

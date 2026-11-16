@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { hasCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import { authFetch } from '$lib/api/client';
@@ -29,7 +30,7 @@
     methodName: string | null;
   }
 
-  const isSuperAdmin = $derived(session.user?.role === 'super_admin');
+  const canUsePanel = $derived(hasCapability(session.user?.role ?? 'staff', 'ledger.read_all'));
 
   let query = $state('');
   let centerFilter = $state('all');
@@ -84,7 +85,7 @@
   onMount(loadCenters);
 </script>
 
-{#if !isSuperAdmin}
+{#if !canUsePanel}
   <div class="p-6 max-w-3xl mx-auto w-full">
     <Card class="p-6">
       <h1 class="text-xl font-bold text-[var(--ink)]">Access Denied</h1>

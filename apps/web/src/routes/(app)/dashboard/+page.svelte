@@ -1,10 +1,19 @@
 <script lang="ts">
   import { session } from '$lib/auth/session.svelte';
+  import { hasCenterCapability } from '$lib/capabilities';
+  import type { UserRole } from '@clt/shared';
   import StaffDashboard from '$lib/ui/dashboards/StaffDashboard.svelte';
   import AdminDashboard from '$lib/ui/dashboards/AdminDashboard.svelte';
   import OwnerDashboard from '$lib/ui/dashboards/OwnerDashboard.svelte';
 
   const userDisplayName = $derived(session.user?.fullName ?? 'Counter Staff');
+
+  // Which dashboard, decided by capability rather than the role string: Owner holds
+  // `month.close`, Admin holds `report.read`, staff neither. The platform seat has no
+  // center scope, so it keeps the staff view (it has its own platform surfaces).
+  const role = $derived((session.user?.role ?? 'staff') as UserRole);
+  const isOwnerView = $derived(hasCenterCapability(role, 'month.close'));
+  const isAdminView = $derived(hasCenterCapability(role, 'report.read'));
 </script>
 
 <div class="role-dashboard p-6 max-w-5xl mx-auto w-full">
@@ -18,9 +27,9 @@
       </div>
       <div class="h-64 bg-slate-200 rounded-2xl"></div>
     </div>
-  {:else if session.user.role === 'owner'}
+  {:else if isOwnerView}
     <OwnerDashboard ownerName={userDisplayName} />
-  {:else if session.user.role === 'admin'}
+  {:else if isAdminView}
     <AdminDashboard />
   {:else}
     <StaffDashboard userId={session.user.id} userName={userDisplayName} />

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { hasCenterCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
@@ -33,7 +34,9 @@
   let selectedPaymentReversibleBalance = $state<bigint | null>(null);
   let signedReceiptUrls = $state<Record<string, string>>({});
 
-  const isAuthorized = $derived(session.user?.role === 'admin' || session.user?.role === 'owner');
+  const isAuthorized = $derived(
+    hasCenterCapability(session.user?.role ?? 'staff', 'settlement.read'),
+  );
 
   const canRecordPayment = $derived(
     !isMonthClosed ||
@@ -307,7 +310,7 @@
               {/if}
             </div>
 
-            {#if settlement.overpayment_review_status !== 'approved' && session.user?.role === 'owner'}
+            {#if settlement.overpayment_review_status !== 'approved' && hasCenterCapability(session.user?.role ?? 'staff', 'settlement.approve_overpayment')}
               <Button
                 variant="commission"
                 onclick={() => {

@@ -10,14 +10,16 @@
   import { invalidateInFlightPull, resetSuperCenterCache } from '$lib/sync/pull';
   import { authFetch } from '$lib/api/client';
   import Chip from '$lib/ui/Chip.svelte';
+  import { hasCapability } from '$lib/capabilities';
 
   let { children } = $props();
 
   const userRole = $derived(session.user?.role ?? 'staff');
   const userEmail = $derived(session.user?.email ?? '');
-  const isSuperAdmin = $derived(userRole === 'super_admin');
+  // Platform surface is a capability, not the role string (Plan 023 §6.1).
+  const isPlatform = $derived(hasCapability(userRole, 'center.read_all'));
   const centerBadge = $derived(
-    isSuperAdmin
+    isPlatform
       ? 'PLATFORM SUPER-ADMIN'
       : session.user?.centerCode
         ? `${session.user.centerCode} - ${session.user.centerName ?? ''}`.trim()
@@ -41,7 +43,7 @@
     } catch {
       // Private mode: switcher falls back to in-memory state only.
     }
-    if (session.user?.role === 'super_admin') {
+    if (hasCapability(session.user?.role ?? 'staff', 'center.read_all')) {
       void (async () => {
         try {
           const res = await authFetch('/api/v1/admin/super/centers');
@@ -98,7 +100,7 @@
       {#if centerBadge}
         <Chip>{centerBadge}</Chip>
       {/if}
-      {#if isSuperAdmin}
+      {#if isPlatform}
         <label class="flex flex-col gap-1 text-xs text-[var(--muted)]">
           <span>Center Context</span>
           <select

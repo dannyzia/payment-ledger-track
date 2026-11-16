@@ -10,6 +10,7 @@
     type LocalEntry,
   } from '$lib/db';
   import { session } from '$lib/auth/session.svelte';
+  import { hasCenterCapability } from '$lib/capabilities';
   import { computeSettlementReminder, type SettlementStatus } from '$lib/settlements/reminders';
   import {
     requestNotificationPermissions,
@@ -28,8 +29,11 @@
   let methods = $state<CachedPaymentMethod[]>([]);
   let monthEntries = $state<LocalEntry[]>([]);
 
-  // Role Guard: Settlements screen restricted strictly to Admin and Owner (PRD §3, §8.4)
-  const isAuthorized = $derived(session.user?.role === 'admin' || session.user?.role === 'owner');
+  // Settlements is a center capability: Admin and Owner hold `settlement.read`
+  // (PRD §3, §8.4); the seat has no center and uses its own screens.
+  const isAuthorized = $derived(
+    hasCenterCapability(session.user?.role ?? 'staff', 'settlement.read'),
+  );
 
   const monthFirstDay = $derived(`${selectedMonth}-01`);
 

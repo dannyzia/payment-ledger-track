@@ -5,6 +5,7 @@
   import Chip from '$lib/ui/Chip.svelte';
   import type { ChipVariant } from '$lib/ledger/types';
   import { formatPoishaToBdt, type UserRole } from '@clt/shared';
+  import { hasCenterCapability } from '$lib/capabilities';
 
   interface Props {
     entry: LocalEntry | null;
@@ -34,7 +35,8 @@
     onvoid,
   }: Props = $props();
 
-  const isPrivileged = $derived(role === 'admin' || role === 'owner');
+  // Voiding someone else's entry is `entry.void` on a center role (Admin, Owner).
+  const isPrivileged = $derived(hasCenterCapability(role, 'entry.void'));
   const method = $derived(entry ? methodsMap[entry.method_id] : undefined);
   const methodName = $derived(
     method?.name ?? (entry?.method_id ? entry.method_id.substring(0, 8) : ''),

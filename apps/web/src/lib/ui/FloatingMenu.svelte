@@ -3,6 +3,7 @@
   import { messages } from '../i18n/messages';
   import { triggerHapticTick } from '$lib/native/haptics';
   import { session } from '$lib/auth/session.svelte';
+  import { hasCapability, hasCenterCapability } from '$lib/capabilities';
   import type { UserRole } from '@clt/shared';
 
   interface Props {
@@ -124,8 +125,9 @@
       >
         {messages.menu.ledger}
       </a>
-      {#if role === 'admin' || role === 'owner'}
-        <!-- Reports is an admin/owner capability (PRD capability table); staff must not see the link (CLT-R-031). -->
+      {#if hasCenterCapability(role, 'report.read')}
+        <!-- Reports is a center capability held by Admin and Owner; staff must not see
+             the link (CLT-R-031). -->
         <a
           href="/reports"
           class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
@@ -159,12 +161,39 @@
           {messages.menu.settings}
         </a>
       {/if}
-      {#if role === 'super_admin'}
+      <!-- Platform links follow the capability registry, not the role string. -->
+      {#if hasCapability(role, 'center.read_all')}
+        <a
+          href="/admin/super"
+          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Fleet Dashboard
+        </a>
+        <a
+          href="/admin/super/users"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Fleet Users
+        </a>
+        <a
+          href="/admin/super/devices"
+          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Fleet Devices
+        </a>
         <a
           href="/admin/super/centers"
           class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Franchise Centers
+        </a>
+      {/if}
+      {#if hasCapability(role, 'ledger.read_all')}
+        <a
+          href="/admin/super/ledger"
+          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+        >
+          Cross-Center Ledger
         </a>
         <a
           href="/admin/super/search"
@@ -172,6 +201,8 @@
         >
           Global Search
         </a>
+      {/if}
+      {#if hasCapability(role, 'audit.read_all')}
         <a
           href="/admin/audit"
           class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"

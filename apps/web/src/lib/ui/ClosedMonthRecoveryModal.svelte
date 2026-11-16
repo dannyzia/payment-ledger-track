@@ -2,6 +2,10 @@
   import Modal from '$lib/ui/Modal.svelte';
   import Button from '$lib/ui/Button.svelte';
   import { session } from '$lib/auth/session.svelte';
+  import { hasCenterCapability } from '$lib/capabilities';
+
+  // Reopening a closed month is the Owner's `month.reopen` capability (Plan 023 §6.1).
+  const canReopen = $derived(hasCenterCapability(session.user?.role ?? 'staff', 'month.reopen'));
   import { parseStrictBdtToPoisha, currentDhakaMonth } from '$lib/reconcile/tolerance';
   import { resolveEffectiveRateProfile } from '$lib/db/rates';
   import { formatPoishaToBdt } from '@clt/shared';
@@ -90,7 +94,7 @@
 
   async function handleReopenSubmit(e: SubmitEvent) {
     e.preventDefault();
-    if (!reopenReason.trim() || session.user?.role !== 'owner') return;
+    if (!reopenReason.trim() || !canReopen) return;
     isSubmitting = true;
     errorMessage = '';
     try {
@@ -152,13 +156,13 @@
           <Button
             variant="default"
             class="w-full justify-start py-3 min-h-[44px]"
-            disabled={session.user?.role !== 'owner'}
+            disabled={!canReopen}
             onclick={() => {
               mode = 'reopen';
             }}
           >
             2. Reopen Month {originalMonth} (Owner Only)
-            {#if session.user?.role !== 'owner'}
+            {#if !canReopen}
               <span class="text-xs text-[var(--c-muted,#6b7280)] ml-2">(Owner role required)</span>
             {/if}
           </Button>

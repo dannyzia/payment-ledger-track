@@ -5,6 +5,7 @@
   import Button from '$lib/ui/Button.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import { session } from '$lib/auth/session.svelte';
+  import { hasCenterCapability } from '$lib/capabilities';
   import { supabase } from '$lib/supabase/client';
   import { db } from '$lib/db';
   import { syncRunner } from '$lib/sync/runner.svelte';
@@ -13,6 +14,13 @@
     currentDhakaMonth,
     type MonthCloseGatesResult,
   } from '$lib/reconcile/tolerance';
+
+  // Month close and reopen are Owner capabilities (PRD §8.4); the seat has its own
+  // override route and is not a center role.
+  const canCloseMonth = $derived(hasCenterCapability(session.user?.role ?? 'staff', 'month.close'));
+  const canReopenMonth = $derived(
+    hasCenterCapability(session.user?.role ?? 'staff', 'month.reopen'),
+  );
 
   // ?month=YYYY-MM lets the statement workspace return here on the month it came from.
   const monthParam = page.url.searchParams.get('month');
@@ -228,8 +236,7 @@
   }
 
   async function handleCloseMonth() {
-    if (gatesLoading || gatesUnsynced || !gatesResult.canClose || session.user?.role !== 'owner')
-      return;
+    if (gatesLoading || gatesUnsynced || !gatesResult.canClose || !canCloseMonth) return;
     isSubmitting = true;
     errorMessage = '';
 
@@ -269,7 +276,7 @@
 
   async function handleReopenMonth(e: SubmitEvent) {
     e.preventDefault();
-    if (session.user?.role !== 'owner' || !reopenReason.trim()) return;
+    if (!canReopenMonth || !reopenReason.trim()) return;
     isSubmitting = true;
     errorMessage = '';
 
@@ -321,7 +328,7 @@
   }
 </script>
 
-{#if session.user?.role !== 'owner'}
+{#if !canCloseMonth}
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied (Owner Role Required)</h2>

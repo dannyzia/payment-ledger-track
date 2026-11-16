@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { hasCenterCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Modal from '$lib/ui/Modal.svelte';
@@ -440,7 +441,7 @@
   }
 </script>
 
-{#if session.user?.role !== 'admin' && session.user?.role !== 'owner'}
+{#if !hasCenterCapability(session.user?.role ?? 'staff', 'reconcile.read')}
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied</h2>

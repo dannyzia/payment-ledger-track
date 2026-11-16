@@ -12,6 +12,7 @@
     type CachedAppSettings,
   } from '$lib/db';
   import { session } from '$lib/auth/session.svelte';
+  import { hasCenterCapability } from '$lib/capabilities';
   import {
     computeMonthlyAggregates,
     computeMonthOverMonthDelta,
@@ -78,8 +79,9 @@
 
   const priorMonth = $derived(getPriorMonthString(validMonth));
 
-  // Role Guard: Reports screen restricted strictly to Admin and Owner (PRD §3, §8.5)
-  const isAuthorized = $derived(session.user?.role === 'admin' || session.user?.role === 'owner');
+  // Reports is a center capability: Admin and Owner hold `report.read` (PRD §3, §8.5),
+  // and the platform seat is excluded because it has no center (Plan 023 §6.1).
+  const isAuthorized = $derived(hasCenterCapability(session.user?.role ?? 'staff', 'report.read'));
 
   // Static configuration caches (runs once while authorized)
   $effect(() => {

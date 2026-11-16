@@ -6,6 +6,10 @@
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
+  import { goto } from '$app/navigation';
+  import { canManageUser, hasCenterCapability } from '$lib/capabilities';
+  import { session } from '$lib/auth/session.svelte';
+  import type { UserRole } from '@clt/shared';
 
   interface UserProfile {
     id: string;
@@ -18,6 +22,16 @@
 
   let users = $state<UserProfile[]>([]);
   let callerRole = $state<string>('staff');
+
+  /**
+   * This roster belongs to ONE center: it lists that center's staff, invites into it
+   * and moves its ownership. The platform seat holds `user.read` but has no center,
+   * and `/api/v1/admin/users` refuses it (403) — so the screen must refuse it too,
+   * rather than render an empty table with a failed request behind it. Cross-center
+   * user management is the platform tier's own surface (plan 023 step 15), not this
+   * one.
+   */
+  const canViewRoster = $derived(hasCenterCapability(session.user?.role ?? 'staff', 'user.read'));
   let loading = $state(true);
   let showInviteModal = $state(false);
   let showTransferModal = $state(false);
@@ -171,253 +185,276 @@
     }
   }
 
-  onMount(loadUsers);
+  onMount(() => {
+    if (canViewRoster) void loadUsers();
+    else loading = false;
+  });
 </script>
 
-<div class="p-6 max-w-5xl mx-auto w-full">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Team Roster & Roles</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Manage authorized staff, administrators, and store ownership privileges.
+{#if !canViewRoster}
+  <div class="p-6 max-w-3xl mx-auto w-full">
+    <Card class="p-6">
+      <h1 class="text-xl font-bold text-[var(--ink)]">Access Denied</h1>
+      <p class="text-sm text-[var(--muted)] mt-2">
+        Team management is scoped to a franchise center: a roster, invitations and ownership
+        transfer all belong to one center. The Platform Super-Admin has no center, so it manages
+        users from the platform surface instead.
       </p>
-    </div>
-    <div class="flex gap-3">
-      {#if callerRole === 'owner'}
-        <Button variant="default" onclick={() => (showTransferModal = true)}>
-          Transfer Ownership
-        </Button>
-      {/if}
-      <Button variant="default" onclick={() => (showInviteModal = true)}>Invite Team Member</Button>
-    </div>
+      <Button class="mt-4" onclick={() => goto('/dashboard')}>Go to Dashboard</Button>
+    </Card>
   </div>
-
-  {#if successMessage}
-    <div
-      class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm"
-    >
-      {successMessage}
+{:else}
+  <div class="p-6 max-w-5xl mx-auto w-full">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Team Roster & Roles</h1>
+        <p class="text-sm text-[var(--muted)]">
+          Manage authorized staff, administrators, and store ownership privileges.
+        </p>
+      </div>
+      <div class="flex gap-3">
+        {#if hasCenterCapability(callerRole as UserRole, 'ownership.transfer')}
+          <Button variant="default" onclick={() => (showTransferModal = true)}>
+            Transfer Ownership
+          </Button>
+        {/if}
+        <Button variant="default" onclick={() => (showInviteModal = true)}
+          >Invite Team Member</Button
+        >
+      </div>
     </div>
-  {/if}
 
-  {#if errorMessage}
-    <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm">
-      {errorMessage}
-    </div>
-  {/if}
-
-  <Card class="p-0 overflow-hidden">
-    <table class="w-full text-left text-sm">
-      <thead
-        class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+    {#if successMessage}
+      <div
+        class="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-green-700 text-sm"
       >
-        <tr>
-          <th class="py-3 px-4 font-semibold">Name & Email</th>
-          <th class="py-3 px-4 font-semibold">Role</th>
-          <th class="py-3 px-4 font-semibold">Account Status</th>
-          <th class="py-3 px-4 font-semibold">Joined</th>
-          <th class="py-3 px-4 font-semibold text-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-black/5 dark:divide-white/5">
-        {#each users as u (u.id)}
-          <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-            <td class="py-3 px-4">
-              <div class="font-medium text-[var(--ink)]">{u.display_name}</div>
-              <div class="font-mono text-xs text-[var(--muted)]">{u.email}</div>
-            </td>
-            <td class="py-3 px-4">
-              <Chip
-                variant={u.role === 'owner' ? 'commission' : u.role === 'admin' ? 'default' : 'vat'}
-              >
-                {u.role.toUpperCase()}
-              </Chip>
-            </td>
-            <td class="py-3 px-4">
-              <Chip variant={u.active ? 'commission' : 'default'}>
-                {u.active ? 'Active' : 'Deactivated'}
-              </Chip>
-            </td>
-            <td class="py-3 px-4 font-mono text-xs text-[var(--muted)]">
-              {new Date(u.created_at).toLocaleDateString()}
-            </td>
-            <td class="py-3 px-4 text-right">
-              <div class="flex items-center justify-end gap-2">
-                {#if (callerRole === 'owner' && u.role !== 'owner') || (callerRole === 'admin' && u.role === 'staff')}
-                  {#if callerRole === 'owner'}
-                    <select
-                      value={u.role}
-                      onchange={(e) =>
-                        updateUserRole(
-                          u.id,
-                          (e.target as HTMLSelectElement).value as 'staff' | 'admin',
-                        )}
-                      class="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white/50"
-                    >
-                      <option value="staff">Staff</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  {/if}
+        {successMessage}
+      </div>
+    {/if}
 
-                  <Button
-                    variant="default"
-                    class="text-xs py-1 px-2.5"
-                    onclick={() => toggleUserActive(u)}
-                  >
-                    {u.active ? 'Deactivate' : 'Reactivate'}
-                  </Button>
-                {:else if u.role === 'owner'}
-                  <span class="text-xs text-[var(--muted)] italic">Sole Owner</span>
-                {/if}
-              </div>
-            </td>
-          </tr>
-        {/each}
-        {#if users.length === 0 && !loading && !errorMessage}
+    {#if errorMessage}
+      <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm">
+        {errorMessage}
+      </div>
+    {/if}
+
+    <Card class="p-0 overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead
+          class="border-b border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] text-[var(--muted)] text-xs"
+        >
           <tr>
-            <td colspan="5" class="py-8 text-center text-sm text-[var(--muted)]">
-              No team members found.
-            </td>
+            <th class="py-3 px-4 font-semibold">Name & Email</th>
+            <th class="py-3 px-4 font-semibold">Role</th>
+            <th class="py-3 px-4 font-semibold">Account Status</th>
+            <th class="py-3 px-4 font-semibold">Joined</th>
+            <th class="py-3 px-4 font-semibold text-right">Actions</th>
           </tr>
-        {/if}
-      </tbody>
-    </table>
-  </Card>
-</div>
+        </thead>
+        <tbody class="divide-y divide-black/5 dark:divide-white/5">
+          {#each users as u (u.id)}
+            <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
+              <td class="py-3 px-4">
+                <div class="font-medium text-[var(--ink)]">{u.display_name}</div>
+                <div class="font-mono text-xs text-[var(--muted)]">{u.email}</div>
+              </td>
+              <td class="py-3 px-4">
+                <Chip
+                  variant={u.role === 'owner'
+                    ? 'commission'
+                    : u.role === 'admin'
+                      ? 'default'
+                      : 'vat'}
+                >
+                  {u.role.toUpperCase()}
+                </Chip>
+              </td>
+              <td class="py-3 px-4">
+                <Chip variant={u.active ? 'commission' : 'default'}>
+                  {u.active ? 'Active' : 'Deactivated'}
+                </Chip>
+              </td>
+              <td class="py-3 px-4 font-mono text-xs text-[var(--muted)]">
+                {new Date(u.created_at).toLocaleDateString()}
+              </td>
+              <td class="py-3 px-4 text-right">
+                <div class="flex items-center justify-end gap-2">
+                  {#if canManageUser(callerRole as UserRole, u.role)}
+                    {#if hasCenterCapability(callerRole as UserRole, 'user.invite_admin')}
+                      <select
+                        value={u.role}
+                        onchange={(e) =>
+                          updateUserRole(
+                            u.id,
+                            (e.target as HTMLSelectElement).value as 'staff' | 'admin',
+                          )}
+                        class="text-xs px-2 py-1 rounded border border-black/10 dark:border-white/10 bg-white/50"
+                      >
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    {/if}
 
-<!-- Invite Modal -->
-<Modal
-  bind:open={showInviteModal}
-  title="Invite New Team Member"
-  onclose={() => (showInviteModal = false)}
->
-  <div class="space-y-4">
-    <div>
-      <label
-        for="invite-fullname"
-        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
-        >Full Name</label
-      >
-      <input
-        id="invite-fullname"
-        type="text"
-        placeholder="e.g. Rahim Ahmed"
-        bind:value={inviteFullName}
-        class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
-      />
-    </div>
-
-    <div>
-      <label
-        for="invite-email"
-        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
-        >Email Address</label
-      >
-      <input
-        id="invite-email"
-        type="email"
-        placeholder="rahim@cosmoledger.local"
-        bind:value={inviteEmail}
-        class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
-      />
-    </div>
-
-    <div>
-      <label
-        for="invite-role-select"
-        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
-        >Assigned Role</label
-      >
-      <select
-        id="invite-role-select"
-        bind:value={inviteRole}
-        class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
-      >
-        <option value="staff">Staff (Daily entry creation & local offline sync)</option>
-        {#if callerRole === 'owner'}
-          <option value="admin">Administrator (Rate rules, payables & user management)</option>
-        {/if}
-      </select>
-      <p class="text-[11px] text-[var(--muted)] mt-1">
-        Only the active store Owner can provision Administrator accounts. Owner accounts cannot be
-        provisioned via invite.
-      </p>
-    </div>
-
-    <div class="flex justify-end gap-3 pt-4">
-      <Button variant="default" onclick={() => (showInviteModal = false)}>Cancel</Button>
-      <Button
-        variant="default"
-        onclick={inviteUser}
-        disabled={inviting || !inviteEmail || !inviteFullName}
-      >
-        {inviting ? 'Inviting...' : 'Send Invitation'}
-      </Button>
-    </div>
+                    <Button
+                      variant="default"
+                      class="text-xs py-1 px-2.5"
+                      onclick={() => toggleUserActive(u)}
+                    >
+                      {u.active ? 'Deactivate' : 'Reactivate'}
+                    </Button>
+                  {:else if u.role === 'owner'}
+                    <span class="text-xs text-[var(--muted)] italic">Sole Owner</span>
+                  {/if}
+                </div>
+              </td>
+            </tr>
+          {/each}
+          {#if users.length === 0 && !loading && !errorMessage}
+            <tr>
+              <td colspan="5" class="py-8 text-center text-sm text-[var(--muted)]">
+                No team members found.
+              </td>
+            </tr>
+          {/if}
+        </tbody>
+      </table>
+    </Card>
   </div>
-</Modal>
 
-<!-- Ownership Transfer Modal -->
-<Modal
-  bind:open={showTransferModal}
-  title="Two-Step Atomic Ownership Transfer"
-  onclose={() => (showTransferModal = false)}
->
-  <div class="space-y-4">
-    <div
-      class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800 space-y-1"
-    >
-      <p class="font-semibold">Irreversible Owner Transfer Warning:</p>
-      <p>• You are surrendering sole ownership of this organization.</p>
-      <p>• The selected Admin will be elevated to Owner.</p>
-      <p>• Your account will be demoted to Administrator atomically in a single transaction.</p>
-      <p>• This action is immediately committed and logged in the append-only audit trail.</p>
-    </div>
+  <!-- Invite Modal -->
+  <Modal
+    bind:open={showInviteModal}
+    title="Invite New Team Member"
+    onclose={() => (showInviteModal = false)}
+  >
+    <div class="space-y-4">
+      <div>
+        <label
+          for="invite-fullname"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Full Name</label
+        >
+        <input
+          id="invite-fullname"
+          type="text"
+          placeholder="e.g. Rahim Ahmed"
+          bind:value={inviteFullName}
+          class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
+        />
+      </div>
 
-    <div>
-      <label
-        for="transfer-admin-select"
-        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
-        >Select Successor Administrator</label
-      >
-      <select
-        id="transfer-admin-select"
-        bind:value={targetAdminId}
-        class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
-      >
-        <option value="">Select active Admin...</option>
-        {#each users.filter((u) => u.role === 'admin' && u.active) as a}
-          <option value={a.id}>{a.display_name} ({a.email})</option>
-        {/each}
-      </select>
-    </div>
+      <div>
+        <label
+          for="invite-email"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Email Address</label
+        >
+        <input
+          id="invite-email"
+          type="email"
+          placeholder="rahim@cosmoledger.local"
+          bind:value={inviteEmail}
+          class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
+        />
+      </div>
 
-    <div>
-      <label
-        for="transfer-confirm-input"
-        class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
-      >
-        Type <strong class="text-red-700">TRANSFER OWNERSHIP</strong> to confirm:
-      </label>
-      <input
-        id="transfer-confirm-input"
-        type="text"
-        bind:value={transferConfirmText}
-        placeholder="TRANSFER OWNERSHIP"
-        class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
-      />
-    </div>
+      <div>
+        <label
+          for="invite-role-select"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Assigned Role</label
+        >
+        <select
+          id="invite-role-select"
+          bind:value={inviteRole}
+          class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
+        >
+          <option value="staff">Staff (Daily entry creation & local offline sync)</option>
+          {#if hasCenterCapability(callerRole as UserRole, 'user.invite_admin')}
+            <option value="admin">Administrator (Rate rules, payables & user management)</option>
+          {/if}
+        </select>
+        <p class="text-[11px] text-[var(--muted)] mt-1">
+          Only the active store Owner can provision Administrator accounts. Owner accounts cannot be
+          provisioned via invite.
+        </p>
+      </div>
 
-    <div class="flex justify-end gap-3 pt-4">
-      <Button variant="default" onclick={() => (showTransferModal = false)}>Cancel</Button>
-      <Button
-        variant="default"
-        class="bg-red-700 hover:bg-red-800 text-white"
-        onclick={executeTransferOwnership}
-        disabled={transferring || !targetAdminId || transferConfirmText !== 'TRANSFER OWNERSHIP'}
-      >
-        {transferring ? 'Transferring...' : 'Execute Ownership Transfer'}
-      </Button>
+      <div class="flex justify-end gap-3 pt-4">
+        <Button variant="default" onclick={() => (showInviteModal = false)}>Cancel</Button>
+        <Button
+          variant="default"
+          onclick={inviteUser}
+          disabled={inviting || !inviteEmail || !inviteFullName}
+        >
+          {inviting ? 'Inviting...' : 'Send Invitation'}
+        </Button>
+      </div>
     </div>
-  </div>
-</Modal>
+  </Modal>
+
+  <!-- Ownership Transfer Modal -->
+  <Modal
+    bind:open={showTransferModal}
+    title="Two-Step Atomic Ownership Transfer"
+    onclose={() => (showTransferModal = false)}
+  >
+    <div class="space-y-4">
+      <div
+        class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-800 space-y-1"
+      >
+        <p class="font-semibold">Irreversible Owner Transfer Warning:</p>
+        <p>• You are surrendering sole ownership of this organization.</p>
+        <p>• The selected Admin will be elevated to Owner.</p>
+        <p>• Your account will be demoted to Administrator atomically in a single transaction.</p>
+        <p>• This action is immediately committed and logged in the append-only audit trail.</p>
+      </div>
+
+      <div>
+        <label
+          for="transfer-admin-select"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+          >Select Successor Administrator</label
+        >
+        <select
+          id="transfer-admin-select"
+          bind:value={targetAdminId}
+          class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
+        >
+          <option value="">Select active Admin...</option>
+          {#each users.filter((u) => u.role === 'admin' && u.active) as a}
+            <option value={a.id}>{a.display_name} ({a.email})</option>
+          {/each}
+        </select>
+      </div>
+
+      <div>
+        <label
+          for="transfer-confirm-input"
+          class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-1"
+        >
+          Type <strong class="text-red-700">TRANSFER OWNERSHIP</strong> to confirm:
+        </label>
+        <input
+          id="transfer-confirm-input"
+          type="text"
+          bind:value={transferConfirmText}
+          placeholder="TRANSFER OWNERSHIP"
+          class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
+        />
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4">
+        <Button variant="default" onclick={() => (showTransferModal = false)}>Cancel</Button>
+        <Button
+          variant="default"
+          class="bg-red-700 hover:bg-red-800 text-white"
+          onclick={executeTransferOwnership}
+          disabled={transferring || !targetAdminId || transferConfirmText !== 'TRANSFER OWNERSHIP'}
+        >
+          {transferring ? 'Transferring...' : 'Execute Ownership Transfer'}
+        </Button>
+      </div>
+    </div>
+  </Modal>
+{/if}

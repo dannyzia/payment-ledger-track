@@ -434,7 +434,7 @@
           activeProfile.vat_mode !== 'manual' && isVatOverridden ? vatOverridePoisha : undefined,
         vatOverrideReason:
           activeProfile.vat_mode !== 'manual' && isVatOverridden
-            ? (vatOverrideReason.trim() || 'Counter override')
+            ? vatOverrideReason.trim() || 'Counter override'
             : undefined,
         txnRef: normalizedTxnRef,
         notes: notes.trim() || undefined,
