@@ -216,11 +216,14 @@ describe('Late migrations keep their intent on a clean database', () => {
     expect(entry.rows[0].status).toBe('voided');
 
     const audit = await db.query(
-      `SELECT actor::text AS actor FROM audit_log
+      `SELECT actor::text AS actor, after->>'actor_role' AS actor_role FROM audit_log
        WHERE action = 'entry.void' AND target_id = $1`,
       [VOID_ENTRY],
     );
     expect(audit.rows.map((row) => row.actor)).toContain(SEAT);
+    // The amendment carries the role too, not only entry.create: otherwise a platform
+    // void and an owner's void read the same in the trail.
+    expect(audit.rows.map((row) => row.actor_role)).toContain('super_admin');
   });
 
   it('rpc_supersede_entry admits the platform seat at its role gate', async () => {

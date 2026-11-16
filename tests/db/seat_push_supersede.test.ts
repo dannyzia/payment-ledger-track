@@ -185,10 +185,41 @@ describe('the platform seat writes through the shipped migrations', () => {
     expect(replacementRow.rows[0].supersedes_id).toBe(PUSH_ENTRY);
 
     const audit = await pool.query(
-      `SELECT actor FROM audit_log WHERE action = 'entry.supersede' AND target_id = $1`,
+      `SELECT actor, after->>'actor_role' AS actor_role FROM audit_log
+       WHERE action = 'entry.supersede' AND target_id = $1`,
       [PUSH_ENTRY],
     );
     expect(audit.rows[0].actor).toBe(SEAT);
+    expect(audit.rows[0].actor_role).toBe('super_admin');
+  });
+
+  it('records the role on a void request as well as on a void', async () => {
+    // `request_void` is the amendment a centre role performs, so its payload has to name
+    // the role for the same reason entry.create does.
+    const ops = [
+      {
+        opId: 'cc000000-0000-4000-8000-000000000042',
+        type: 'request_void',
+        clientCreatedAt: new Date().toISOString(),
+        maxKnownRateVersion: 1,
+        payload: { entryId: REPLACEMENT, reason: 'requested correction' },
+      },
+    ];
+
+    const result = await pool.query(
+      'SELECT rpc_push_sync_op($1::uuid, $2::text, $3::uuid, $4::user_role, $5::jsonb) AS result',
+      [CENTER, DEVICE, OWNER, 'owner', JSON.stringify(ops)],
+    );
+    expect(result.rows[0].result.results[0].status).toBe('ok');
+
+    const audit = await pool.query(
+      `SELECT actor, after->>'actor_role' AS actor_role FROM audit_log
+       WHERE action = 'entry.void_request' AND target_id = $1`,
+      [REPLACEMENT],
+    );
+    expect(audit.rowCount).toBe(1);
+    expect(audit.rows[0].actor).toBe(OWNER);
+    expect(audit.rows[0].actor_role).toBe('owner');
   });
 
   it('keeps the tenant rule: a centre-scoped creator from another centre is refused', async () => {

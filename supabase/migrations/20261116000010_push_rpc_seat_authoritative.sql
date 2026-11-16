@@ -532,7 +532,9 @@ begin
         insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, result, resolution_status)
         values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, (v_op->'payload'->>'entryId')::uuid, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
 
-        perform log_audit_event(p_center_id, p_caller_id, 'entry.void', 'entries', v_op->'payload'->>'entryId', jsonb_build_object('status', 'active'), jsonb_build_object('status', 'voided'));
+        -- Design §6.7: the role travels with every amendment, not only creation, so the
+        -- trail can tell a platform void from one an owner performed.
+        perform log_audit_event(p_center_id, p_caller_id, 'entry.void', 'entries', v_op->'payload'->>'entryId', jsonb_build_object('status', 'active'), jsonb_build_object('status', 'voided', 'actor_role', p_caller_role));
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
 
@@ -557,7 +559,7 @@ begin
         insert into sync_ops (op_id, center_id, actor_id, device_id, op_type, entry_id, payload, payload_hash, client_created_at, result, resolution_status)
         values (v_op_id, p_center_id, p_caller_id, p_device_id, v_op_type, (v_op->'payload'->>'entryId')::uuid, v_op->'payload', v_server_hash, v_client_created_at, 'ok', 'resolved');
 
-        perform log_audit_event(p_center_id, p_caller_id, 'entry.void_request', 'entries', v_op->'payload'->>'entryId', null, jsonb_build_object('void_requested_by', p_caller_id));
+        perform log_audit_event(p_center_id, p_caller_id, 'entry.void_request', 'entries', v_op->'payload'->>'entryId', null, jsonb_build_object('void_requested_by', p_caller_id, 'actor_role', p_caller_role));
 
         v_results := v_results || jsonb_build_object('opId', v_op_id, 'status', 'ok');
 

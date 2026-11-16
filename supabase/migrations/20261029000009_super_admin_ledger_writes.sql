@@ -314,7 +314,7 @@ begin
   perform log_audit_event(
     p_center_id, p_actor_id, 'entry.supersede', 'entries', p_original_id::text,
     jsonb_build_object('id', p_original_id, 'status', 'active'),
-    jsonb_build_object('id', p_original_id, 'status', 'superseded', 'replacement_entry_id', v_new_id)
+    jsonb_build_object('id', p_original_id, 'status', 'superseded', 'replacement_entry_id', v_new_id, 'actor_role', v_caller_role)
   );
 
   return jsonb_build_object(
