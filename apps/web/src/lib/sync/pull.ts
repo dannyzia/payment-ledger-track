@@ -74,7 +74,9 @@ export interface PullResponseDto {
     created_by: string;
     // Design §6.7: `super_admin` marks a platform row; the creator's profile lives in
     // another center's list, so the role is the only attribution a device receives.
-    created_by_role?: 'staff' | 'admin' | 'owner' | 'super_admin' | null;
+    // `entries.created_by` is NOT NULL and FK-checked against `profiles`, so the join
+    // always finds a row and the field is never null.
+    created_by_role: 'staff' | 'admin' | 'owner' | 'super_admin';
     created_at: string;
     stale_rates: boolean;
     rate_profile_id: string;
@@ -551,7 +553,7 @@ export async function executeIncrementalPull(): Promise<void> {
           status: entry.status,
           sync_status: 'synced',
           created_by: entry.created_by,
-          created_by_role: entry.created_by_role ?? undefined,
+          created_by_role: entry.created_by_role,
           created_at: entry.created_at,
           server_seq: entry.server_seq.toString(),
           stale_rates: entry.stale_rates,

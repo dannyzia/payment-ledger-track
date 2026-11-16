@@ -51,8 +51,8 @@
   // profile is not in the center's cached list, so fall back to the role, not a UUID.
   const creatorName = $derived(
     entry
-      ? (profilesMap[entry.created_by]?.display_name ??
-          (entry.created_by_role === 'super_admin' ? 'Platform (Super Admin)' : entry.created_by))
+      ? profilesMap[entry.created_by]?.display_name ||
+          (entry.created_by_role === 'super_admin' ? 'Platform (Super Admin)' : entry.created_by)
       : '',
   );
 
