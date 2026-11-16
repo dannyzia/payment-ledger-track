@@ -1,0 +1,402 @@
+# 023_super_admin_panel.md — Super Admin Panel
+
+- Plan Identifier: CLT-PLAN-023
+- Phase: Cross-cutting / platform tier (post-M5; this plan does not renumber any PRD §17 milestone)
+- Milestone: none in PRD §17. The panel is a platform-tier surface that depends on the tenant layer already on disk.
+- Parent Document: docs/plans/PRD-payment-ledger-app.md (v1.27)
+- PRD sections covered: §3 (roles and permissions), §7.5 (multi-tenant centers and the Super Admin seat), §15.1 (audit coverage)
+- Requirements source: `docs/plans/super-admin-panel-requirements-v0.4.md`
+- Review source: `docs/orchestration/reports/super-admin-panel-goldfish-brief.md`
+- Depends on: 003, 004, 008, 009, 011; tenant migrations `20261029000001`–`0007`
+- Current Status: Partially Implemented (Steps 1–11 and 15 built and verified locally; steps 12–14 not built; every production cloud check still open)
+- Revision: 1.36 — 2026-11-16
+
+## 1. Purpose
+
+Turn the Super Admin seat that exists in code and in PRD §3 and §7.5 into a panel an implementer can build without inventing design decisions. The plan resolves the seven blockers recorded in the Goldfish brief in the order that brief stages them — integrity first, then the seat's powers, then fleet operations — and it keeps every owner decision that is still open as an open decision.
+
+Two constraints govern the whole plan. The seat is expressed as a named capability registry, not as prose, so "the Super Admin can do anything" becomes a set an auditor can read and a test can compare against Owner. And no capability may be labelled above what the code does today: the repository holds three `/api/v1/admin/super` routes and a status column that nothing reads (CLT-T-083), and the plan says so.
+
+## 2. Scope
+
+- IN:
+  - A capability registry and deny-by-default guard for the platform tier.
+  - Enforced suspend and archive: route, session, sync push and pull, database write path.
+  - A suspension-aware retention pause for queued sync operations.
+  - TOTP enrolment, re-authentication, a recovery command, and a server-side assurance (`aal2`) gate on every super-admin route.
+  - Cross-center ledger read, plus create, supersede and void through the existing `rpc_push_sync_op` and `rpc_supersede_entry` chain, guarded by a versioned impact preview.
+  - Attribution rules for a platform-created entry, including what a center device receives on pull.
+  - Write-time audit visibility with one shared read model, parameterised so `CLT-D-037` is a single variable.
+  - Fleet operations: dashboard counts, cross-center user search and disable, cross-center devices, backup status, audit retention.
+  - A written unlock trigger for every deferred requirement.
+
+- OUT:
+  - Any change to what Owner and Admin may do inside their own center (v0.4 §9 item 1).
+  - Billing, subscriptions, delegated support roles, view-as impersonation (settled in v0.4).
+  - Multi-currency; BDT and integer poisha only.
+  - A second Super Admin or approvals split across people.
+  - Deciding `CLT-D-037`, suspension policy, the purge-panel question, or rate-profile governance.
+
+### 2.1 Capability labels
+
+Labels are v0.4's own. `Built` is in the repository today, `Partial` is present but incomplete as v0.4 describes it, `New` does not exist yet. No label exceeds the code.
+
+| Requirement | v0.4 label | Where it stands | Plan step |
+|---|---|---|---|
+| SA-AUTH-01 Dedicated `super_admin` identity | Built | `/api/v1/admin/super/*` plus `profiles.center_id` NULL | — |
+| SA-AUTH-02 Mandatory TOTP 2FA | New | no MFA anywhere in `apps/web/src` | 6 |
+| SA-AUTH-03 Re-authentication before destructive actions | New | no assurance check in `getCallerContext` | 7 |
+| SA-AUTH-04 Recovery for a lost 2FA device | New | `scripts/bootstrap.ts` cannot clear a factor | 5 |
+| SA-AUTH-05 Idle timeout, session list, new-device alert | New | none | 16 (deferred) |
+| SA-AUTH-06 IP allowlist | New | none | 16 (deferred) |
+| SA-DASH-01 Landing page: centers by status, activity windows | New | none | 15 |
+| SA-DASH-02 Sync health | New | none | 15 |
+| SA-DASH-03 Month-close status per center | New | none | 16 (deferred) |
+| SA-CTR-01 Create a center atomically | Built | `POST /api/v1/admin/super/centers` → `rpc_create_center` | — |
+| SA-CTR-02 Edit center profile | Built | `PATCH /api/v1/admin/super/centers/[id]` | — |
+| SA-CTR-03 Suspend and reactivate, enforced | Partial | status and audit exist; nothing reads `centers.status` | 3 |
+| SA-CTR-04 A suspended center can create no entries | New | none | 3, 4 |
+| SA-CTR-05 Archive enforced | Partial | status value only | 3 |
+| SA-CTR-06 Replace an owner, with demote-or-deactivate | Built | `PATCH /centers/[id]`; demote-only today | 16 (deferred) |
+| SA-CTR-07 Set an owner's password | Built | `PATCH /centers/[id]` | — |
+| SA-CTR-08 Editable provisioning template | New | defaults hardcoded in migration 0007 | 16 (deferred) |
+| SA-CTR-09 Per-center data export | New | none | 14 (read model), 16 (deferred) |
+| SA-USR-01 Search users across centers | New | Global Search covers entries only | 15 |
+| SA-USR-02 Disable or enable an account; force sign-out | New | center-scoped `admin_manage_user` only | 15 |
+| SA-USR-03 Cross-center device view and revoke | New | center-scoped `admin_manage_device` only | 15 |
+| SA-USR-04 Remote wipe | New | none | 16 (deferred) |
+| SA-USR-05 Move a user between centers | New | unsupported by design | 16 (deferred) |
+| SA-LED-01 Read everything in every center | Partial | `GET /api/v1/admin/super/search`, 100 results | 9 |
+| SA-LED-02 Create, supersede and void in any center | New | void and supersede accept Admin and Owner only | 11, 12 |
+| SA-LED-03 Inherit every Owner-only action | New | owner-gated RPCs | 13 |
+| SA-LED-04 Impact preview before applying | New | none | 10 |
+| SA-LED-05 Closed-month reopen and edit | New | `reopen_month` is Owner-gated | 13 |
+| SA-LED-06 Guarded purge | Partial | `pnpm db:purge-entry` → `maintenance_purge_entries`, CLI only | 13 |
+| SA-LED-07 Platform-wide anomaly view | Partial | per-center views exist | 15 |
+| SA-LED-08 Filtered export (CSV, XLSX, PDF) | New | none | 16 (deferred) |
+| SA-CFG-01 BDT only, integer poisha | Built | `packages/shared/src/money.ts` | — |
+| SA-CFG-02 English and Bangla | New | English only | 16 (deferred, app-wide) |
+| SA-CFG-03 Maintenance mode | New | none | 16 (deferred) |
+| SA-CFG-04 Minimum supported app version | New | none | 16 (deferred) |
+| SA-CFG-05 Corporate rate template | New | none; open design question in v0.4 | 16 (deferred) |
+| SA-AUD-01 Append-only audit log | Built | `fn_audit_log_immutability` | — |
+| SA-AUD-02 Every Super Admin action logged with before and after | Partial | center admin actions are logged; ledger actions do not exist | 11, 13, 14 |
+| SA-AUD-03 Keep audit at least 7 years | New | the archive does not run | 2, 15 |
+| SA-AUD-04 Cross-center audit viewer | Built | `/admin/audit` | — |
+| SA-AUD-05 Hide Super Admin actions from center audit pages | Decided | decided, unbuilt; `CLT-D-037` still open on how | 14 |
+| SA-AUD-06 Tamper evidence and an off-platform copy | New | none | 16 (deferred) |
+| SA-RPT-01 Platform reports | New | none | 16 (deferred) |
+| SA-COM-01 Broadcast message | New | none | 16 (deferred) |
+| SA-DAT-01 Backup status in the panel | New | none | 15 |
+| SA-DAT-02 Working off-Supabase backup | Partial | workflow and script exist; the nightly run has never succeeded | 2 |
+
+## 3. Preconditions
+
+1. The tenant layer is on disk: `centers`, `center_counters` and `center_id` on every tenant table (migrations `0001`–`0007`).
+   - Verify with: `grep -h "^create table" supabase/migrations/*.sql | wc -l`, expected `20`.
+2. `getCallerContext` and `requireRole` exist and reject a missing or inactive caller.
+   - Verify with: `grep -c "export function requireRole" apps/web/src/lib/server/auth.ts`, expected `1`.
+3. The three super-admin routes exist.
+   - Verify with: `find apps/web/src/routes/api/v1/admin/super -name "+server.ts" | wc -l`, expected `3`.
+4. `pnpm typecheck` and `pnpm test` are green on the starting commit; the plan adds to them, it does not repair them.
+   - Verify with: `pnpm typecheck && pnpm test`.
+5. The owner has not answered `CLT-D-037`; step 14 is written to accept either answer.
+   - Recorded in: `docs/orchestration/DECISIONS.md` row 8 and `docs/orchestration/LEDGER.md` row 47.
+
+## 4. Files
+
+| Path | Action | Step |
+|---|---|---|
+| `apps/web/src/lib/server/capabilities.ts` | create | 1 |
+| `apps/web/tests/admin/super-capabilities.test.ts` | create | 1 |
+| `apps/web/vite.config.ts` | modify (collect `tests/admin/**`) | 1 |
+| `scripts/ops/backup-export.ts` | modify | 2 |
+| `scripts/ops/backup-verify.ts` | create | 2 |
+| `.github/workflows/daily-backup.yml` | modify | 2 |
+| `docs/runbooks/BACKUP_RESTORE.md` | modify | 2 |
+| `supabase/migrations/20261114000008_super_admin_panel.sql` | create | 3, 4, 12, 14 |
+| `apps/web/src/lib/server/auth.ts` | modify | 3, 7 |
+| `apps/web/src/routes/api/v1/sync/push/+server.ts` | modify | 3, 12 |
+| `apps/web/src/routes/api/v1/sync/pull/+server.ts` | modify | 3, 12 |
+| `apps/web/src/lib/ui/withheld-notice.ts` | create | 3 |
+| `tests/db/super_admin_suspension.test.ts` | create | 4 |
+| `apps/web/src/lib/server/mfa.ts` | create | 5, 6 |
+| `scripts/ops/reset-mfa.ts` | create | 5 |
+| `apps/web/src/routes/(app)/admin/super/security/+page.svelte` | create | 6 |
+| `apps/web/src/routes/api/v1/admin/super/security/+server.ts` | create | 6 |
+| `apps/web/tests/admin/mfa.test.ts` | create | 5 |
+| `apps/web/src/lib/server/assurance.ts` | create | 7 |
+| `apps/web/tests/admin/assurance.test.ts` | create | 7 |
+| `apps/web/tests/admin/super-authz.test.ts` | create | 8 |
+| `apps/web/src/routes/api/v1/admin/super/ledger/+server.ts` | create | 9 |
+| `apps/web/src/routes/(app)/admin/super/ledger/+page.svelte` | create | 9 |
+| `apps/web/src/lib/server/impact-preview.ts` | create | 10 |
+| `apps/web/src/routes/api/v1/admin/super/ledger/impact/+server.ts` | create | 10 |
+| `apps/web/tests/admin/impact-preview.test.ts` | create | 10 |
+| `apps/web/src/routes/api/v1/admin/super/ledger/supersede/+server.ts` | create | 11 |
+| `apps/web/src/routes/api/v1/admin/super/ledger/void/+server.ts` | create | 11 |
+| `apps/web/src/routes/api/v1/admin/super/ledger/reopen/+server.ts` | create | 13 |
+| `apps/web/src/routes/api/v1/admin/super/overrides/+server.ts` | create | 13 |
+| `apps/web/src/lib/server/audit-visibility.ts` | create | 14 |
+| `apps/web/src/lib/server/audit-read-model.ts` | create | 14 |
+| `apps/web/src/routes/api/v1/admin/super/dashboard/+server.ts` | create | 15 |
+| `apps/web/src/routes/(app)/admin/super/+page.svelte` | create | 15 |
+| `apps/web/src/routes/api/v1/admin/super/users/+server.ts` | create | 15 |
+| `apps/web/src/routes/(app)/admin/super/users/+page.svelte` | create | 15 |
+| `apps/web/src/routes/api/v1/admin/super/devices/+server.ts` | create | 15 |
+| `apps/web/src/routes/(app)/admin/super/devices/+page.svelte` | create | 15 |
+| `supabase/migrations/20261029000008_super_admin_fleet.sql` | create | 15 |
+| `apps/web/tests/admin/fleet.test.ts` | create | 15 |
+| `supabase/migrations/20261029000009_super_admin_ledger_writes.sql` | create | 11 |
+| `apps/web/tests/admin/ledger-writes.test.ts` | create | 11 |
+| `supabase/migrations/20261114000009_center_write_guard.sql` | create | 3–4 (CLT-T-083) |
+
+## 5. Steps
+
+Shell: bash. Working directory for all steps is `/home/zia/Documents/My Projects/Cosmo_Ledger_Track`.
+
+1. Create the capability registry `apps/web/src/lib/server/capabilities.ts` per Specification 6.1: a `Capability` union, `PERMISSIONS: Record<UserRole, ReadonlySet<Capability>>`, and `requireCapability(caller, capability)` that throws `error(403, 'capability_denied')`. Super Admin holds every capability; Owner's set is asserted to be a subset. Create `apps/web/tests/admin/super-capabilities.test.ts` asserting `Owner ⊆ SuperAdmin`, `staff ⊂ admin ⊂ owner`, and that a super-admin capability exists for every owner capability.
+   - Command: write both files.
+   - Check: `pnpm --filter @clt/web test tests/admin/super-capabilities.test.ts`
+   - Expected output: `3 passed`.
+
+2. Repair the off-Supabase archive per Specification 6.2: `scripts/ops/backup-export.ts` must fail loudly (non-zero exit, no swallowed catch) when a required secret is absent, include the Storage objects the restore runbook names, and dump the auth schema or document its re-creation. `scripts/ops/backup-verify.ts` checks the last successful run and exits non-zero when it is older than 24 hours. `.github/workflows/daily-backup.yml` alerts on failure. `docs/runbooks/BACKUP_RESTORE.md` is corrected to the paths the script actually writes.
+   - Command: write the script changes.
+   - Check: `pnpm exec tsx scripts/ops/backup-verify.ts --self-test`
+   - Expected output: `backup self-test: ok`.
+
+3. Enforce suspend and archive per Specification 6.3: `getCallerContext` reads `centers.status` for a center-scoped caller and throws `error(403, 'center_suspended')` or `error(403, 'center_archived')`; `/api/v1/sync/push` and `/api/v1/sync/pull` return the same codes; migration `20261114000008_super_admin_panel.sql` adds `fn_center_writable(uuid)` and applies it in `rpc_push_sync_op`. `apps/web/src/lib/ui/withheld-notice.ts` holds the single "account withheld" message key for the center app.
+   - Command: write the guard and the migration.
+   - Check: `grep -c "center_suspended" apps/web/src/lib/server/auth.ts`
+   - Expected output: `1`.
+
+4. Stop a suspended center's queued work from expiring per Specification 6.3: redefine `purge_expired_sync_ops()` in the same migration so a pending operation belonging to a suspended or archived center is skipped, and apply the same skip to the 90-day check inside `rpc_push_sync_op`. Create `tests/db/super_admin_suspension.test.ts` proving a queued op older than 90 days survives suspension, is purged after reactivation plus 90 days, and that a push from a suspended center writes no entry.
+   - Command: write the function and the DB test.
+   - Check: `pnpm test tests/db/super_admin_suspension.test.ts`
+   - Expected output: `3 passed`.
+
+5. Build the recovery path before mandatory 2FA per Specification 6.4: `scripts/ops/reset-mfa.ts` takes a user id and a written reason, clears only that user's factors through the Supabase admin API, revokes refresh sessions, and writes an audit row; `apps/web/src/lib/server/mfa.ts` issues and verifies single-use recovery codes stored hashed.
+   - Command: write the command and the module.
+   - Check: `pnpm exec tsx scripts/ops/reset-mfa.ts --help`
+   - Expected output: a usage block naming `--user`, `--reason` and `--apply`.
+
+6. Make TOTP mandatory for the seat: `/admin/super/security` enrols a factor, recovery codes are shown once and confirmed, and sign-in for `super_admin` refuses to reach any `/admin/super/*` route until `aal2` is reached.
+   - Command: write the screen and the enrolment gate.
+   - Check: `pnpm --filter @clt/web check`
+   - Expected output: `0 errors`.
+
+7. Check assurance server-side, per request, per Specification 6.5: `apps/web/src/lib/server/assurance.ts` decodes the verified token's `aal` claim, `CallerContext` gains `aal`, and `requireAssurance(caller, 'aal2')` is called at the top of every `/api/v1/admin/super` route. A SPA prompt alone is not authority.
+   - Command: write the module and add the call to the three existing routes.
+   - Check: `grep -rc "requireAssurance(caller" apps/web/src/routes/api/v1/admin/super --include=+server.ts`
+   - Expected output: `1` or more per power route file (`centers` has 2, one per handler), and `0` in `security` — the route that creates `aal2` cannot sit behind it. Counting the identifier instead would include each file's `import` line, which is why the check names the call.
+
+8. Prove route authorization: `apps/web/tests/admin/super-authz.test.ts` enumerates every `+server.ts` under `apps/web/src/routes/api/v1/admin/super`, and asserts `403` for a valid `owner`, `admin` and `staff` token and `403` for an `aal1` super-admin token on each.
+   - Command: write the test.
+   - Check: `pnpm --filter @clt/web test tests/admin/super-authz.test.ts`
+   - Expected output: `4 passed` per enumerated route, with the route count printed.
+
+9. Add cross-center ledger read: `GET /api/v1/admin/super/ledger` with required center filter or an explicit `all` scope, server-side pagination on `(server_seq, id)`, filters on date, method, status and creator, and per-center totals. `/admin/super/ledger` renders it. Reads go through the service role but every query is center-scoped by an explicit predicate, never by RLS.
+   - Command: write the route and the screen.
+   - Check: `grep -c "server_seq" apps/web/src/routes/api/v1/admin/super/ledger/+server.ts`
+   - Expected output: `1` or more.
+
+10. Build the impact preview per Specification 6.6: `apps/web/src/lib/server/impact-preview.ts` computes a `dataVersion` and the row-level and derived effects for a proposed void or supersede; `POST /api/v1/admin/super/ledger/impact` returns both. `apps/web/tests/admin/impact-preview.test.ts` pins the composition of `dataVersion` and proves a changed settlement row changes it.
+    - Command: write the module, route and test.
+    - Check: `pnpm --filter @clt/web test tests/admin/impact-preview.test.ts`
+    - Expected output: `3 passed`.
+
+11. Route the seat's ledger writes through the existing chain per Requirement R4: `.../ledger/supersede` calls `rpc_supersede_entry`, `.../ledger/void` calls `rpc_push_sync_op` with a void operation. Both require `dataVersion`, take the center's month lock then the sequence lock in the order PRD §7.2 fixes, and return `409 stale_preview` when the version moved. Neither writes a row directly.
+    - Command: write the two routes.
+    - Check: `grep -c "stale_preview" apps/web/src/routes/api/v1/admin/super/ledger/void/+server.ts`
+    - Expected output: `1` or more.
+
+12. Define attribution per Specification 6.7: a platform-created entry carries the super-admin `created_by`, the target `center_id`, and allocates its number from that center's `center_counters` under the sequence lock through `rpc_push_sync_op`; `/api/v1/sync/pull` returns the entry with `created_by_role` so a center device renders it as a platform row rather than an unknown user. The audit row keeps the RPC's existing action name and gains `actor_role` in its before/after payload.
+    - Command: write the pull change and the attribution columns in the migration.
+    - Check: `grep -c "created_by_role" apps/web/src/routes/api/v1/sync/pull/+server.ts`
+    - Expected output: `1` or more.
+
+13. Add the Owner-only overrides and the closed-month path: `.../ledger/reopen` calls `reopen_month`, `.../overrides` calls `approve_settlement_overpayment`, `review_entry_reconciliation_exception` and `publish_rate_profile` on the seat's behalf. A guarded purge wraps `maintenance_purge_entries` behind re-authentication, typed confirmation and an impact preview; it still refuses a closed month and a reconciled entry.
+    - Command: write the two routes.
+    - Check: `grep -c "reopen_month" apps/web/src/routes/api/v1/admin/super/ledger/reopen/+server.ts`
+    - Expected output: `1` or more.
+
+14. Make audit visibility a write-time property with one read model per Specification 6.8, and keep `CLT-D-037` DECISION PENDING. `audit-visibility.ts` holds `AUDIT_VISIBILITY_MODE` with the two branches, `'attributable_unnamed'` and `'silent'`, default `'silent'` per the recorded default. `audit-read-model.ts` is the only reader used by center screens, search and export. The owner's answer changes that one variable, not the design.
+    - Command: write the module, the read model and the migration columns.
+    - Check: `grep -c "AUDIT_VISIBILITY_MODE" apps/web/src/lib/server/audit-visibility.ts`
+    - Expected output: `2` or more.
+
+15. Operate the fleet: `GET /api/v1/admin/super/dashboard` returns centers by status, entries and gross for today, 7 and 30 days per center, devices not seen in N days, rejected operations awaiting resolution, stale rate profiles and last successful backup; `/admin/super` renders it. `.../users` supports cross-center search, disable, enable and force sign-out through `admin_manage_user`; `.../devices` lists every device and revokes through `admin_manage_device`.
+    - Command: write the three routes and the screen.
+    - Check: `pnpm --filter @clt/web check`
+    - Expected output: `0 errors`.
+
+16. Record the deferrals with their triggers in the table below, so nothing deferred is silently forgotten.
+    - Command: complete the deferred rows in this section.
+    - Check: `grep -c "Unlock trigger" docs/plans/023_super_admin_panel.md`
+    - Expected output: `1`.
+
+| Deferred requirement | Unlock trigger |
+|---|---|
+| SA-AUTH-05, SA-AUTH-06 | the first hosted production database |
+| SA-CTR-06 demote-or-deactivate | the first ownership transfer on a real center |
+| SA-CTR-08 provisioning template | the second center created with non-default rates |
+| SA-CTR-09, SA-LED-08, SA-RPT-01 exports | the first franchisee request for their own data |
+| SA-DASH-03, SA-CFG-03, SA-CFG-04 | the first hosted fleet of two or more centers |
+| SA-USR-04, SA-USR-05, SA-AUD-06, SA-COM-01 | a lost-device or misuse incident on a hosted center |
+| SA-CFG-02 Bangla | app-wide i18n, tracked outside this plan |
+| SA-CFG-05 corporate rates | an owner decision on rate governance |
+
+## 6. Specifications
+
+### 6.1 Capability registry (`apps/web/src/lib/server/capabilities.ts`)
+
+A `Capability` string union covering the named powers (for example `center.read`, `center.suspend`, `ledger.read`, `ledger.void`, `ledger.supersede`, `ledger.reopen_month`, `settlement.approve_overpayment`, `rates.publish`, `user.manage`, `device.revoke`, `audit.read_all`, `export.center`). `PERMISSIONS` maps each `UserRole` to a frozen set; `super_admin` is generated as the union of the other three plus the platform-only capabilities, so it cannot silently fall behind Owner. `requireCapability` throws `403 capability_denied`. Cross-center reach is a scope argument, not a second permission set: the same capability is called with a `centerId` the caller may write. Capabilities the Super Admin alone holds are listed in one place so an auditor reads one file.
+
+### 6.2 Archive integrity (`scripts/ops/backup-export.ts`)
+
+Current state, verified 2026-11-14 in the Goldfish brief: the nightly run exits immediately because no CI secrets exist, a catch block swallows the failure, and the Storage sync points at a path the backup keys cannot reach. Required: required-environment validation with a non-zero exit, no swallowing of the export error, Storage objects included, the auth schema dumped or its re-creation documented, a 7-year lifecycle rule on the bucket, and `backup-verify.ts` failing when the last successful run is older than 24 hours. No retention claim in this plan is valid until a restore drill passes.
+
+### 6.3 Suspension state machine (`supabase/migrations/20261114000008_super_admin_panel.sql`, `auth.ts`, sync routes)
+
+Center lifecycle and sync-op lifecycle are two machines with one idempotent interaction. `active` writes and reads normally. `suspended` and `archived` refuse login for new sessions, refuse `sync/push` and `sync/pull` with `403 center_suspended` or `403 center_archived`, refuse writes in `rpc_push_sync_op` through `fn_center_writable(center_id)`, and pause the retention clock for that center's pending operations. Reactivation resumes the clock from the reactivation timestamp; it does not restart it, and it never deletes or rejects the queued rows.
+
+Implemented as `centers.suspended_at` plus `centers.retention_offset`, maintained by `trg_centers_track_suspension`: entering suspended or archived stamps `suspended_at`, returning to `active` adds the withheld duration to `retention_offset` and clears it. Both the sweep (`purge_expired_sync_ops`) and the 90-day push check inside `rpc_push_sync_op` measure age as `created_at + retention_offset`, and the sweep skips any center that is not `active`. Note that the sweep never deletes pending operations in any case — its predicate is `rejected` plus `resolved`/`discarded` — so the real expiry risk was the push-time age check, which is why the offset applies there too. Reads by the Super Admin always work. The predicate is evaluated at read time by `getCallerContext`, because a Supabase access token stays valid until it expires and cannot be revoked from the client.
+
+### 6.4 Assurance and recovery (`assurance.ts`, `mfa.ts`, `reset-mfa.ts`)
+
+The enforceable check is the token's assurance level at the point of use, not a SPA prompt. `getCallerContext` returns `aal` decoded from the token it has already verified with `supabase.auth.getUser`; super-admin routes call `requireAssurance(caller, 'aal2')` first. Recovery is an operator command that requires a user id and a written reason, clears only that user's factor, forces re-enrolment, revokes refresh sessions and writes an audit row. It is built before mandatory TOTP is switched on, because a sole Super Admin with no recovery path is a platform lock-out.
+
+### 6.5 Cross-center scope
+
+Every super-admin route names its scope explicitly. Read routes require a center filter or an explicit `all`; write routes require exactly one `centerId` and derive the tenant from it. No query relies on RLS, since the service role bypasses it. This is why step 8 asserts authorization on every route rather than on the shared helper.
+
+### 6.6 Impact preview and `dataVersion` (PLAN-DERIVED — not in PRD)
+
+A preview is bound to data, not to time. `dataVersion` is a SHA-256 over a canonical tuple for the target month and center: `max(entries.server_seq)`, `count(entries)`, each settlement row's `(id, status, liability_poisha, paid_poisha)`, each active statement's `(id, status)`, and whether a `month_closes` row exists. Computing it is server-side and read-only. Apply re-computes it inside the same transaction that takes the month lock and rejects a mismatch with `409 stale_preview`, so a preview that no longer describes the data cannot be applied. The preview body lists the entries in scope, the settlement deltas, the statements whose matches would reset, and the resulting month state.
+
+### 6.7 Attribution of a platform entry (PLAN-DERIVED — not in PRD)
+
+A platform-created entry is a normal immutable entry in the target center: `center_id` set, `created_by` the super-admin profile, `entry_number` allocated by `fn_entries_server_seq` under that center's sequence lock, and `server_seq` from the global sequence. Its rate snapshot comes from the published profile effective on `entry_date`, never from settings. Devices receive it on pull like any other row; `created_by_role` is included so the center UI labels it as a platform row and the Staff filter still behaves. The audit row keeps the action name the RPC already writes and adds `actor_role` to the payload, so no new audit event name is invented.
+
+### 6.8 Audit visibility and `CLT-D-037` (DECISION PENDING)
+
+The owner's open decision is whether a franchisee sees that a platform action happened to their center, unattributed (`attributable_unnamed`), or sees nothing (`silent`). The recorded default is `silent` (`docs/orchestration/DECISIONS.md` row 8). The design is identical under both branches: the actor's role is recorded at the write boundary, and one shared read model applies the mode when a center-facing screen, search or export reads `audit_log`. Only the mode constant changes. The contradiction the brief records — a per-center export that includes audit while the UI hides it — is resolved by the same read model: the export is built from it, so the export cannot be more revealing than the screen unless the mode says so.
+
+## 7. Tests
+
+| Test | Input | Expected | Source | File |
+|---|---|---|---|---|
+| Owner ⊆ SuperAdmin | role permission sets | every owner capability present for `super_admin` | v0.4 §4 | `apps/web/tests/admin/super-capabilities.test.ts` |
+| Suspended center writes nothing | push from a suspended center | `403 center_suspended`, zero new entries | SA-CTR-03, 04 | `tests/db/super_admin_suspension.test.ts` |
+| Queued work survives suspension | op older than 90 days | row retained while suspended, purged after reactivation plus 90 days | Goldfish blocker 4 | `tests/db/super_admin_suspension.test.ts` |
+| Route authorization | owner, admin, staff tokens | `403` on every `/api/v1/admin/super` route | v0.4 §6 | `apps/web/tests/admin/super-authz.test.ts` |
+| `aal1` is refused | super-admin `aal1` token | `403 assurance_required` | Goldfish blocker 3 | `apps/web/tests/admin/super-authz.test.ts` |
+| `dataVersion` binding | settlement row changed between preview and apply | `409 stale_preview`, no write | Goldfish blocker 5 | `apps/web/tests/admin/impact-preview.test.ts` |
+| Platform entry attribution | super-admin create in center X | `created_by` = seat, number from X's counter, `created_by_role` on pull | Goldfish blocker 7 | `tests/db/super_admin_suspension.test.ts`, pull route |
+| Audit visibility mode | both `AUDIT_VISIBILITY_MODE` values | center read model hides or attributes platform rows; export matches screen | SA-AUD-05, `CLT-D-037` | `apps/web/tests/admin/super-authz.test.ts` |
+
+## 8. Acceptance criteria
+
+1. No non-super-admin token reaches any super-admin surface.
+   - Run: `pnpm --filter @clt/web test tests/admin/super-authz.test.ts`
+   - Expected: every enumerated route reports `403` for owner, admin and staff.
+2. A suspended center cannot log in, sync or write, and its queued operations are kept.
+   - Run: `pnpm test tests/db/super_admin_suspension.test.ts`
+   - Expected: all pass, including the retained-operation case.
+3. No Super Admin ledger write bypasses the chain.
+   - Run: `grep -rc "rpc_supersede_entry\|rpc_push_sync_op" apps/web/src/routes/api/v1/admin/super/ledger --include=+server.ts`
+   - Expected: a non-zero count in the supersede and void routes, and no direct `from('entries')` write in either.
+4. `CLT-D-037` remains open and the plan is unchanged by the answer.
+   - Run: `grep -n "DECISION PENDING" docs/plans/023_super_admin_panel.md`
+   - Expected: the step 14 entry only.
+5. The panel typechecks and the suites are green.
+   - Run: `pnpm typecheck && pnpm test`
+   - Expected: exit `0`.
+6. No retention claim is made before the archive works.
+   - Run: `pnpm exec tsx scripts/ops/backup-verify.ts --self-test`
+   - Expected: exit `0`, and no "7 year" claim elsewhere in the panel.
+
+## 9. Hard rules touched
+
+- Rule 4: entries stay immutable; the seat uses void and supersede, never an in-place edit.
+- Rule 5: every state change writes `audit_log` in the same transaction.
+- Rule 7: writes go through `SECURITY DEFINER` RPCs under `service_role`; the seat gets no new direct-write path.
+- Rule 9: the server re-derives role, scope and calculated components; nothing from the client is trusted.
+- Rule 10: the month lock is taken before the sequence lock on every platform ledger write.
+- Rule 11: Zod validation on every new route.
+- Rule 15: no legal or retention conclusion; the 7-year requirement is a storage rule, not legal advice.
+- Rule 16: no absolute claim; suspension "reduces exposure" and is subject to audit.
+- Rule 19: nothing here authorises a deployment.
+
+## 10. Pitfalls
+
+- Trap: trusting an `aal2` checked in the browser. Fix: the claim is read server-side from the verified token on every request.
+- Trap: cutting off a suspended center by deleting its queued operations. Fix: pause retention; never delete or reject queued rows.
+- Trap: adding `centers.status` to every RLS policy. Fix: one `fn_center_writable` helper on the write paths, plus the route-level check.
+- Trap: filtering Super Admin audit rows in each screen. Fix: one read model; screens, search and export all consume it.
+- Trap: applying an impact preview computed minutes earlier. Fix: `dataVersion` compared inside the locking transaction.
+- Trap: labelling the panel "secure" or "7-year compliant" before the archive runs and a restore drill passes. Fix: state "subject to audit" until then.
+
+## 11. PRD ISSUES and DECISION PENDING
+
+- DECISION PENDING — `CLT-D-037` (audit visibility: `attributable_unnamed` or `silent`). Owner: Zia. Default in force until answered: `silent`. Step 14 carries both branches; the answer changes one constant.
+- PRD ISSUE 023-1: PRD §3 and §7.5 describe the seat, but neither states what a platform-created entry is attributed to. This plan fixes it (Specification 6.7) and the PRD should record it when next amended. Not decided here.
+- PRD ISSUE 023-2: the multi-tenancy design note describes the seat as read-only oversight, which contradicts v0.4 §9 item 1 and PRD §3. The design note needs amending; this plan follows v0.4 and the PRD.
+
+## 12. Handoff
+
+- Capability registry and the deny-by-default guard available to every platform route.
+- Suspension and archive enforced at login, sync and the write path, with queued work preserved.
+- TOTP, recovery and an `aal2` gate on every super-admin route, with a route-authorization test in CI.
+- Cross-center ledger read and write through the existing void and supersede chain, each write preceded by a version-bound impact preview.
+- One audit read model, parameterised by `CLT-D-037`.
+- Fleet screens for dashboard, users, devices and backup status.
+
+## 13. Suggested task breakdown
+
+- `CLT-T-086`: capability registry and the Owner ⊆ SuperAdmin test (Files: `capabilities.ts`, `super-capabilities.test.ts`; Depends on: none; Priority: P0).
+- `CLT-T-087`: archive repair, verification and alerting (Files: `backup-export.ts`, `backup-verify.ts`, `daily-backup.yml`, `BACKUP_RESTORE.md`; Depends on: none; Priority: P0).
+- `CLT-T-088`: enforced suspension, archive and retention pause (Files: migration `20261114000008`, `auth.ts`, `push`, `pull`, `withheld-notice.ts`, DB test; Depends on: 086; Priority: P0).
+- `CLT-T-089`: 2FA recovery, mandatory TOTP and the `aal2` gate with its route test (Files: `mfa.ts`, `reset-mfa.ts`, `assurance.ts`, `super/security`, `super-authz.test.ts`; Depends on: 088; Priority: P0).
+- `CLT-T-090`: cross-center ledger read, impact preview and the guarded write routes (Files: `super/ledger/*`, `impact-preview.ts`, `impact-preview.test.ts`; Depends on: 089; Priority: P1).
+- `CLT-T-091`: attribution, overrides, audit visibility and fleet screens (Files: pull route, `super/overrides`, `audit-*`, `super/dashboard`, `super/users`, `super/devices`; Depends on: 090; Priority: P1).
+
+## Changelog
+
+- Revision 1.36 — 2026-11-16: status word corrected from `Not Implemented` to `Partially Implemented`. The header still read `Revision: 1.0 — 2026-11-14` and `Not Implemented` while the changelog had reached 1.35, so the two disagreed; no step's content changed in this revision. Built and verified locally — `pnpm lint`, `pnpm format`, `pnpm typecheck`, `pnpm test`, `pnpm --filter @clt/web test` and `pnpm build` all exit 0 — are steps 1–11 and 15: `super-capabilities.test.ts`; `backup-export.ts`/`backup-verify.ts`/`daily-backup.yml`; `getCallerContext` plus `20261114000008` and `20261114000009`; the retention pause; `mfa.ts`/`reset-mfa.ts`; `/admin/super/security`; `assurance.ts`; `super-authz.test.ts`; `GET .../ledger` and its screen; `impact-preview.ts` and its route; `ledger/void` and `ledger/supersede`; and the dashboard/users/devices routes and screens. Not built: step 12's pull-side `created_by_role` (`grep created_by_role` finds it only in the super ledger route), step 13's Owner-only overrides/reopen/purge (`ledger/reopen`, `ledger/overrides` and the purge route do not exist), and step 14's `audit-visibility.ts`/`audit-read-model.ts`. Step 16's deferral table is written; the deferrals behind it are still deferrals. `CLT-D-037` is DECISION PENDING, and no step has run against a hosted production database or a real center, so the cloud half of the built steps is unproven. Per `docs/plans/000_TOC.md`, only the orchestrator sets a plan's status after independent verification, so this line records what the implementer found on disk and may be revised by the orchestrator.
+- Revision 1.35 — 2026-11-15: the import tracer no longer stops at the first module. `resolveExportedHelper` follows a name to the module that declares the helper through `export { x } from './y'`, `export { x as y } from './y'`, nested barrels and `export * from './y'`, with a visited set against circular barrels, a depth cap, and the capability registry ending the walk so a re-exported `hasCapability` is not mistaken for a raw gate. Namespace imports are traced as well: `import * as auth` plus `auth.isOwner(role)` resolves the member through the same barrel walk and reports it with the definition site. Proved fail-closed with real files — a `$lib/auth/probe` barrel re-exporting `owner.ts` — which failed the suite with `isOwner(role) → lib/auth/probe/owner.ts:isOwner(caller)` and `auth.isOwner(role) → lib/auth/probe/owner.ts:isOwner(caller)` and passed once deleted. Default exports and computed members (`auth[name](role)`) remain untraced; `docs/runbooks/GATE_PARITY.md` §7 was updated to say exactly that instead of listing barrels and namespace imports as blind spots.
+- Revision 1.34 — 2026-11-15: the scan now follows imports. A screen's `isOwner(role)` used to be invisible when `isOwner` lived in another module, because nothing in the screen decides on the role — the comparison is in the helper. Each named import (`$lib/...` and relative, with `as` aliases, `.js`-named TypeScript files and directory indexes resolved) is read, the module's role helpers are found with the same shape test the local scan uses (`UserRole`-typed parameter decided on by comparison, membership or switch), and a call that hands the caller's role to one is reported as `imported role helper` with the definition site, e.g. `isOwner(role) → lib/auth/role-probe.ts:isOwner(caller)`. Importing such a helper is not a finding, calling it with a roster row's role is not a finding, and an import that does not resolve is never assumed to be a gate. `lib/capabilities.ts` is excluded by design: `isCenterScoped` and `canManageUser` compare roles legitimately there, and the first run of the tracer proved the exclusion is needed by flagging `isCenterScoped(role)` in the admin layout and `canManageUser(...)` on the users screen. Proved fail-closed with a real pair — `$lib/auth/role-probe.ts` plus a screen importing it — which failed the suite with exactly the finding above and passed once both files were deleted. Not traced: namespace imports (`import * as auth`) and default exports.
+- Revision 1.33 — 2026-11-15: the Sidebar and the command palette now render one list. `apps/web/src/lib/ui/nav.ts` holds every center destination with its route, sidebar label, palette title, shortcut, emphasis and a `canUse` predicate that names the capability the destination enforces; `visibleNav(role)` is what both surfaces map over, so a capability change cannot leave one of them stale. The sidebar's single `report.read` block that wrapped five links is gone, replaced by per-destination capabilities — which also fixes a quiet mismatch: `/admin` and `/admin/settings` were shown to anyone holding `report.read`, while the palette gated settings on `settings.manage` (the same roles today, but not by the same rule). `entry.create` and `entry.read_own` now gate the links that had no gate at all, so the staff links are declared rather than assumed. Because the gates moved into `nav.ts`, the parity scan reads `.ts` modules in `lib/ui` as well as `.svelte` (`listSource`, test files excluded); the six capability declarations moved from `CommandPalette.svelte` to `lib/ui/nav.ts`, and the sidebar's `report.read` declaration is removed as stale. Verified in the browser at three roles: staff 3 links / 3 commands, admin and owner 8 links / 7 commands, the extra sidebar entry being `/admin`, which the palette does not offer. `FloatingMenu.svelte` still keeps its own mobile links and gates — the same duplication, not converted here.
+- Revision 1.32 — 2026-11-15: the scan now follows the caller's role one step further, to the two places a role branch hides from every pattern above. **Local helpers:** a declaration whose parameter is annotated `UserRole` and whose body decides on that parameter (`(caller: UserRole) => caller === 'owner'`, `function isWide(caller: UserRole) { return caller !== 'staff' }`, `['owner','admin'].includes(caller)`, `switch (caller)`) is reported as `role helper`, because the screen's `isOwner(role)` carries the branch and the comparison itself never mentions the caller expression. Arrow and block bodies are both parsed, an optional return type is skipped, and the body is read to its balanced brace so a brace in a message cannot truncate it. **Role tables:** an object literal with two or more role keys (optionally typed `Record<UserRole, …>`) is reported as `role table lookup` where it is indexed by the caller's role, since one branch per key lives in data rather than in control flow. Not flagged: a helper that only formats the role, a table read with a row's role (`VIEWS[row.role]` — a roster badge), and a table with no role keys. Both mechanisms are proved fail-closed: a temporary probe component using `Record<UserRole, string>` indexed by `role` and an `isOwner(caller: UserRole)` helper failed the suite with exactly `role helper: isOwner(caller: UserRole)` and `role table lookup: VIEWS[role]`, and passed once removed. Neither shape exists in the current screens, so the suite gained the detector checks (+3 passing) and no new exceptions.
+- Revision 1.31 — 2026-11-15: the command palette's hand-kept role lists are gone. Each command now names the capability of its destination (`hasCenterCapability`, so the platform seat — which holds every center capability through the role union — stays out of the franchise palette) and the filter asks the predicate instead of searching a `UserRole[]`. Role sets are unchanged: `entries/new` → `entry.create`, dashboard and ledger → `entry.read_own`, reports → `report.read`, settlements → `settlement.read`, reconciliation → `reconcile.read`, admin settings → `settings.manage`; the six gates are declared as `shell` coverage in `gate-parity.test.ts`, so the palette can no longer drift from the capability registry without failing the suite. The literal capability stays at each call site because the parity test refuses a gate it cannot resolve. The last `RAW_ROLE_EXCEPTION` is deleted; the exception list is empty again. Converting also exposed a scanner flaw worth fixing: it flagged `cmds.filter((cmd) => cmd.canUse(role))`, i.e. passing the caller's role to a capability predicate, which is the form the conversion *should* take. A predicate is now only a finding when the role sits in a **decision** position (compared, tested against a role list, or switched on), with self-checks for both `canUse(role)` and `hasCapability(role, '…')` staying clean.
+- Revision 1.30 — 2026-11-15: the raw-role scan now reads the shapes a role branch actually takes in a screen, not only a comparison. `scanRoleBranches` walks `.some/.filter/.every/.find/.findLast` call windows (balancing parentheses and skipping string literals, so a nested callback cannot end the window early), a bare `roles.includes(role)`, and `switch (...)` subjects — and a value is treated as the caller's role either as `session.user?.role` / `callerRole` / `userRole` or as a bare `role`, which is what an alias looks like. `u.role` is excluded by a lookbehind, so roster-row comparisons stay out; a `.roles.includes(...)` inside an already-reported callback is not reported twice. Detector self-checks cover the alias form, nested parentheses, `switch (role)` and three negative shapes. The extension immediately caught one real gate the comparison scan could not see: `lib/ui/CommandPalette.svelte` filtered its commands with `cmd.roles.includes(role)`, where `role` is the shell-supplied caller role. It is recorded as the first `RAW_ROLE_EXCEPTION` — the palette mirrors the Sidebar rather than gating a screen, every destination it opens enforces its own capability or route guard, and a capability per command would duplicate the nav gate — with the condition that it converts if the palette ever gains a destination the Sidebar does not have. Proved fail-closed by mutation: a temporary probe component using `.some((r) => r === role)` and `switch (role)` failed the suite with both findings, and passed again once removed.
+- Revision 1.29 — 2026-11-15: suspension now blocks something. Sign-in and sync were already refused at the API boundary (`getCallerContext` throws `403 center_suspended`, `rpc_push_sync_op` refuses a push before parsing an op) with tests in `apps/web/tests/api/suspended-sync.test.ts`, but every other write still ran: settlement payments, reconciliation, month close, rate publishing, configuration. Rather than add a check to each of those RPCs — the change that rots the first time a new one appears — `supabase/migrations/20261114000009_center_write_guard.sql` puts a `before insert or update` trigger on the fifteen tenant tables carrying business state, raising the same `403 center_suspended` / `403 center_archived`. `centers`, `audit_log`, `sync_ops`, `profiles` and `devices` stay writable (reactivation, Hard Rule 5, the paused retention sweep, and platform user/device management), and DELETE is not guarded because deletion is maintenance, not business activity — guarding it broke the owner-authorised purge and fixture cleanup and protected nothing users can reach. A row naming a centre that does not exist is left to the foreign key. `tests/db/super_admin_suspension.test.ts` grows five cases: the trigger is installed on exactly those fifteen tables and on none of the exemptions; entry, settlement, month and configuration writes raise while suspended; archival names itself separately; the audit trail, people, devices and the centre row itself stay writable; and reactivation restores writes immediately. Verified on the dev database in a rolled-back transaction, and the whole `tests/db` suite passes against a throwaway database rebuilt from the migrations (80 passed, 10 skipped).
+- Revision 1.28 — 2026-11-15: the centres routes were the only `/admin/super/*` API surface with no test of its own, and they are the ones that create a tenant. `apps/web/tests/admin/centers.test.ts` (15 cases) drives both routes over a fixture Supabase client — a chainable table builder that applies the predicates it is given, an `auth.admin` stub that records provisioning calls, and an RPC that can refuse. It pins: the register is ordered by `center_number` and joined to the GoTrue owner email; a `status` filter actually reaches the query; a read failure is a 500, not an empty list; `rpc_create_center` receives the **session** seat as `p_actor_id` and NULL for absent BIN/trade licence; a new owner is invited at the lowercased address with this origin's callback and has `role`/`center_id` written into `app_metadata`; an existing auth user is reused instead of invited over; a rejected payload never reaches the RPC; `center_code_taken` → 409 and other refusals → 422; suspension writes `center.update` with both sides of the change; `code` is dropped from the patch even when sent; a missing centre is 404 with no audit row; a malformed id, empty body and broken JSON are 400 before any work; and an owner is refused `403 capability_denied` by the **real** capability registry (the role guard is the only thing mocked), which is the point — platform powers are not role-name checks.
+- Revision 1.27 — 2026-11-15: the seat's redirected return path now carries the same unreadable-assurance case at both layers, and the screen half was not tested before. The guard's destination preserved only the pathname, so `/admin/super/ledger?centerId=…` came back unfiltered after the challenge; it now includes the query. The screen's acceptance rule lived inline in two places (the already-proven return in `load()` and `finish()`), which is exactly how the two drift apart, so it moved to `$lib/auth/security-return.ts` as `securityReturnTarget` and both call sites use it. The rule also refuses more than it did: only `/admin` or a path under `/admin/`, no protocol-relative or absolute URL, no `..` segment, and no raw whitespace or backslash (normalisation disagreements are how `//host` and `/\host` bypasses happen). A query string is allowed and preserved. `apps/web/tests/admin/security-return.test.ts` covers the screen layer (return with query, `null`/empty/non-platform fallbacks, off-site and traversal refusals) and asserts the screen has no second inline copy; `auth.test.ts` adds the guard cases — unknown assurance from a screen with a filter keeps the filter in `from`, and the security screen itself is still allowed with a `from` parameter, so the redirected path cannot loop.
+- Revision 1.26 — 2026-11-15: step 11 built. `POST .../ledger/void` calls `rpc_push_sync_op` with one `void_entry` op and `POST .../ledger/supersede` calls `rpc_supersede_entry`; neither writes a row itself. Both open a transaction, take the center's **month** lock first, recompute `dataVersion` on that connection, and only then call the RPC (which re-takes the month lock, re-entrant, and then the sequence lock — PRD §7.2 order). A mismatch is `409 stale_preview` with the expected digest and no RPC call; a missing or malformed digest is `400`. Migration `20261029000009_super_admin_ledger_writes.sql` was necessary for the same reason as 0008: both routines look the actor up inside the center and the void branch checks `p_caller_role in ('admin','owner')`, so the seat was a guaranteed `403`. Its two function bodies are lifted verbatim from 0005 with only the caller guards changed (seat accepted as a platform caller, `super_admin` added to the void branch, presence upsert skipped for a caller with no center row); create, request_void and the push-side supersede handler are untouched. The supersede route forwards the caller's `replacement` untouched — the server must not re-implement `packages/calc`, and the RPC's snapshot/rate checks are the verification — and refuses a replacement that lands in a different month, which is reassignment (step 13), not a version bound to one month. Test `apps/web/tests/admin/ledger-writes.test.ts` (9 cases) pins statement order (lock → version read → RPC), the 409 with zero RPC calls and a ROLLBACK, RPC rejection mapping, 404 before any write, 400 on a bad digest, the exact RPC arguments (platform device id, seat actor, one `void_entry` op, forwarded replacement), and the cross-month refusal. `super-authz.test.ts` picked both routes up: `POST ledger/void` and `POST ledger/supersede` → `403` for owner/admin/staff and for unreadable assurance. Live at aal2 against the dev database, non-mutating: a wrong digest → `409 stale_preview` with a real `expected` digest, a cross-month replacement → `422`, the entry's status unchanged and zero new void/supersede audit rows. The seat's void and supersede were also exercised at SQL level in rolled-back transactions before the routes existed: seat void returns `ok`, the entry goes `voided`, the audit actor is the seat; a staff void is still rejected `unauthorized`.
+- Revision 1.25 — 2026-11-15: the raw-role rule now covers the shapes a gate actually takes, not just `x === 'literal'`. Four patterns, each reporting its own kind: quoted comparison, reversed quoted comparison (`'super_admin' === userRole`), constant comparison (`callerRole === OWNER_ROLE`, including `undefined` — a name-shaped constant is exactly how a string comparison hides), and array membership (`ROLES.includes(callerRole)` and `['owner','admin'].includes(session.user?.role)`). Exceptions now key on file + kind + expression, so an exception for one shape cannot silence another at the same site. The self-check covers all four shapes plus the two non-gates (`u.role === 'owner'`, a `hasCapability` call), and a `role-probe2` page proved the rule bites: all three new forms were reported, e.g. `routes/(app)/role-probe2/+page.svelte: array membership: ROLES.includes(callerRole)`. Real scan across `routes/(app)` and `lib/ui` stays empty; the gate suite is 38 tests. Not matched, by design: a bare `role` (in this codebase it is as often a roster row's role as the caller's), a multi-line array literal, `.some`/`.filter`/`switch` role branches, and anything inside a comment (the scan reads raw source).
+- Revision 1.24 — 2026-11-15: step 15 built. Migration `20261029000008_super_admin_fleet.sql` extends `admin_manage_user` and `admin_manage_device` to a second caller class: an active, platform-wide `super_admin` (`center_id` NULL) may act on any center, while a center caller must still be active admin/owner **of the named center**. Without this the cross-center screens would have offered actions the API refuses — the routes looked their actor up with `center_id = p_center_id`, so the seat was a guaranteed `403`. `admin_manage_user` also gains `force_signout`, which writes an audit row (`user.force_signout`, with `actor_role` in `before`) but changes no profile. Both routines now record `actor_role` on every audit row they write. Routes: `GET /api/v1/admin/super/dashboard` (centers by status; per-center active-entry counts and gross for today / 7 / 30 days with today = `(now() at time zone 'Asia/Dhaka')::date`; devices quiet > 14 days; rejected ops pending; stale-rate flags; backup as `recorded: false` because the daily export leaves no database row — inventing a timestamp would be worse); `GET|POST .../users` (search by name or email across centers via `auth.users`, center filter, disable/enable/force-sign-out; force sign-out revokes `auth.refresh_tokens` and reports how many, and the route says an already-issued access token stays valid until it expires); `GET|POST .../devices` (list with center and user, `staleOnly`, revoke/unrevoke, rows never deleted). Screens `/admin/super`, `/admin/super/users`, `/admin/super/devices`, with two-step confirmation on every killswitch action and nav links inside the existing `center.read_all` block. Test `apps/web/tests/admin/fleet.test.ts` (12 cases) covers the aggregation windows and status exclusion (a voided entry counts nowhere), stale-device counting that ignores revoked rows, backup honesty, user search scoping, the action→RPC mapping, the `sessionsRevoked` count, RPC refusal surfacing as 403, and device filters. Live at aal2: `/admin/super` → 200 with 3 centers and 17 devices, `/admin/super/users` → 200 with 26 rows, `/admin/super/devices` → 200 with 17 rows. SQL and the RPC change were run against the dev database in rolled-back transactions: seat deactivate flips `active` and writes `user.deactivate` with `actor_role: super_admin`; force sign-out and device revoke succeed for the seat; a foreign center's admin is still refused `403`; rollback leaves no audit rows. One bug found this way and fixed: the backup-marker query used `audit_log.created_at`, which does not exist (the column is `at`), and the dashboard returned 500 until it was corrected.
+- Revision 1.23 — 2026-11-15: the degraded assurance path is tested at the route level. `super-authz.test.ts` already drove `aal1` and `aal2` tokens; nothing proved what happens when the level cannot be read **at all**, which is the case a token issued before enrolment or an older token shape produces. New case runs four unreadable variants against every `/api/v1/admin/super/*` power route (claim absent, `'aal3'`, `'AAL2'`, and the number `2`), with a valid `super_admin` role claim and a valid profile row, and requires `403 assurance_required` from all 8 routes × 4 variants; `/admin/super/security` stays exempt as the way back to `aal2`. The guard's equivalent path (`seat(null)` redirecting to `/admin/super/security?from=…`) was already covered in `auth.test.ts`, and the primitives in `assurance.test.ts`. Proven fail-closed: making `decodeAssurance` return `'aal2'` instead of `null` for an unreadable claim fails the case with `GET centers/+server.ts let a seat with no readable assurance through (claim absent): expected { status: 200 }`; the module was restored byte-for-byte and the file is 7/7.
+- Revision 1.22 — 2026-11-15: step 10 built. `lib/server/impact-preview.ts` computes `dataVersion` as a SHA-256 over a canonical tuple — `v`, center, month, `max(server_seq)`, `count(entries)`, each settlement row's `(id, status, expected_poisha, paid_poisha)`, each non-superseded statement's `(id, status)`, and the `month_closes` status — built from arrays in a fixed order because JSON key order is not a contract. `previewEntryImpact()` returns the entry, the settlement deltas the void or supersede would cause (only streams the entry actually feeds; expected recomputed against the coefficient `generate_monthly_settlements` uses, i.e. `vat_poisha` and `business_charge_poisha`), the statements whose active match lines would reset, the month state, `blockers` (`month_closed`, `entry_not_active`) and `warnings` (`settlement_becomes_overpaid`, `reconciled_statements_reset`, `settlement_would_go_negative`). `POST /api/v1/admin/super/ledger/impact` (role, `aal2`, `ledger.read_all`, Zod body, 404 `entry_not_found`, `no-store`) returns `{ dataVersion, preview }` and writes nothing; apply (step 11) recomputes the same hash under the month lock and answers `409 stale_preview`. Statuses come from the existing `calcSettlementStatus`, not a second copy of the rule. Test `apps/web/tests/admin/impact-preview.test.ts` (13 cases) pins the tuple field by field, checks the digest is 64 hex and stable, proves each of nine data changes moves it (settlement status/expected/paid/removal, entry high-water mark, entry count, statement add/status, month close), proves a superseded statement is excluded and center/month are separated, then the preview's deltas (VAT 1000→0 `due`→`not_applicable`; bKash 300→0 `partly_paid`→`overpaid`, with the warning), the statement reset list (2 active lines, the inactive one not counted), the closed-month and inactive-entry blockers, the null for a cross-center entry, and the route's 200/400/404 paths. The route appears in `super-authz.test.ts` as `POST ledger/impact/+server.ts → 403` for non-seat callers without editing that test. SQL verified against the dev database directly with real MHK November rows (entry 15: gross 500000, vat 0, business charge 5750; method settlement expected 86250 → 80500, VAT stream unchanged at 0 and therefore not listed). No live HTTP call was made; the route's guards are covered by the enumeration test and its body by fixture tests.
+- Revision 1.21 — 2026-11-15: fixture test for step 9's ledger route, `apps/web/tests/admin/super-ledger.test.ts` (6 cases, real GET handler over a two-center fixture of 8 entries). The fake pool is the only boundary: it reads values out of each statement's placeholders (`e.center_id = $1`, `LIMIT $3`) rather than assuming argument order, so reordering predicates keeps the test honest while dropping one fails it. Pinned: single-center reads return only that center's rows with its own totals (MHK 5 / 18200 poisha) and never the other's; `all` returns 8 / 21600 with both centers ordered by code; keyset pages of 2 tile 7,6 → 4,3 → 1 with zero overlap and a null cursor on the last page; totals stay on the scope while a page filter narrows the page (date range 3 / 15500, status 3 / 15000, cash 4 / 15500); facets follow the same scope; money is integer poisha in decimal strings and `entryId` formats as `E-MHK-202611-000007`. Guard cases: missing `centerId` → 400 `center_scope_required`, malformed cursor → 400 `invalid_query`. Proven able to fail: removing the `centerId` predicate (mutation) fails 4 of the 6 cases; route restored and 6/6 green.
+- Revision 1.20 — 2026-11-15: the parity scan now covers caller-role comparisons. It flags `session.user?.role` / `callerRole` / `userRole` comparisons in every scanned screen, fails on any that is not a declared exception (the list is empty), and fails on a stale exception. Two screens gated on role strings and are converted: the dashboard now picks its variant from capabilities (`month.close` → owner, `report.read` → admin, staff fall through) instead of `role === 'owner' | 'admin'`, and the invite dialog's Administrator option uses `hasCenterCapability(role, 'user.invite_admin')` instead of `callerRole === 'owner'`. The detector has a self-check with synthetic source so it cannot pass by silently matching nothing, and a `role-probe` page proved it fails: `routes/(app)/role-probe/+page.svelte: session.user?.role === 'owner'`. Live: owner `/dashboard` → OwnerDashboard, staff → StaffDashboard (admin reaches the admin variant by capability; no admin account exists locally to click it).
+- Revision 1.19 — 2026-11-15: the panel no longer offers the seat anything the API refuses, beyond the two parity gaps closed in 1.18. Those two were real but not the whole set: `/admin` and the center-admin pages behind it (rates, settings, devices, methods, payables, audit, stale reviews) render for a typed URL and their routes check `caller.role` for admin/owner, so the seat got empty tables over 403s. New `(app)/admin/+layout.svelte` gates the whole group on `isCenterScoped(role)`, exempting `/admin/super/*`; it renders one Access Denied card naming what belongs to a center and links to the platform panel. Menus already hid those links from the seat, so this only fires on a typed URL or stale bookmark. Test `apps/web/tests/admin/admin-layout-scope.test.ts` pins the scope matrix and that the children render behind the gate. Live at aal2: seat `/admin`, `/admin/rates`, `/admin/settings`, `/admin/devices` all show Access Denied with zero refused calls (the only `/api/v1/admin` request is the shell's own `/admin/super/centers` → 200), `/admin/super/centers` still lists 3 centers, owner `/admin` and `/admin/rates` unchanged.
+- Revision 1.18 — 2026-11-15: `/admin/users` decided for the seat — refused. The roster belongs to one center (it lists that center's staff, invites into it and transfers its ownership) and `/api/v1/admin/users` refuses a super-admin caller with 403, so the screen now gates on `hasCenterCapability(role, 'user.read')` and renders an Access Denied card that points at the platform surface; it also no longer fires the doomed roster request. The two action gates moved from `hasCapability` to `hasCenterCapability`, which closes both `knownGaps` the parity test had pinned (the seat was offered two controls the API refused) and leaves the parity table with no gaps. Cross-center user management remains step 15's `/admin/super/users`. New test `apps/web/tests/admin/center-users-scope.test.ts`: capability matrix (seat holds `user.read` but not as center scope), the route's 403 for a super-admin caller on GET and PATCH, an owner 200 control, and a source assertion that the screen gates on the center-scoped helper with an Access Denied branch. Live: seat at aal2 → Access Denied with zero roster requests; owner → roster with 22 rows.
+- Revision 1.17 — 2026-11-15: the aal1 race closed. The guard only refused an explicit `aal1`, so a hard load could reach a panel while the level was still `null` (read from the token asynchronously); the server refused every call, but the shell painted. Unknown is now treated as unproven: the seat opens only on `aal !== 'aal2'` being false. The redirect names the refused screen (`?from=`), and the security screen returns there after the factor is proven, so the fix does not cost a working seat a click-through on every reload. Live: at aal1 `/admin/super/centers` → `/admin/super/security?from=%2Fadmin%2Fsuper%2Fcenters` with the challenge box; after the code, back to `/admin/super/centers`; an aal2 hard reload stays on the panel. Guard tests 17/17 (four new seat cases: null, aal1, aal2, security-screen exemption).
+- Revision 1.16 — 2026-11-15: step 9 implemented. `GET /api/v1/admin/super/ledger` requires an explicit scope (`centerId=<uuid>` or `all`, refused with `400 center_scope_required` when absent), validates the rest with Zod (date range, method, status, creator, limit 1–200), pages by keyset on `(server_seq, id)` with a `<server_seq>:<id>` cursor rather than an offset, and returns per-center and fleet totals computed over the filtered scope, not the page. Reads use the privileged pool with the center predicate written into every query, because that connection bypasses RLS and the predicate is the only thing keeping centers apart. Money leaves as integer poisha strings. `/admin/super/ledger` renders filters, totals, the per-center table and the entry list with a Load more cursor, gated on `ledger.read_all` and linked from both menus. Live at aal2: 19 entries, MHK 15 / RMP 4, page 2 with zero overlap, `centerId=<MHK>` totals limited to MHK, `status=voided` 0, reversed date range 400. **Defect found and fixed while testing:** the security screen only knew the factor id after enrolling in that same tab, so a new sign-in on an enrolled seat showed the code box, accepted a correct code silently, and never reached aal2 — it now loads the verified factor's id (`mfa.listFactors`) and says so if none is found.
+- Revision 1.15 — 2026-11-15: gate-parity test now discovers screens. It scans every `.svelte` under `routes/(app)` and `lib/ui` for `hasCenterCapability` / `hasCapability` / `canManageUser` calls and fails on any gate not declared in the table, on a declaration whose gate was removed, on a capability missing from the registry, and on a gate whose capability is not a string literal (so it cannot be verified). 27 tests: 13 route pairs (role parity, exact where the pair is exact), 2 seat pairs (the screen's capability must be the one the super-admin route requires), 2 offline screens and 1 component (Dexie/RLS, reason recorded), 9 shell/nav gates. The seat's `ownership.transfer` and `user.invite_admin` are pinned as named `knownGaps`: the seat holds the capability, the routes still check `caller.role`, so the panel offers two controls the API refuses — recorded, not silently accepted, and the test fails if the gap closes or widens. Proven able to fail: a throwaway `gate-probe` page gating on `settlement.read` failed the suite with `routes/(app)/gate-probe/+page.svelte → settlement.read` and was removed.
+- Revision 1.14 — 2026-11-15: Access Denied screen. The guard cancelled a refused navigation and pushed the user to `/dashboard` (Admin: to `/reconcile`) with no explanation, which is why the page-level notices in reports, settlements, reconcile and months/close were never seen. Refusals now go to `/access-denied?from=<path>`, which names the refused screen and the caller's role; `/access-denied` is exempt from the guard so it cannot loop. The initial-load check moved from `onMount` to `afterNavigate`: a `goto` issued during hydration was dropped, leaving the refused path in the address bar while the denied screen rendered. Verified live for Staff (`/reports` → `/access-denied?from=%2Freports`, then Return to Dashboard) and Owner (`/months/close`, `/admin`, `/admin/users`, `/reconcile` all still render). Guard tests 13/13 with destination assertions.
+- Revision 1.13 — 2026-11-14: gate-parity test. `apps/web/tests/admin/gate-parity.test.ts` compares each center screen's capability gate with the role guard in the server route that capability protects, reading the route's source because those routes check `caller.role` inline rather than through `requireCapability`. It asserts roles a screen admits are admitted by the route (the direction that breaks users), equality where the pair is exact, and fails on a guard shape it does not recognise instead of skipping. Reports and the settlements list have no route of their own (Dexie + RLS via sync/pull) and are declared as such with their expected roles. Proven able to fail: widening `months/close` to admin made the test red with a precise message; the file was reverted.
+- Revision 1.12 — 2026-11-14: step 7 implemented. `assurance.ts` decodes the `aal` claim from the token `getCallerContext` has already verified, `CallerContext` carries `aal`, and `requireAssurance(caller,'aal2')` guards every power route (`centers` GET/POST, `centers/[id]` PATCH, `search` GET). Two carve-outs, both deliberate: `/admin/super/security` GET and PUT stay open at `aal1` because they ARE the path to `aal2` (state read, enrolment, recovery-code consumption) — gating them makes the gate unsatisfiable — and its POST (recovery-code issuance) is still gated only by an existing verified factor, so a password-only session that enrols its own factor can mint codes. Closing that needs a rule about enrolment itself, which GoTrue owns. Step 8's `aal1` case is now a real test, not a todo.
+- Revision 1.11 — 2026-11-14: one source for the rest of the shell and the center screens too. `$lib/capabilities.ts` gained `isCenterScoped`, `hasCenterCapability` (capability AND a center, so the seat cannot open franchise screens that its center's routes would refuse) and `canManageUser` (owner manages all but owners, admin manages staff). Sidebar, FloatingMenu, the app layout, reports, settlements (list and detail), reconcile (both screens), months/close, ClosedMonthRecoveryModal, EntryDetailDrawer, admin/users and the two super screens now ask those helpers instead of comparing role strings. Two role checks remain on purpose: the login redirect compares `super_admin` for the `aal2` gate, and the dashboard picks its variant by role — both are identity/content, not access. The registry test pins the scope split and the `canManageUser` matrix.
+- Revision 1.10 — 2026-11-14: the app shell gates platform navigation on the registry. The registry moved to client-safe `apps/web/src/lib/capabilities.ts` (`$lib/server/capabilities.ts` re-exports it and keeps `requireCapability`), and Sidebar plus FloatingMenu now ask `hasCapability(role, ...)` per link — `center.read_all` for Franchise Centers, `ledger.read_all` for Global Search, `audit.read_all` for Audit Trail — instead of `role === 'super_admin'`. A registry test asserts no center role holds those three, because UI gating that drifts from the route guard is a link to a 403.
+- Revision 1.9 — 2026-11-14: step 8's role half. `apps/web/tests/admin/super-authz.test.ts` enumerates `/api/v1/admin/super/**/+server.ts` with `import.meta.glob` (so a new route is covered the moment it exists) and drives every exported handler: owner, admin and staff tokens each get `403` on all 7 handlers across 4 route files, and a seat control proves the role gate is what refused them rather than a blanket failure. The `aal1` case is an `it.todo` — it needs step 7's `requireAssurance`, which is not built.
+- Revision 1.8 — 2026-11-14: API-level suspension test. `apps/web/tests/api/suspended-sync.test.ts` imports the real push and pull handlers and runs the real `getCallerContext` (only the service client is faked), asserting `403 center_suspended` and `403 center_archived` on both, plus an active-center control that must fail later on its own validation — so the suite cannot pass by making every call throw. `tests/api/**` added to the Vitest include globs.
+- Revision 1.7 — 2026-11-14: steps 5 and 6 implemented. Recovery codes are stored as SHA-256 hashes bound to the user id in `auth.users.raw_app_meta_data`, not in a new table: a 21st public table would falsify the "20 tables" counts in PRD §17/§18 and the schema suite, and `auth.users` is unreadable by `anon`/`authenticated`. `scripts/ops/reset-mfa.ts` is dry-run by default, refuses a non-platform account, deletes factors, clears codes, revokes refresh sessions and audits `mfa.factors_reset`. `/admin/super/security` enrols TOTP, mints codes once, and converts a recovery code into a factor reset. Step 6 also adds a client gate (seat below `aal2` → security screen) and one route the files table did not list, because hashed codes need a server write path. Limitation: until step 7 lands `requireAssurance`, issuance is gated only by an existing factor.
+- Revision 1.6 — 2026-11-14: withheld-account screen. Refusal was detected on the login revalidation but ignored by sync: push logged nothing and pull raised a generic `user_forbidden`, so a suspended center saw a dead or erroring shell. Both now recognise `center_suspended`/`center_archived` → `session.withhold()`, which signs out, keeps the outbox, and routes to `/withheld`; the client guard sends every other route there while the reason is set. Push rejects no ops. Tests: push withheld case, store withhold case.
+- Revision 1.5 — 2026-11-14: step 3 completed at the login surface. The server guard and DB guard already existed; the client ignored them — `revalidateActiveProfile` only acted on `user_deactivated` and 401, so a withheld center's user was signed in locally and landed on `/dashboard` with every call failing behind the shell. It now signs out on `center_suspended`/`center_archived`, records `withheldReason`, the login screen shows the notice, and `handleLogin` no longer navigates after a withheld sign-out. Auth suite 10/10.
+- Revision 1.4 — 2026-11-14: step 2 implemented. `backup-export.ts` validates its six required variables and fails with `missing_environment`, dumps `public` and `auth` (users and MFA factors), treats the Storage sync as fatal instead of catching it, and writes a manifest (per-file SHA-256 and size) both locally and to `daily/manifest.json`. New `backup-verify.ts` fails on a manifest older than 24 h and carries an offline `--self-test`. The workflow runs the verifier after the export and opens or comments on a `Nightly backup failed` issue on failure. The runbook named two buckets that do not exist; the app creates `receipts` and `statements`, and the restore order now puts the auth dump first.
+- Revision 1.3 — 2026-11-14: `requireCapability` wired in. `CallerContext` now carries the role's `capabilities` set from the registry, and all four super-admin handlers name their licensed power: `center.read_all`, `center.create`, `center.archive` / `center.suspend` / `center.edit` on PATCH, and `ledger.read_all` on search. The registry gained `center.edit` for SA-CTR-02, which had no capability before. `requireRole` stays as the outer gate.
+- Revision 1.2 — 2026-11-14: steps 3 and 4 implemented. Migration `20261114000008_super_admin_panel.sql` adds `fn_center_writable`, `fn_center_write_block_reason`, `fn_center_retention_offset`, the suspension trigger and the two redefined functions; `getCallerContext` enforces center status on every request; `withheld-notice.ts` holds the message keys; `tests/db/super_admin_suspension.test.ts` passes 3/3 on the throwaway database. Corrected step 4's wording: `purge_expired_sync_ops` never deletes *pending* operations, so the pause matters for the 90-day push check and for the withheld center's resolved rows.
+- Revision 1.1 — 2026-11-14: step 1 implemented (`capabilities.ts`, `super-capabilities.test.ts`, 3 tests green). `apps/web/vite.config.ts` added to the file inventory: its Vitest `include` globs are explicit, so without `tests/admin/**/*.test.ts` the new suite would not be collected.
+- Revision 1.0 — 2026-11-14: initial plan. Registered as plan 023 by CLT-T-084. Resolves the seven Goldfish blockers as steps 1–14, keeps `CLT-D-037` DECISION PENDING, and labels every v0.4 capability Built, Partial or New against the code as it stands.
