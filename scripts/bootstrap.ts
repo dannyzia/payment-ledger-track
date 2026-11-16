@@ -1,12 +1,48 @@
+import fs from 'node:fs';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 
-// Load local environment files (.env.local takes precedence over .env)
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+/**
+ * Load the repo-root env files the same way the dev server does (SvelteKit
+ * `kit.env.dir: '../../'` in apps/web/svelte.config.js, with Vite's precedence):
+ *
+ *   shell  >  .env.[mode].local  >  .env.[mode]  >  .env.local  >  .env
+ *
+ * The earlier loader read only .env.local and .env from the current directory, so
+ * `pnpm db:bootstrap` and `pnpm dev` could see different values for the same runbook,
+ * and a mode-specific file was ignored by the script but honoured by the server.
+ *
+ * Returns the environment it filled, so the precedence can be tested without touching
+ * the real one.
+ */
+export function loadRootEnv(
+  options: { dir?: string; mode?: string; env?: NodeJS.ProcessEnv } = {},
+): NodeJS.ProcessEnv {
+  const dir = options.dir ?? path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+  const env = options.env ?? process.env;
+  const mode = options.mode ?? (env.NODE_ENV === 'production' ? 'production' : 'development');
+  const files = ['.env', '.env.local', `.env.${mode}`, `.env.${mode}.local`];
+  const fromFiles = new Set<string>();
+
+  for (const file of files) {
+    const full = path.join(dir, file);
+    if (!fs.existsSync(full)) continue;
+
+    for (const [key, value] of Object.entries(dotenv.parse(fs.readFileSync(full, 'utf8')))) {
+      // A value from the shell wins over any file; among files, the later one wins.
+      if (env[key] !== undefined && !fromFiles.has(key)) continue;
+      env[key] = value;
+      fromFiles.add(key);
+    }
+  }
+
+  return env;
+}
+
+loadRootEnv();
 
 const { Pool } = pg;
 
@@ -97,7 +133,13 @@ export function resolveCentreSeeds(): CentreSeed[] {
 }
 
 export async function bootstrap(): Promise<void> {
-  const supabaseUrl = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
+  // Same resolution the server routes use (apps/web/src/lib/server/supabase.ts):
+  // the private name first, then the public one the browser build carries.
+  const supabaseUrl =
+    process.env.SUPABASE_URL ||
+    process.env.PUBLIC_SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    'http://127.0.0.1:54321';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const ownerEmail =
     process.env.BOOTSTRAP_OWNER_EMAIL ||
