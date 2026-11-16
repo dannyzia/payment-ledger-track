@@ -1,0 +1,108 @@
+name: Nightly E2E
+
+# The pull-request workflow never runs Playwright: it needs a second Supabase
+# stack, a browser, and ~10 minutes. That left the suite with no scheduled run at
+# all, so it could rot unnoticed (it did: the mandatory TOTP gate made every
+# owner-authenticated spec stall on /admin/super/security). This job runs the
+# supported isolated runner nightly and keeps the trace of any failure.
+
+on:
+  schedule:
+    # 20:00 UTC = 02:00 Asia/Dhaka, when the owner is asleep.
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Isolated Playwright suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 1.207.0
+
+      # Browsers are the slow part of the job (a Chromium download is ~120 MiB).
+      # Keyed on the lockfile so a Playwright upgrade misses the cache and installs
+      # the matching build rather than reusing an older one.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @clt/web exec playwright install --with-deps chromium
+
+      # The isolated runner refuses to start without an owner credential, and it
+      # bootstraps that account into its own throwaway stack. Generating one per run
+      # keeps a reusable secret out of the picture entirely; nothing here touches a
+      # real environment.
+      - name: Generate throwaway owner credential
+        shell: bash
+        run: |
+          {
+            echo "BOOTSTRAP_OWNER_EMAIL=owner.nightly@cosmoledger.local"
+            echo "BOOTSTRAP_OWNER_PASSWORD=$(openssl rand -hex 24)"
+          } >> "$GITHUB_ENV"
+
+      - name: Run the isolated E2E suite
+        run: pnpm test:e2e:isolated
+
+      - name: Upload Playwright traces and reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ github.run_id }}
+          path: |
+            apps/web/test-results/**
+            apps/web/playwright-report/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      # `pnpm test:e2e:isolated` stops its stack on success and on a normal failure;
+      # a cancelled job or a hard crash can leave it running on the runner, so the
+      # teardown is unconditional.
+      - name: Stop the isolated stack
+        if: always()
+        run: pnpm exec supabase stop --workdir e2e || true
