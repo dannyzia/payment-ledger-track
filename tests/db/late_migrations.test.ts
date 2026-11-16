@@ -189,7 +189,23 @@ describe('Late migrations keep their intent on a clean database', () => {
     await db.end();
   });
 
-  it('rpc_push_sync_op admits the platform seat, so its void is applied and audited', async () => {
+  it('the platform seat voids through rpc_push_sync_op with no membership and no device row', async () => {
+    // The three allowances 20261114000008 dropped by re-issuing the 0005 body, each
+    // asserted separately so losing one fails here rather than in the field: the seat
+    // is not a member of the center, it holds no device row in it, and `void_entry`
+    // admits it anyway.
+    const membership = await db.query(
+      `SELECT count(*)::int AS n FROM profiles WHERE id = $1 AND center_id = $2`,
+      [SEAT, ACTIVE],
+    );
+    expect(membership.rows[0].n).toBe(0);
+
+    const deviceBefore = await db.query(
+      `SELECT count(*)::int AS n FROM devices WHERE device_id = $1`,
+      [DEVICE],
+    );
+    expect(deviceBefore.rows[0].n).toBe(0);
+
     const result = await db.query(
       `SELECT rpc_push_sync_op($1::uuid, $2, $3::uuid, $4::user_role, $5::jsonb) AS res`,
       [
@@ -211,6 +227,15 @@ describe('Late migrations keep their intent on a clean database', () => {
 
     const outcome = result.rows[0].res as { results: Array<{ status: string; reason?: string }> };
     expect(outcome.results[0]?.status, JSON.stringify(outcome)).toBe('ok');
+
+    // Presence registration is skipped for a platform caller, because a device row needs
+    // a center profile to reference. The exemption keeps that skip from becoming a
+    // failure; if it is dropped, the push above is rejected before it reaches the entry.
+    const deviceAfter = await db.query(
+      `SELECT count(*)::int AS n FROM devices WHERE device_id = $1`,
+      [DEVICE],
+    );
+    expect(deviceAfter.rows[0].n).toBe(0);
 
     const entry = await db.query('SELECT status FROM entries WHERE id = $1', [VOID_ENTRY]);
     expect(entry.rows[0].status).toBe('voided');
