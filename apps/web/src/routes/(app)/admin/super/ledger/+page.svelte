@@ -72,6 +72,7 @@
 
   let loading = $state(true);
   let loadingMore = $state(false);
+  let exporting = $state(false);
   let errorMessage = $state('');
 
   function query(cursor?: string): string {
@@ -125,6 +126,47 @@
       }
     } catch {
       // The ledger still works with the fixed "All centers" option if this fails.
+    }
+  }
+
+  /**
+   * The export takes the same scope and filters as the visible page but not the cursor:
+   * a spreadsheet of only the loaded page would be a different dataset from the totals
+   * above it. The filename comes from the route's `Content-Disposition`, so the server
+   * stays the one place that decides what the file is called.
+   */
+  async function exportCsv(): Promise<void> {
+    exporting = true;
+    errorMessage = '';
+    try {
+      const params = new URLSearchParams({ centerId });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (status) params.set('status', status);
+      if (methodId) params.set('methodId', methodId);
+      if (createdBy) params.set('createdBy', createdBy);
+
+      const res = await authFetch(`/api/v1/admin/super/ledger/export?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || 'Could not export the ledger');
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'clt-ledger-export.csv';
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      errorMessage = adminFetchError(e);
+    } finally {
+      exporting = false;
     }
   }
 
@@ -252,7 +294,8 @@
           </select>
         </label>
       </div>
-      <div class="flex justify-end mt-3">
+      <div class="flex justify-end gap-2 mt-3">
+        <Button variant="default" loading={exporting} onclick={exportCsv}>Export CSV</Button>
         <Button variant="default" onclick={reset}>Reset filters</Button>
       </div>
     </Card>

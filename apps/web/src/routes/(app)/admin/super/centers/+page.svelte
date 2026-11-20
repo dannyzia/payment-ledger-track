@@ -188,6 +188,37 @@
     }
   }
 
+  /**
+   * Streams one center's export to disk. The file is fetched with the session token
+   * rather than linked, because a plain `<a href>` to the API carries no Authorization
+   * header and would land on the route's 401. The server names the file.
+   */
+  async function exportCenter(center: Center): Promise<void> {
+    errorMessage = '';
+    try {
+      const res = await authFetch(`/api/v1/admin/super/centers/${center.id}/export`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || err.error || 'Export failed');
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const filename =
+        /filename="([^"]+)"/.exec(disposition)?.[1] ?? `clt-center-${center.code}-export.csv`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      errorMessage = adminFetchError(e);
+    }
+  }
+
   async function setStatus(center: Center, status: Center['status']) {
     errorMessage = '';
     try {
@@ -327,6 +358,13 @@
                       onclick={() => openEdit(c)}
                     >
                       Edit
+                    </Button>
+                    <Button
+                      variant="default"
+                      class="text-xs min-h-[44px]"
+                      onclick={() => exportCenter(c)}
+                    >
+                      Export Data
                     </Button>
                     {#if c.status !== 'active'}
                       <Button class="text-xs min-h-[44px]" onclick={() => setStatus(c, 'active')}>

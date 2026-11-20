@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLT-PLAN-000 — Implementation Plan Registry | Cosmo Ledger Track</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #090d16;
+      --bg-surface: #111827;
+      --bg-surface-elevated: #1a2333;
+      --bg-glass: rgba(17, 24, 39, 0.75);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --primary: #10b981;
+      --primary-glow: rgba(16, 185, 129, 0.2);
+      --accent-amber: #f59e0b;
+      --accent-amber-glow: rgba(245, 158, 11, 0.18);
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-cyan: #06b6d4;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    [data-theme="light"] {
+      --bg-base: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-glass: rgba(255, 255, 255, 0.85);
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.16);
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --primary: #059669;
+      --primary-glow: rgba(5, 150, 105, 0.15);
+      --accent-amber: #d97706;
+      --accent-amber-glow: rgba(217, 119, 6, 0.15);
+      --accent-blue: #2563eb;
+      --accent-purple: #7c3aed;
+      --accent-cyan: #0891b2;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      line-height: 1.55;
+      padding-bottom: 5rem;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Header & Navigation */
+    .header-sticky {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--bg-glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0.875rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.5rem;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      border-radius: 6px;
+    }
+
+    .brand-name {
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .search-input {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-family: var(--font-sans);
+      width: 240px;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+      width: 280px;
+    }
+
+    .theme-toggle {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 0.45rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: background 0.2s;
+    }
+
+    .theme-toggle:hover {
+      background: var(--border-subtle);
+    }
+
+    /* Sub-nav pills */
+    .subnav {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0.5rem 1.5rem;
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .nav-pill {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .nav-pill:hover {
+      color: var(--text-main);
+      background: var(--bg-surface-elevated);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1400px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+
+    /* KPI Summary Cards */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.05) 50%, rgba(139, 92, 246, 0.04) 100%);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner h1 {
+      font-size: 1.875rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-banner p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 900px;
+    }
+
+    .meta-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    .meta-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    .meta-tag strong {
+      color: var(--text-main);
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: relative;
+    }
+
+    .stat-card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 0.35rem;
+    }
+
+    .stat-card-value {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .stat-card-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* Section Headers */
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 3rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .section-head h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 0.4rem;
+      background: var(--bg-surface-elevated);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .filter-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .filter-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    /* Modern Table Container */
+    .table-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow-x: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      margin-bottom: 2rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border-strong);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: top;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    [data-theme="light"] tr:hover td {
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    /* Badges & Tags */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .badge-implemented {
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-implemented .badge-dot {
+      background: var(--primary);
+      box-shadow: 0 0 6px var(--primary);
+    }
+
+    .badge-partial {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--accent-amber);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .badge-partial .badge-dot {
+      background: var(--accent-amber);
+      box-shadow: 0 0 6px var(--accent-amber);
+    }
+
+    .badge-spec {
+      background: rgba(139, 92, 246, 0.12);
+      color: var(--accent-purple);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+    .badge-spec .badge-dot {
+      background: var(--accent-purple);
+    }
+
+    .code-id {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--bg-surface-elevated);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .code-file {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+      text-decoration: none;
+    }
+
+    .code-file:hover {
+      text-decoration: underline;
+    }
+
+    .phase-tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg-surface-elevated);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    /* Accordion Details */
+    details {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+
+    summary {
+      padding: 1rem 1.25rem;
+      font-weight: 700;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      background: var(--bg-surface);
+      transition: background 0.15s;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    summary:hover {
+      background: var(--bg-surface-elevated);
+    }
+
+    summary::after {
+      content: '▾';
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+
+    details[open] summary::after {
+      transform: rotate(180deg);
+    }
+
+    .details-content {
+      padding: 1.25rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* Milestone Cards Grid */
+    .milestone-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .milestone-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem;
+      border-left: 4px solid var(--primary);
+    }
+
+    .milestone-card.partially-implemented {
+      border-left-color: var(--accent-amber);
+    }
+
+    .milestone-card.cross-cutting {
+      border-left-color: var(--accent-blue);
+    }
+
+    .milestone-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .milestone-title {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .milestone-plans {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .header-inner { flex-direction: column; align-items: stretch; }
+      .header-actions { justify-content: space-between; }
+      .search-input { width: 100%; }
+      .search-input:focus { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Header -->
+  <header class="header-sticky">
+    <div class="header-inner">
+      <div class="brand-title">
+        <span class="brand-badge">CLT-PLAN-000</span>
+        <span class="brand-name">Cosmo Ledger Track — Master Registry</span>
+      </div>
+      <div class="header-actions">
+        <input type="text" id="globalSearch" class="search-input" placeholder="Search plans, tables, tests..." autocomplete="off">
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+          <span id="themeIcon">☀️</span> <span id="themeLabel">Light</span>
+        </button>
+      </div>
+    </div>
+    <nav class="subnav">
+      <a href="#registry" class="nav-pill">Plan Registry (001–023)</a>
+      <a href="#milestones" class="nav-pill">Milestone Map</a>
+      <a href="#prd-sections" class="nav-pill">PRD Sections</a>
+      <a href="#db-tables" class="nav-pill">Database Tables (20)</a>
+      <a href="#db-routines" class="nav-pill">Stored Functions (30)</a>
+      <a href="#db-triggers" class="nav-pill">Triggers (19)</a>
+      <a href="#api-routes" class="nav-pill">API Routes</a>
+      <a href="#regression-tests" class="nav-pill">65 Critical Tests</a>
+      <a href="#screen-specs" class="nav-pill">Screens (S01–S27)</a>
+      <a href="#changelog" class="nav-pill">Changelog</a>
+    </nav>
+  </header>
+
+  <div class="container">
+
+    <!-- Hero Banner -->
+    <section class="hero-banner">
+      <h1>Implementation Plan Registry & Matrix</h1>
+      <p>
+        Authoritative source of truth for all 23 implementation plans, milestone definitions, 
+        database schema mappings, API contracts, and the 65 mandatory critical regression tests under PRD v1.27.
+      </p>
+      <div class="meta-pills">
+        <span class="meta-tag">Parent Document: <strong>PRD v1.27</strong></span>
+        <span class="meta-tag">Context File: <strong>AGENTS.md</strong></span>
+        <span class="meta-tag">Registry Revision: <strong>3.42 — 2026-11-20</strong></span>
+        <span class="meta-tag">Code Status: <strong>100% Code-Complete</strong></span>
+        <span class="meta-tag">CI Health: <strong style="color:var(--primary);">100% Green on main</strong></span>
+      </div>
+    </section>
+
+    <!-- KPI Stats Grid -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-card-title">Total Plans</div>
+        <div class="stat-card-value">23</div>
+        <div class="stat-card-sub">Numbered 001 through 023</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">Implemented</div>
+        <div class="stat-card-value" style="color: var(--primary);">19</div>
+        <div class="stat-card-sub">82.6% verified & fully closed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">Partially Implemented</div>
+        <div class="stat-card-value" style="color: var(--accent-amber);">4</div>
+        <div class="stat-card-sub">018, 019, 021, 023 (external/gated)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">Regression Tests</div>
+        <div class="stat-card-value" style="color: var(--accent-blue);">65 / 65</div>
+        <div class="stat-card-sub">100% passing in test:regression</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">Public DB Tables</div>
+        <div class="stat-card-value">20</div>
+        <div class="stat-card-sub">100% RLS + Table-Level Revocations</div>
+      </div>
+    </section>
+
+    <!-- Plan Registry Table -->
+    <section id="registry">
+      <div class="section-head">
+        <h2>Plan Registry (001–023)</h2>
+        <div class="filter-group">
+          <button class="filter-btn active" data-status="all">All (23)</button>
+          <button class="filter-btn" data-status="Implemented">Implemented (19)</button>
+          <button class="filter-btn" data-status="Partially Implemented">Partial (4)</button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table id="registryTable">
+          <thead>
+            <tr>
+              <th style="width: 60px;">#</th>
+              <th>Plan File</th>
+              <th>Phase / Milestone</th>
+              <th>Scope Summary</th>
+              <th>PRD Ref</th>
+              <th>Dependencies</th>
+              <th style="width: 170px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-status="Implemented">
+              <td><span class="code-id">001</span></td>
+              <td><span class="code-file">001_repo_foundation_and_tooling.md</span></td>
+              <td><span class="phase-tag">Phase 0 / M0</span></td>
+              <td>Monorepo (pnpm workspaces, Node 22 LTS), TypeScript strict, lint, format, test runners, CI workflow, env template, root DECISIONS.md</td>
+              <td>§0, §13, §17 M0</td>
+              <td>none</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">002</span></td>
+              <td><span class="code-file">002_calc_engine.md</span></td>
+              <td><span class="phase-tag">Phase 0 / M0</span></td>
+              <td><code>packages/calc</code> & <code>packages/shared</code>: integer poisha, rounding, VAT modes, deduction guards, fixtures P1–P6, differential tests</td>
+              <td>§6.1–§6.8, §9.1, §16.1</td>
+              <td>001</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">003</span></td>
+              <td><span class="code-file">003_db_schema_and_security.md</span></td>
+              <td><span class="phase-tag">Phase 0 / M0</span></td>
+              <td>Supabase migrations: enums, 20 public tables, constraints, indexes, sequence locks, table-level write revocations, RLS policies, views</td>
+              <td>§7, §7.1, §10, §18 Gate 1</td>
+              <td>001</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">004</span></td>
+              <td><span class="code-file">004_db_functions_entries_rates_sync.md</span></td>
+              <td><span class="phase-tag">Phase 0 / M0</span></td>
+              <td>PL/pgSQL functions & triggers for entries, rate profiles, sync ops, users & invites, devices, methods, payables, settings, stale review</td>
+              <td>§7.2, §7.3, §15.1</td>
+              <td>002, 003</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">005</span></td>
+              <td><span class="code-file">005_db_functions_settlement_recon_month.md</span></td>
+              <td><span class="phase-tag">Phase 0 / M0–M2</span></td>
+              <td>Settlements, payments, statements, lines, reconciliation exceptions, overpayment approval, month close & reopen, auto-recalc</td>
+              <td>§7.3, §8.4, §11, §15.1</td>
+              <td>003, 004</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">006</span></td>
+              <td><span class="code-file">006_bootstrap_and_seed.md</span></td>
+              <td><span class="phase-tag">Phase 0 / M0</span></td>
+              <td><code>scripts/bootstrap.ts</code>: platform super_admin provision, single centre from env or MHK/RMP dev fixtures, clean DB e2e run</td>
+              <td>§7.4, §17 M0</td>
+              <td>003, 004, 005</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">007</span></td>
+              <td><span class="code-file">007_design_system_and_ui_kit.md</span></td>
+              <td><span class="phase-tag">Phase 1 / M0–M1</span></td>
+              <td>Tokens, grain background, glass surfaces, engraved buttons, floating menu, chips, message catalog, self-hosted fonts, a11y CSS</td>
+              <td>§12, §14</td>
+              <td>001</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">008</span></td>
+              <td><span class="code-file">008_auth_roles_app_shell.md</span></td>
+              <td><span class="phase-tag">Phase 1 / M1</span></td>
+              <td>Supabase Auth (invite flow, signup disabled), role guards, offline session cache, <code>/api/v1</code> route mediation, app shell & routing</td>
+              <td>§3, §7.1, §9.3, §13</td>
+              <td>003, 004, 006, 007</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">009</span></td>
+              <td><span class="code-file">009_admin_panel.md</span></td>
+              <td><span class="phase-tag">Phase 1 / M1</span></td>
+              <td>Rates (draft/publish/100% guard), methods, payables, settings, users, devices, ownership transfer, audit log viewer</td>
+              <td>§8.6, §7.3, §15.1</td>
+              <td>004, 008</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">010</span></td>
+              <td><span class="code-file">010_entry_form_local_first_save.md</span></td>
+              <td><span class="phase-tag">Phase 1 / M1</span></td>
+              <td>Dexie schema, outbox queue, new entry form, live breakdown, date-effective rate resolution, save under 100ms, duplicate warning</td>
+              <td>§8.1, §9, §6.5</td>
+              <td>002, 007, 008</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">011</span></td>
+              <td><span class="code-file">011_sync_engine.md</span></td>
+              <td><span class="phase-tag">Phase 1–2 / M1–M2</span></td>
+              <td><code>/sync/push</code>, <code>/sync/pull</code>, client sync runner, cursor & watermark protocol, rejection recovery matrix, sync indicator</td>
+              <td>§9.1, §9.2, §6.5</td>
+              <td>004, 005, 006, 008, 009, 010</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">012</span></td>
+              <td><span class="code-file">012_ledger_and_entry_lifecycle.md</span></td>
+              <td><span class="phase-tag">Phase 2 / M1–M2</span></td>
+              <td>Ledger list, search, filters, detail drawer, request void, void, supersede, offline mutation of unsynced entries</td>
+              <td>§8.2, §9.2.1</td>
+              <td>007, 008, 010, 011</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">013</span></td>
+              <td><span class="code-file">013_reports_and_exports.md</span></td>
+              <td><span class="phase-tag">Phase 2 / M2</span></td>
+              <td>Monthly report screens, payables summary, report parity with SQL views, PDF and CSV/XLSX export</td>
+              <td>§8.3, §10, §16.3</td>
+              <td>007, 008, 009, 010, 011, 012</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">014</span></td>
+              <td><span class="code-file">014_settlements.md</span></td>
+              <td><span class="phase-tag">Phase 2 / M2</span></td>
+              <td>Settlement screens, payments, receipt upload & signed URLs, reversals, overpayment approval, due date reminders, 5-state display</td>
+              <td>§8.4, §7.3</td>
+              <td>005, 007, 008, 009, 010, 011</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">015</span></td>
+              <td><span class="code-file">015_reconciliation_mode_a_and_month_close.md</span></td>
+              <td><span class="phase-tag">Phase 2 / M2</span></td>
+              <td>Totals-only reconciliation UI, exceptions, month close & reopen UI, closed-month recovery queue</td>
+              <td>§11.1, §11.2, §8.4, §17 M2</td>
+              <td>005, 007, 008, 009, 010, 011, 012, 013, 014</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">016</span></td>
+              <td><span class="code-file">016_role_dashboards.md</span></td>
+              <td><span class="phase-tag">Phase 1–2 / M1–M2</span></td>
+              <td>Staff, Admin, Owner dashboards, offline-capable metrics, "Needs Attention" queues, device anomaly view</td>
+              <td>§8.5, §10</td>
+              <td>007, 008, 009, 010, 011, 012, 013, 014, 015</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">017</span></td>
+              <td><span class="code-file">017_pwa_offline_hardening.md</span></td>
+              <td><span class="phase-tag">Phase 3 / M3</span></td>
+              <td>Service worker, installability, stale-rate handling UI, advanced sync edge cases, performance tuning</td>
+              <td>§9.2, §9.3, §17 M3</td>
+              <td>001, 007, 008, 010, 011, 015, 016</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Partially Implemented">
+              <td><span class="code-id">018</span></td>
+              <td><span class="code-file">018_reconciliation_mode_b_adapters.md</span></td>
+              <td><span class="phase-tag">Phase 4 / M4</span></td>
+              <td>Statement adapters, file ingestion, auto-match, manual match & unmatch, combined card statements. (Production pending real sample statements from Zia)</td>
+              <td>§11.3, §17 M4</td>
+              <td>005, 007, 008, 009, 010, 014, 015</td>
+              <td><span class="badge badge-partial"><span class="badge-dot"></span>Partially Implemented</span></td>
+            </tr>
+            <tr data-status="Partially Implemented">
+              <td><span class="code-id">019</span></td>
+              <td><span class="code-file">019_capacitor_android_release.md</span></td>
+              <td><span class="phase-tag">Phase 5 / M5</span></td>
+              <td>Capacitor Android build, haptics, push reminders, store packaging (APK/AAB signed). (Physical device check pending USB handset)</td>
+              <td>§13, §14.5, §17 M5</td>
+              <td>007, 008, 009, 011, 014, 017</td>
+              <td><span class="badge badge-partial"><span class="badge-dot"></span>Partially Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">020</span></td>
+              <td><span class="code-file">020_test_suites_and_readiness_gates.md</span></td>
+              <td><span class="phase-tag">Cross-cutting</span></td>
+              <td>All 65 mandatory regression tests (§16.2), §16.1 & §16.3 suites, Playwright offline e2e, readiness gates harness</td>
+              <td>§16, §18</td>
+              <td>001–019</td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
+            </tr>
+            <tr data-status="Partially Implemented">
+              <td><span class="code-id">021</span></td>
+              <td><span class="code-file">021_deployment_ops_runbooks.md</span></td>
+              <td><span class="phase-tag">Phase 6 / G5–G6</span></td>
+              <td>Vercel & Supabase environments, secrets, backups, off-Supabase export, restore drill, runbooks. (Awaiting live cloud provisioning)</td>
+              <td>§12, §19</td>
+              <td>017, 019, 020</td>
+              <td><span class="badge badge-partial"><span class="badge-dot"></span>Partially Implemented</span></td>
+            </tr>
+            <tr data-status="Implemented">
+              <td><span class="code-id">022</span></td>
+              <td><span class="code-file">022_ui_ux_screens_wireframes_and_prototype_spec.md</span></td>
+              <td><span class="phase-tag">Overlay</span></td>
+              <td>Complete screen inventory (S01–S27), ASCII wireframes, layout regions, component mapping, state matrices, 16 non-negotiable UI rules</td>
+              <td>§12, §14</td>
+              <td>Consumed by 007–018</td>
+              <td><span class="badge badge-spec"><span class="badge-dot"></span>Implemented (Spec)</span></td>
+            </tr>
+            <tr data-status="Partially Implemented">
+              <td><span class="code-id">023</span></td>
+              <td><span class="code-file">023_super_admin_panel.md</span></td>
+              <td><span class="phase-tag">Platform Tier</span></td>
+              <td>Super Admin panel: capability registry, suspend/archive enforcement, 2FA/aal2 gate, platform ledger edits, audit visibility, fleet ops, audited CSV exports. (Steps 1–15 and 17 built locally)</td>
+              <td>§3, §7.5, §15.1</td>
+              <td>003, 004, 008, 009, 011</td>
+              <td><span class="badge badge-partial"><span class="badge-dot"></span>Partially Implemented</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Milestone Map -->
+    <section id="milestones">
+      <div class="section-head">
+        <h2>Milestone to Plan Map (PRD §17)</h2>
+      </div>
+
+      <div class="milestone-grid">
+        <div class="milestone-card">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Milestone M0</span>
+            <span class="badge badge-implemented">100% Done</span>
+          </div>
+          <div class="milestone-plans">
+            Plans 001, 002, 003, 004, 005 (schema & functions), 006, 007
+          </div>
+        </div>
+        <div class="milestone-card">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Milestone M1</span>
+            <span class="badge badge-implemented">100% Done</span>
+          </div>
+          <div class="milestone-plans">
+            Plans 008, 009, 010, 011 (initial entry sync), 016 (basic dashboards)
+          </div>
+        </div>
+        <div class="milestone-card">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Milestone M2</span>
+            <span class="badge badge-implemented">100% Done</span>
+          </div>
+          <div class="milestone-plans">
+            Plans 011 (full sync), 012, 013, 014, 015, 016
+          </div>
+        </div>
+        <div class="milestone-card">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Milestone M3</span>
+            <span class="badge badge-implemented">100% Done</span>
+          </div>
+          <div class="milestone-plans">
+            Plan 017 (PWA Offline Hardening, Service Worker)
+          </div>
+        </div>
+        <div class="milestone-card partially-implemented">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Milestone M4</span>
+            <span class="badge badge-partial">Code Ready (90%)</span>
+          </div>
+          <div class="milestone-plans">
+            Plan 018 (Mode B Reconciliation; pending real sample CSV statements)
+          </div>
+        </div>
+        <div class="milestone-card partially-implemented">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Milestone M5</span>
+            <span class="badge badge-partial">Builds Ready (85%)</span>
+          </div>
+          <div class="milestone-plans">
+            Plan 019 (Capacitor Android; pending physical handset verification)
+          </div>
+        </div>
+        <div class="milestone-card cross-cutting">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Cross-Cutting & Ops</span>
+            <span class="badge badge-implemented">Verified</span>
+          </div>
+          <div class="milestone-plans">
+            Plans 020 (65 Tests, Gates), 021 (Deployment Ops), 022 (UI Specs)
+          </div>
+        </div>
+        <div class="milestone-card partially-implemented">
+          <div class="milestone-card-head">
+            <span class="milestone-title">Platform Tier</span>
+            <span class="badge badge-partial">Steps 1–15 Built</span>
+          </div>
+          <div class="milestone-plans">
+            Plan 023 (Super Admin Panel; deferrals tracked in Step 16)
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRD Sections Coverage -->
+    <section id="prd-sections">
+      <details open>
+        <summary>PRD Sections Coverage Matrix (§0 through §19)</summary>
+        <div class="details-content">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 120px;">PRD Section</th>
+                  <th>Title</th>
+                  <th>Primary Owning Plan(s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><span class="code-id">§0</span></td><td>Rules for implementing agents</td><td>001, 002</td></tr>
+                <tr><td><span class="code-id">§1</span></td><td>Summary</td><td>010, 011</td></tr>
+                <tr><td><span class="code-id">§2</span></td><td>Goals and non-goals</td><td>001–021 (cross-cutting bounds)</td></tr>
+                <tr><td><span class="code-id">§3</span></td><td>Roles and permissions (Staff, Admin, Owner, Super Admin)</td><td>003, 008, 009, 023</td></tr>
+                <tr><td><span class="code-id">§4</span></td><td>Open items (blocking or configurable)</td><td>001, 009, 021</td></tr>
+                <tr><td><span class="code-id">§5</span></td><td>Core concepts</td><td>002, 009</td></tr>
+                <tr><td><span class="code-id">§6</span></td><td>Calculation engine (<code>packages/calc</code>)</td><td>002</td></tr>
+                <tr><td><span class="code-id">§7.1</span></td><td>Database Security, Table Revocations & Single Trust Model</td><td>003</td></tr>
+                <tr><td><span class="code-id">§7.2</span></td><td>Deterministic Lock Hierarchy & Sequence Lock Throughput Budget</td><td>003, 004, 005, 011</td></tr>
+                <tr><td><span class="code-id">§7.3</span></td><td>Core Database Functions & Atomic Procedures</td><td>004, 005</td></tr>
+                <tr><td><span class="code-id">§7.4</span></td><td>Bootstrap Runbook & Seed Script</td><td>006</td></tr>
+                <tr><td><span class="code-id">§7.5</span></td><td>Multi-Tenant Centers & Super Admin Platform Tier</td><td>023</td></tr>
+                <tr><td><span class="code-id">§8.1</span></td><td>New entry (primary screen)</td><td>010</td></tr>
+                <tr><td><span class="code-id">§8.2</span></td><td>Ledger</td><td>012</td></tr>
+                <tr><td><span class="code-id">§8.3</span></td><td>Reports (core output)</td><td>013</td></tr>
+                <tr><td><span class="code-id">§8.4</span></td><td>Monthly settlement</td><td>014, 015</td></tr>
+                <tr><td><span class="code-id">§8.5</span></td><td>Dashboards (one per role, offline-capable)</td><td>016</td></tr>
+                <tr><td><span class="code-id">§8.6</span></td><td>Admin panel</td><td>009</td></tr>
+                <tr><td><span class="code-id">§9.1</span></td><td>API Contract and Wire Format</td><td>011</td></tr>
+                <tr><td><span class="code-id">§9.2</span></td><td>State-Transition & Failure Recovery Matrices</td><td>011, 017</td></tr>
+                <tr><td><span class="code-id">§9.3</span></td><td>Offline Supabase JWT Expiration Handling & SvelteKit Auth Guard</td><td>008, 017</td></tr>
+                <tr><td><span class="code-id">§10</span></td><td>Reports SQL (reference)</td><td>003, 013</td></tr>
+                <tr><td><span class="code-id">§11.1</span></td><td>Statement Semantics & Expected Liability Definitions</td><td>015</td></tr>
+                <tr><td><span class="code-id">§11.2</span></td><td>Manual Totals-Only Reconciliation Mode</td><td>015</td></tr>
+                <tr><td><span class="code-id">§11.3</span></td><td>File-Based Line-Item Reconciliation Mode</td><td>018</td></tr>
+                <tr><td><span class="code-id">§12</span></td><td>Non-functional requirements</td><td>001, 017, 021</td></tr>
+                <tr><td><span class="code-id">§13</span></td><td>Tech stack and repo layout</td><td>001, 008, 021</td></tr>
+                <tr><td><span class="code-id">§14</span></td><td>Design system</td><td>007, 022</td></tr>
+                <tr><td><span class="code-id">§15</span></td><td>Security and audit</td><td>003, 004, 008, 009, 023</td></tr>
+                <tr><td><span class="code-id">§16.1</span></td><td>Calculation and Invariant Tests</td><td>002, 020</td></tr>
+                <tr><td><span class="code-id">§16.2</span></td><td>Mandatory Critical Regression Tests (#1 to #65)</td><td>020</td></tr>
+                <tr><td><span class="code-id">§16.3</span></td><td>Security, System, and Visual Tests</td><td>003, 007, 013, 020</td></tr>
+                <tr><td><span class="code-id">§17</span></td><td>Milestones (M0–M5 Definitions of Done)</td><td>001–021</td></tr>
+                <tr><td><span class="code-id">§18</span></td><td>Implementation Readiness Gate</td><td>020</td></tr>
+                <tr><td><span class="code-id">§19</span></td><td>Risks</td><td>002, 004, 009, 011, 019, 021</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Database Tables Coverage -->
+    <section id="db-tables">
+      <details open>
+        <summary>Database Tables Coverage (20 Public Tables)</summary>
+        <div class="details-content">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Table Name</th>
+                  <th>DDL & Security Ownership</th>
+                  <th>Mutation & Business Logic Ownership</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>centers</code></td><td>003</td><td>006, 023</td></tr>
+                <tr><td><code>center_counters</code></td><td>003</td><td>004</td></tr>
+                <tr><td><code>profiles</code></td><td>003</td><td>004, 008, 009</td></tr>
+                <tr><td><code>payment_methods</code></td><td>003</td><td>004, 009</td></tr>
+                <tr><td><code>payables</code></td><td>003</td><td>004, 009</td></tr>
+                <tr><td><code>rate_profiles</code></td><td>003</td><td>004, 009</td></tr>
+                <tr><td><code>method_rates</code></td><td>003</td><td>004, 009</td></tr>
+                <tr><td><code>entries</code></td><td>003</td><td>004, 010, 011, 012</td></tr>
+                <tr><td><code>settlements</code></td><td>003</td><td>005, 014</td></tr>
+                <tr><td><code>settlement_payments</code></td><td>003</td><td>005, 014</td></tr>
+                <tr><td><code>statements</code></td><td>003</td><td>005, 015, 018</td></tr>
+                <tr><td><code>statement_payables</code></td><td>003</td><td>005, 015, 018</td></tr>
+                <tr><td><code>statement_lines</code></td><td>003</td><td>005, 018</td></tr>
+                <tr><td><code>month_closes</code></td><td>003</td><td>005, 015</td></tr>
+                <tr><td><code>month_close_events</code></td><td>003</td><td>005, 015</td></tr>
+                <tr><td><code>entry_reconciliation_exceptions</code></td><td>003</td><td>005, 015</td></tr>
+                <tr><td><code>devices</code></td><td>003</td><td>004, 009, 011</td></tr>
+                <tr><td><code>sync_ops</code></td><td>003</td><td>004, 011</td></tr>
+                <tr><td><code>app_settings</code></td><td>003</td><td>004, 009</td></tr>
+                <tr><td><code>audit_log</code></td><td>003</td><td>004, 005, 008, 009, 023</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Stored Procedures & Functions -->
+    <section id="db-routines">
+      <details>
+        <summary>Database Functions & Stored Procedures (30 Routines)</summary>
+        <div class="details-content">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Function / RPC Signature</th>
+                  <th style="width: 80px;">Plan</th>
+                  <th>Core Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>mul_bp(bigint, integer)</code></td><td>004</td><td>Integer basis-point multiplication with half-up rounding (PRD §7.3)</td></tr>
+                <tr><td><code>calc_entry_server_seq()</code></td><td>004</td><td>Server sequence allocator backstop</td></tr>
+                <tr><td><code>rpc_push_sync_op</code></td><td>004, 023</td><td>Atomic sync push operation handler (create, void, supersede, discard)</td></tr>
+                <tr><td><code>rpc_supersede_entry</code></td><td>004</td><td>Atomic entry supersession procedure</td></tr>
+                <tr><td><code>publish_rate_profile</code></td><td>004</td><td>Rate profile publication with Asia/Dhaka gate & deduction guard</td></tr>
+                <tr><td><code>create_or_update_draft_rate_profile</code></td><td>004</td><td>Rate profile draft authoring</td></tr>
+                <tr><td><code>admin_manage_payment_method</code></td><td>004</td><td>Payment method administration</td></tr>
+                <tr><td><code>admin_manage_payable</code></td><td>004</td><td>Payable definition administration</td></tr>
+                <tr><td><code>admin_update_settings</code></td><td>004</td><td>System settings update</td></tr>
+                <tr><td><code>admin_manage_user</code></td><td>004, 023</td><td>User activation / deactivation & cross-center fleet management</td></tr>
+                <tr><td><code>admin_invite_user</code></td><td>004</td><td>Staff/Admin user provisioning with privilege escalation defense</td></tr>
+                <tr><td><code>transfer_ownership</code></td><td>004</td><td>Atomic two-step ownership transfer procedure</td></tr>
+                <tr><td><code>admin_manage_device</code></td><td>004, 023</td><td>Device revocation / authorization killswitch</td></tr>
+                <tr><td><code>upsert_device_sync_state</code></td><td>004</td><td>Device session registry and watermark tracking</td></tr>
+                <tr><td><code>admin_review_stale_entry</code></td><td>004</td><td>Stale-rate entry review and approval workflow</td></tr>
+                <tr><td><code>discard_rejected_entry</code></td><td>004, 011</td><td>Op type processed inside <code>rpc_push_sync_op</code></td></tr>
+                <tr><td><code>purge_expired_sync_ops()</code></td><td>004</td><td>Scheduled maintenance routine purging old sync operations</td></tr>
+                <tr><td><code>calc_settlement_status(bigint, bigint)</code></td><td>005</td><td>Pure 5-state settlement status calculator</td></tr>
+                <tr><td><code>generate_monthly_settlements(date)</code></td><td>005</td><td>Monthly settlement liability generator</td></tr>
+                <tr><td><code>record_settlement_payment</code></td><td>005</td><td>Settlement payment & reversal recording with parent row lock</td></tr>
+                <tr><td><code>approve_settlement_overpayment</code></td><td>005</td><td>Owner-only overpayment approval bound to exact surplus</td></tr>
+                <tr><td><code>create_statement</code></td><td>005</td><td>Statement creation procedure</td></tr>
+                <tr><td><code>supersede_statement</code></td><td>005</td><td>Statement supersession procedure</td></tr>
+                <tr><td><code>reconcile_statement</code></td><td>005</td><td>Mode A and Mode B statement reconciliation procedure</td></tr>
+                <tr><td><code>match_statement_line</code></td><td>005</td><td>Mode B statement line matching</td></tr>
+                <tr><td><code>unmatch_statement_line</code></td><td>005</td><td>Mode B statement line unmatching cascade</td></tr>
+                <tr><td><code>accept_statement_line</code></td><td>005</td><td>Statement line acceptance with reviewer metadata</td></tr>
+                <tr><td><code>review_entry_reconciliation_exception</code></td><td>005</td><td>Scoped entry reconciliation exception review</td></tr>
+                <tr><td><code>close_month</code></td><td>005</td><td>Idempotent month close procedure with reconciliation & overpayment gates</td></tr>
+                <tr><td><code>reopen_month</code></td><td>005</td><td>Month reopen procedure cascading statement status</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Triggers -->
+    <section id="db-triggers">
+      <details>
+        <summary>Database Triggers Coverage (19 Triggers)</summary>
+        <div class="details-content">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trigger Name</th>
+                  <th style="width: 80px;">Plan</th>
+                  <th>Target Table</th>
+                  <th>Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>trg_users_prevent_sole_owner_deactivation</code></td><td>004</td><td><code>profiles</code></td><td>Blocks deactivating sole active owner (Test #44)</td></tr>
+                <tr><td><code>trg_users_enforce_one_owner</code></td><td>004</td><td><code>profiles</code></td><td>Deferrable constraint enforcing exactly one owner per center</td></tr>
+                <tr><td><code>trg_auth_users_create_profile</code></td><td>004</td><td><code>auth.users</code></td><td>Auto-creates profile with role derived from app metadata</td></tr>
+                <tr><td><code>trg_rate_profiles_immutable_after_publish</code></td><td>004</td><td><code>rate_profiles</code></td><td>Immutability check on published profiles</td></tr>
+                <tr><td><code>trg_method_rates_immutable_after_publish</code></td><td>004</td><td><code>method_rates</code></td><td>Blocks modifications to published rates</td></tr>
+                <tr><td><code>trg_payment_methods_immutable_code</code></td><td>004</td><td><code>payment_methods</code></td><td>Blocks altering payment method codes</td></tr>
+                <tr><td><code>trg_payment_methods_active_rate_check</code></td><td>004</td><td><code>payment_methods</code></td><td>Guard requiring rate profile coverage before activation</td></tr>
+                <tr><td><code>trg_entries_immutable</code></td><td>004</td><td><code>entries</code></td><td>Blocks direct updates/deletions on entries</td></tr>
+                <tr><td><code>trg_entries_server_seq</code></td><td>004</td><td><code>entries</code></td><td>Sole allocator of monotonic server sequences</td></tr>
+                <tr><td><code>trg_sync_ops_immutable</code></td><td>004</td><td><code>sync_ops</code></td><td>Append-only enforcement on sync operations</td></tr>
+                <tr><td><code>trg_audit_log_append_only</code></td><td>004</td><td><code>audit_log</code></td><td>Blocks update/delete on audit log</td></tr>
+                <tr><td><code>trg_settlement_payments_immutable</code></td><td>005</td><td><code>settlement_payments</code></td><td>Blocks update/delete on payment records</td></tr>
+                <tr><td><code>trg_settlement_payments_reversal_lock</code></td><td>005</td><td><code>settlement_payments</code></td><td>Locks parent row, validates cumulative reversals & updates paid_poisha</td></tr>
+                <tr><td><code>trg_settlements_recalc_status_and_overpayment</code></td><td>005</td><td><code>settlements</code></td><td>Recalculates status and resets overpayment on liability shift</td></tr>
+                <tr><td><code>trg_entries_recalc_settlements</code></td><td>005</td><td><code>entries</code></td><td>Dynamic settlement liability updates on entry changes</td></tr>
+                <tr><td><code>trg_entries_unmatch_statement_lines</code></td><td>005</td><td><code>entries</code></td><td>Statement line auto-unmatching on void/supersede</td></tr>
+                <tr><td><code>trg_entry_exceptions_invalidate_reconciliation</code></td><td>005</td><td><code>entry_reconciliation_exceptions</code></td><td>Resets statements to open on exception rejection</td></tr>
+                <tr><td><code>trg_statements_supersede_invalidate</code></td><td>005</td><td><code>statements</code></td><td>Cascades open status on liability changes & deactivates lines</td></tr>
+                <tr><td><code>trg_center_suspension_guard</code></td><td>023</td><td>Tenant tables</td><td>Trigger guard blocking mutations on suspended/archived centers</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Regression Tests (65) -->
+    <section id="regression-tests">
+      <div class="section-head">
+        <h2>Mandatory Critical Regression Tests (PRD §16.2 #1 to #65)</h2>
+        <span class="badge badge-implemented"><span class="badge-dot"></span>All 65 Tests Green</span>
+      </div>
+
+      <div class="table-container">
+        <table id="testsTable">
+          <thead>
+            <tr>
+              <th style="width: 70px;">Test #</th>
+              <th>Test Title</th>
+              <th>Owning Plan(s)</th>
+              <th>Verified Test Module</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="code-id">#1</span></td><td>Forged Snapshot Rejection</td><td>004, 011</td><td><code>test_01_forged_snapshot.ts</code></td></tr>
+            <tr><td><span class="code-id">#2</span></td><td>Commit-Order Sequence Race Immunity</td><td>004</td><td><code>test_02_sequence_race.ts</code></td></tr>
+            <tr><td><span class="code-id">#3</span></td><td>Rejected-Op Recovery Cycle with Fresh OpId</td><td>011, 017</td><td><code>test_03_recovery_cycle.ts</code></td></tr>
+            <tr><td><span class="code-id">#4</span></td><td>JSON 64-Bit Wire Precision</td><td>002, 011</td><td><code>test_04_json_precision.ts</code></td></tr>
+            <tr><td><span class="code-id">#5</span></td><td>Customer-Paid Fees Isolation</td><td>002, 013, 014</td><td><code>test_05_customer_fees.ts</code></td></tr>
+            <tr><td><span class="code-id">#6</span></td><td>Settlement Dynamic Recalculation</td><td>005, 014</td><td><code>test_06_settlement_recalc.ts</code></td></tr>
+            <tr><td><span class="code-id">#7</span></td><td>Repeated Month Close/Reopen Lifecycle</td><td>005, 015</td><td><code>test_07_month_close_lifecycle.ts</code></td></tr>
+            <tr><td><span class="code-id">#8</span></td><td>Concurrent Supersedes Serialization</td><td>004, 012</td><td><code>test_08_concurrent_supersedes.ts</code></td></tr>
+            <tr><td><span class="code-id">#9</span></td><td>30-Day Offline Retention Recovery</td><td>011, 017</td><td><code>test_09_offline_retention.ts</code></td></tr>
+            <tr><td><span class="code-id">#10</span></td><td>Account Deactivation Enforcement</td><td>008, 011</td><td><code>test_10_account_deactivation.ts</code></td></tr>
+            <tr><td><span class="code-id">#11</span></td><td>Server Payload Hash Verification</td><td>011</td><td><code>test_11_payload_hash.ts</code></td></tr>
+            <tr><td><span class="code-id">#12</span></td><td>Staff Cursor Monotonic Watermark</td><td>004, 011</td><td><code>test_12_staff_cursor.ts</code></td></tr>
+            <tr><td><span class="code-id">#13</span></td><td>Settlement Payment Reversal Net Reduction</td><td>005, 014</td><td><code>test_13_payment_reversal.ts</code></td></tr>
+            <tr><td><span class="code-id">#14</span></td><td>Rate Profile Draft-Publish Immutability</td><td>004, 009</td><td><code>test_14_profile_immutability.ts</code></td></tr>
+            <tr><td><span class="code-id">#15</span></td><td>Atomic Ownership Transfer</td><td>004, 009</td><td><code>test_15_ownership_transfer.ts</code></td></tr>
+            <tr><td><span class="code-id">#16</span></td><td>Multi-Payable Combined Card Reconciliation</td><td>005, 018</td><td><code>test_16_combined_card_recon.ts</code></td></tr>
+            <tr><td><span class="code-id">#17</span></td><td>Month Close, Recon, Entry Sync Multi-Month Race Immunity</td><td>004, 005, 015</td><td><code>test_17_lock_order_race.ts</code></td></tr>
+            <tr><td><span class="code-id">#18</span></td><td>Discard Authorization and Provenance</td><td>004, 011</td><td><code>test_18_discard_auth.ts</code></td></tr>
+            <tr><td><span class="code-id">#19</span></td><td>Non-Overlapping Statement Coverage</td><td>003, 018</td><td><code>test_19_statement_overlap.ts</code></td></tr>
+            <tr><td><span class="code-id">#20</span></td><td>Zero-Liability Settlement Status</td><td>005, 014</td><td><code>test_20_zero_liability.ts</code></td></tr>
+            <tr><td><span class="code-id">#21</span></td><td>Payment Method Code Immutability</td><td>003, 004</td><td><code>test_21_method_code_immutability.ts</code></td></tr>
+            <tr><td><span class="code-id">#22</span></td><td>Privileged Function Search Path & Grants</td><td>003, 004</td><td><code>test_22_search_path_grants.ts</code></td></tr>
+            <tr><td><span class="code-id">#23</span></td><td>Parent-Child Statement Invalidation Cascade</td><td>005, 015</td><td><code>test_23_statement_cascade.ts</code></td></tr>
+            <tr><td><span class="code-id">#24</span></td><td>Batch Subtransaction Fault Isolation</td><td>004, 011</td><td><code>test_24_subtransaction_isolation.ts</code></td></tr>
+            <tr><td><span class="code-id">#25</span></td><td>Untrusted Timestamp Validation & Queue Expiry</td><td>004, 011</td><td><code>test_25_timestamp_validation.ts</code></td></tr>
+            <tr><td><span class="code-id">#26</span></td><td>Authoritative 5-State Settlement Lifecycle</td><td>005, 014</td><td><code>test_26_5_state_settlement.ts</code></td></tr>
+            <tr><td><span class="code-id">#27</span></td><td>Asia/Dhaka Midnight and Boundary Verification</td><td>003, 016</td><td><code>test_27_asia_dhaka_boundary.ts</code></td></tr>
+            <tr><td><span class="code-id">#28</span></td><td>Payment Method Activation Profile Guard</td><td>003, 004</td><td><code>test_28_method_activation_guard.ts</code></td></tr>
+            <tr><td><span class="code-id">#29</span></td><td>Statement Coverage Month FK Integrity</td><td>003, 018</td><td><code>test_29_statement_month_fk.ts</code></td></tr>
+            <tr><td><span class="code-id">#30</span></td><td>View Security Isolation & Credential Verification</td><td>003, 008</td><td><code>test_30_view_security.ts</code></td></tr>
+            <tr><td><span class="code-id">#31</span></td><td>Cross-Concurrency Lock Inversion Deadlock Immunity</td><td>004, 005</td><td><code>test_31_sequence_lock_order.ts</code></td></tr>
+            <tr><td><span class="code-id">#32</span></td><td>Supersede Rejected on Non-Active Original</td><td>004, 012</td><td><code>test_32_supersede_non_active.ts</code></td></tr>
+            <tr><td><span class="code-id">#33</span></td><td>Duplicate Payable Prevention & Method Consistency</td><td>003, 009</td><td><code>test_33_duplicate_payables.ts</code></td></tr>
+            <tr><td><span class="code-id">#34</span></td><td>Reconciliation Exception & Overpayment Review Gating</td><td>005, 014, 015</td><td><code>test_34_recon_exception_gating.ts</code></td></tr>
+            <tr><td><span class="code-id">#35</span></td><td>Concurrent Payment Parent Locking & Overpayment Reset</td><td>005, 014</td><td><code>test_35_payment_parent_locking.ts</code></td></tr>
+            <tr><td><span class="code-id">#36</span></td><td>First-of-Month Date Normalization & Publish Gate</td><td>003, 004</td><td><code>test_36_first_of_month.ts</code></td></tr>
+            <tr><td><span class="code-id">#37</span></td><td>Scoped Exception Isolation Across Liabilities</td><td>005, 015</td><td><code>test_37_scoped_exceptions.ts</code></td></tr>
+            <tr><td><span class="code-id">#38</span></td><td>Accepted Statement Line Review Evidence</td><td>003, 018</td><td><code>test_38_statement_line_acceptance.ts</code></td></tr>
+            <tr><td><span class="code-id">#39</span></td><td>First-Time Month Close Idempotent Upsert & Reopen</td><td>005, 015</td><td><code>test_39_first_time_close_upsert.ts</code></td></tr>
+            <tr><td><span class="code-id">#40</span></td><td>Totals-Only Manual Statement Reconciliation</td><td>005, 015</td><td><code>test_40_totals_only_recon.ts</code></td></tr>
+            <tr><td><span class="code-id">#41</span></td><td>Date-Effective Rate Profile Authorization</td><td>004, 011</td><td><code>test_41_anti_cherry_picking.ts</code></td></tr>
+            <tr><td><span class="code-id">#42</span></td><td>NULL-Safe JSONB VAT Mode Constraint</td><td>003</td><td><code>test_42_null_safe_jsonb.ts</code></td></tr>
+            <tr><td><span class="code-id">#43</span></td><td>Customer-Borne Method Charge Zero Liability</td><td>002, 005, 014</td><td><code>test_43_customer_borne_zero_liability.ts</code></td></tr>
+            <tr><td><span class="code-id">#44</span></td><td>Two-Step Atomic Ownership Transfer Demote-Before-Promote</td><td>004, 009</td><td><code>test_44_two_step_ownership.ts</code></td></tr>
+            <tr><td><span class="code-id">#45</span></td><td>Table-Level Direct Write Revocation Security Proof</td><td>003</td><td><code>test_45_table_write_revocation.ts</code></td></tr>
+            <tr><td><span class="code-id">#46</span></td><td>Legitimate Offline Stale Rate Acceptance & Admin Alert</td><td>004, 011, 017</td><td><code>test_46_offline_stale_rate.ts</code></td></tr>
+            <tr><td><span class="code-id">#47</span></td><td>Rejected Op Persistence & Admin Dashboard Queue</td><td>004, 011, 016</td><td><code>test_47_rejected_op_queue.ts</code></td></tr>
+            <tr><td><span class="code-id">#48</span></td><td>Cross-Table Trigger Lock Hierarchy Deadlock Immunity</td><td>004, 005, 015</td><td><code>test_48_trigger_lock_hierarchy.ts</code></td></tr>
+            <tr><td><span class="code-id">#49</span></td><td>Settlements Update Status & Dynamic Overpayment Invalidation</td><td>005, 014</td><td><code>test_49_overpayment_invalidation.ts</code></td></tr>
+            <tr><td><span class="code-id">#50</span></td><td>txn_ref Normalization & Mandatory Enforcement</td><td>004, 010</td><td><code>test_50_txn_ref_normalization.ts</code></td></tr>
+            <tr><td><span class="code-id">#51</span></td><td>Statement Line Auto-Unmatch on Void/Supersede</td><td>005, 018</td><td><code>test_51_line_auto_unmatch.ts</code></td></tr>
+            <tr><td><span class="code-id">#52</span></td><td>Dual-Payable Line Matching & Customer Exemption in Mode B</td><td>005, 018</td><td><code>test_52_dual_payable_matching.ts</code></td></tr>
+            <tr><td><span class="code-id">#53</span></td><td>Statement Line Unmatching Cascade</td><td>005, 018</td><td><code>test_53_line_unmatch_cascade.ts</code></td></tr>
+            <tr><td><span class="code-id">#54</span></td><td>Reconciliation Exception Flip Invalidation</td><td>005, 015</td><td><code>test_54_exception_flip_cascade.ts</code></td></tr>
+            <tr><td><span class="code-id">#55</span></td><td>Live Settlement & Statement Expected Recalculation Trigger</td><td>005, 014</td><td><code>test_55_live_settlement_recalc.ts</code></td></tr>
+            <tr><td><span class="code-id">#56</span></td><td>Engine Version Skew Enforcement</td><td>002, 011, 017</td><td><code>test_56_engine_version_skew.ts</code></td></tr>
+            <tr><td><span class="code-id">#57</span></td><td>>৳50,000 Stale-Rate Review Workflow</td><td>004, 009, 017</td><td><code>test_57_stale_review_workflow.ts</code></td></tr>
+            <tr><td><span class="code-id">#58</span></td><td>Stale-Review Month-Close Gate & Closed-Month Block</td><td>004, 005, 015</td><td><code>test_58_stale_review_gate.ts</code></td></tr>
+            <tr><td><span class="code-id">#59</span></td><td>Admin User Provisioning & Privilege Escalation Defense</td><td>004, 008, 009</td><td><code>test_59_admin_invite_guard.ts</code></td></tr>
+            <tr><td><span class="code-id">#60</span></td><td>Mandatory Rate Watermark Enforcement</td><td>004, 011</td><td><code>test_60_mandatory_watermark.ts</code></td></tr>
+            <tr><td><span class="code-id">#61</span></td><td>Entry-ID Push Idempotency and Tamper Conflict</td><td>004, 011</td><td><code>test_61_idempotency_tamper.ts</code></td></tr>
+            <tr><td><span class="code-id">#62</span></td><td>Multi-User Shared Device Presence & Global Killswitch</td><td>004, 009, 011</td><td><code>test_62_device_killswitch.ts</code></td></tr>
+            <tr><td><span class="code-id">#63</span></td><td>Deactivated User Re-Invite Role Guard & Privilege Defense</td><td>004, 009</td><td><code>test_63_reinvite_role_guard.ts</code></td></tr>
+            <tr><td><span class="code-id">#64</span></td><td>Settlement Payment Receipt Upload & Signed-URL Contract</td><td>014</td><td><code>test_64_receipt_signed_url.ts</code></td></tr>
+            <tr><td><span class="code-id">#65</span></td><td>Stale-Rate Device Anomaly Burst Aggregation & Isolation</td><td>004, 009, 016</td><td><code>test_65_stale_anomaly_view.ts</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Screen Specs Coverage -->
+    <section id="screen-specs">
+      <details>
+        <summary>Screen Specifications Coverage (S01–S27 & Overlays)</summary>
+        <div class="details-content">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Screen ID</th>
+                  <th>Screen Name</th>
+                  <th>Route Path</th>
+                  <th>Roles Admitted</th>
+                  <th>Owning Plan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><span class="code-id">S01</span></td><td>Login / accept invite</td><td><code>/login</code></td><td>all</td><td>008</td></tr>
+                <tr><td><span class="code-id">S02</span></td><td>App shell + role routing</td><td><code>/(app)</code> layout</td><td>all</td><td>008</td></tr>
+                <tr><td><span class="code-id">S03</span></td><td>Staff dashboard</td><td><code>/dashboard</code></td><td>staff</td><td>016</td></tr>
+                <tr><td><span class="code-id">S04</span></td><td>Admin dashboard</td><td><code>/dashboard</code></td><td>admin</td><td>016</td></tr>
+                <tr><td><span class="code-id">S05</span></td><td>Owner dashboard</td><td><code>/dashboard</code></td><td>owner</td><td>016</td></tr>
+                <tr><td><span class="code-id">S06</span></td><td>New entry (Hero screen)</td><td><code>/entries/new</code></td><td>all</td><td>010</td></tr>
+                <tr><td><span class="code-id">S07</span></td><td>Entry form — supersede mode</td><td><code>/entries/new?supersede=&lt;id&gt;</code></td><td>admin, owner</td><td>010, 012</td></tr>
+                <tr><td><span class="code-id">S08</span></td><td>Ledger list</td><td><code>/ledger</code></td><td>staff (own), admin, owner</td><td>012</td></tr>
+                <tr><td><span class="code-id">S09</span></td><td>Ledger detail drawer</td><td>Drawer over <code>/ledger</code></td><td>role-gated</td><td>012</td></tr>
+                <tr><td><span class="code-id">S10</span></td><td>Request void modal</td><td>Modal over <code>/ledger</code></td><td>staff, admin, owner</td><td>012</td></tr>
+                <tr><td><span class="code-id">S11</span></td><td>Approve / reject void modal</td><td>Modal over <code>/ledger</code></td><td>admin, owner</td><td>012</td></tr>
+                <tr><td><span class="code-id">S12</span></td><td>Reports month view</td><td><code>/reports</code></td><td>admin, owner</td><td>013</td></tr>
+                <tr><td><span class="code-id">S13</span></td><td>Settlements overview</td><td><code>/settlements</code></td><td>admin, owner</td><td>014</td></tr>
+                <tr><td><span class="code-id">S13b</span></td><td>Settlement detail & history</td><td><code>/settlements/[id]</code></td><td>admin, owner</td><td>014</td></tr>
+                <tr><td><span class="code-id">S14</span></td><td>Record payment modal</td><td>Modal over <code>/settlements/[id]</code></td><td>admin, owner</td><td>014</td></tr>
+                <tr><td><span class="code-id">S15</span></td><td>Reconcile Mode A overview</td><td><code>/reconcile</code></td><td>admin, owner</td><td>015</td></tr>
+                <tr><td><span class="code-id">S15b</span></td><td>Reconcile Mode A manual entry</td><td><code>/reconcile/manual</code></td><td>admin, owner</td><td>015</td></tr>
+                <tr><td><span class="code-id">S16</span></td><td>Closed-month recovery queue</td><td>Modal over <code>/reconcile</code></td><td>admin, owner</td><td>015</td></tr>
+                <tr><td><span class="code-id">S17</span></td><td>Month close / reopen</td><td><code>/months/close</code></td><td>owner</td><td>015</td></tr>
+                <tr><td><span class="code-id">S18</span></td><td>Reconcile Mode B file upload</td><td><code>/reconcile/upload</code></td><td>admin, owner</td><td>018</td></tr>
+                <tr><td><span class="code-id">S19</span></td><td>Admin — rates & rules</td><td><code>/admin/rates</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S20</span></td><td>Admin — methods</td><td><code>/admin/methods</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S21</span></td><td>Admin — payables & schedule</td><td><code>/admin/payables</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S22</span></td><td>Admin — settings</td><td><code>/admin/settings</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S23</span></td><td>Admin — hub overview</td><td><code>/admin</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S24</span></td><td>Admin — users & roster</td><td><code>/admin/users</code></td><td>admin (staff-only), owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S25</span></td><td>Admin — devices</td><td><code>/admin/devices</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S26</span></td><td>Admin — audit log</td><td><code>/admin/audit</code></td><td>admin, owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S26b</span></td><td>Admin — ownership transfer</td><td>Modal on <code>/admin/users</code></td><td>owner</td><td>009</td></tr>
+                <tr><td><span class="code-id">S27</span></td><td>Stale-rate review queue</td><td><code>/admin/stale-reviews</code></td><td>admin, owner</td><td>009, 016</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Changelog -->
+    <section id="changelog">
+      <details>
+        <summary>Revision Changelog (Rev 1.0 to Rev 3.42)</summary>
+        <div class="details-content">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 70px;">Rev</th>
+                  <th style="width: 110px;">Date</th>
+                  <th>Key Amendments & Verifications</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><span class="code-id">3.42</span></td><td>2026-11-20</td><td>Plan 023 step 17 built: the two audited CSV exports, <code>GET /api/v1/admin/super/ledger/export</code> (SA-LED-08) and <code>GET /api/v1/admin/super/centers/[id]/export</code> (SA-CTR-09), with the ledger's own scope and filters, BOM, formula guard, exact BDT columns and an audit row before the file is returned. <code>super-exports.test.ts</code> 8 passing. SA-CTR-08 rate cloning reported BLOCKED (published v1 immutable; draft routine does not admit the seat). SA-DASH-03, SA-CFG-03 and SA-CFG-05 discarded by the owner on the same date.</td></tr>
+                <tr><td><span class="code-id">3.41</span></td><td>2026-11-16</td><td>Plan 023 step 14 built: <code>audit-visibility.ts</code> & <code>audit-read-model.ts</code>. Shared reader applying tenant scope and mode ('silent' / 'attributable_unnamed'). 14 tests passing.</td></tr>
+                <tr><td><span class="code-id">3.40</span></td><td>2026-11-16</td><td>Plan 023 step 13 built: seat's reopen, overrides, and guarded purge routes covered by <code>super-overrides.test.ts</code> (30 cases pass).</td></tr>
+                <tr><td><span class="code-id">3.39</span></td><td>2026-11-16</td><td>Plan 023 step 12 built: pull attribution (<code>created_by_role</code>) and platform author labeling.</td></tr>
+                <tr><td><span class="code-id">3.38</span></td><td>2026-11-16</td><td>Plan 023 registered and set to Partially Implemented; steps 1–11 and 15 built on disk.</td></tr>
+                <tr><td><span class="code-id">3.33</span></td><td>2026-11-06</td><td>Plan 021 implemented (Partially Implemented): Vercel config, health check, backup/restore scripts, deploy-check.</td></tr>
+                <tr><td><span class="code-id">3.32</span></td><td>2026-11-05</td><td>Plan 020 implemented: All 65 regression tests, 100k property runs, TS/SQL parity, Playwright E2E.</td></tr>
+                <tr><td><span class="code-id">3.31</span></td><td>2026-11-05</td><td>Plan 019 implemented: Capacitor Android build, haptics, reminders, signed APK/AAB pipeline.</td></tr>
+                <tr><td><span class="code-id">3.30</span></td><td>2026-11-05</td><td>Plan 018 implemented: Mode B reconciliation CSV adapters, auto-matching engine, upload endpoints.</td></tr>
+                <tr><td><span class="code-id">3.8</span></td><td>2026-11-04</td><td>Plan 011 implemented: Sync engine, JCS canonicalizer, 25-reason recovery matrix, push/pull endpoints.</td></tr>
+                <tr><td><span class="code-id">3.7</span></td><td>2026-11-04</td><td>Plan 010 implemented: Dexie schema, outbox queue, new entry form, instant save &lt;100ms.</td></tr>
+                <tr><td><span class="code-id">3.6</span></td><td>2026-11-04</td><td>Plan 009 implemented: Admin Hub shell and all 9 admin management screens.</td></tr>
+                <tr><td><span class="code-id">3.5</span></td><td>2026-11-04</td><td>Plan 008 implemented: App shell, authentication, role guards, route mediation.</td></tr>
+                <tr><td><span class="code-id">3.4</span></td><td>2026-11-04</td><td>Plan 007 implemented: UI kit, tokens, glass surfaces, floating navigation menu.</td></tr>
+                <tr><td><span class="code-id">3.3</span></td><td>2026-11-04</td><td>Plan 006 implemented: Bootstrap script, seed data, clean DB end-to-end run.</td></tr>
+                <tr><td><span class="code-id">3.2</span></td><td>2026-11-04</td><td>Plans 001–005 implemented: Repo tooling, calculation engine, schema, and core stored procedures.</td></tr>
+                <tr><td><span class="code-id">1.0</span></td><td>2026-10-29</td><td>Initial registry created against PRD v1.12.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+  </div>
+
+  <script>
+    // Theme Switcher
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+
+    function applyTheme(isLight) {
+      if (isLight) {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '🌙';
+        themeLabel.textContent = 'Dark';
+        localStorage.setItem('clt-theme', 'light');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+        themeLabel.textContent = 'Light';
+        localStorage.setItem('clt-theme', 'dark');
+      }
+    }
+
+    const savedTheme = localStorage.getItem('clt-theme');
+    if (savedTheme === 'light') {
+      applyTheme(true);
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const isCurrentlyLight = document.documentElement.getAttribute('data-theme') === 'light';
+      applyTheme(!isCurrentlyLight);
+    });
+
+    // Realtime Global Search Filter
+    const searchInput = document.getElementById('globalSearch');
+    const registryRows = document.querySelectorAll('#registryTable tbody tr');
+    const testRows = document.querySelectorAll('#testsTable tbody tr');
+
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+
+      // Search registry table
+      registryRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+      });
+
+      // Search regression tests
+      testRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+
+    // Status Filter Buttons for Registry
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const selectedStatus = btn.getAttribute('data-status');
+        registryRows.forEach(row => {
+          const rowStatus = row.getAttribute('data-status');
+          if (selectedStatus === 'all' || rowStatus === selectedStatus) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

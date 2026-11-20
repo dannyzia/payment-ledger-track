@@ -8,8 +8,8 @@
 - Requirements source: `docs/plans/super-admin-panel-requirements-v0.4.md`
 - Review source: `docs/orchestration/reports/super-admin-panel-goldfish-brief.md`
 - Depends on: 003, 004, 008, 009, 011; tenant migrations `20261029000001`–`0007`
-- Current Status: Partially Implemented (Steps 1–15 built and verified locally; step 16 deferrals tracked; every production cloud check still open)
-- Revision: 1.41 — 2026-11-16
+- Current Status: Partially Implemented (Steps 1–15 and 17 built and verified locally; step 16 not built, its deferrals tracked; step 18 not built — SA-CTR-08 rate cloning is blocked on an immutable published v1 profile; every production cloud check still open)
+- Revision: 1.42 — 2026-11-20
 
 ## 1. Purpose
 
@@ -51,7 +51,7 @@ Labels are v0.4's own. `Built` is in the repository today, `Partial` is present 
 | SA-AUTH-06 IP allowlist | New | none | 16 (deferred) |
 | SA-DASH-01 Landing page: centers by status, activity windows | New | none | 15 |
 | SA-DASH-02 Sync health | New | none | 15 |
-| SA-DASH-03 Month-close status per center | New | none | 16 (deferred) |
+| SA-DASH-03 Month-close status per center | Discarded | owner decision 2026-11-20 (CLT-T-092); month-close status stays a center screen | — |
 | SA-CTR-01 Create a center atomically | Built | `POST /api/v1/admin/super/centers` → `rpc_create_center` | — |
 | SA-CTR-02 Edit center profile | Built | `PATCH /api/v1/admin/super/centers/[id]` | — |
 | SA-CTR-03 Suspend and reactivate, enforced | Partial | status and audit exist; nothing reads `centers.status` | 3 |
@@ -59,8 +59,8 @@ Labels are v0.4's own. `Built` is in the repository today, `Partial` is present 
 | SA-CTR-05 Archive enforced | Partial | status value only | 3 |
 | SA-CTR-06 Replace an owner, with demote-or-deactivate | Built | `PATCH /centers/[id]`; demote-only today | 16 (deferred) |
 | SA-CTR-07 Set an owner's password | Built | `PATCH /centers/[id]` | — |
-| SA-CTR-08 Editable provisioning template | New | defaults hardcoded in migration 0007 | 16 (deferred) |
-| SA-CTR-09 Per-center data export | New | none | 14 (read model), 16 (deferred) |
+| SA-CTR-08 Editable provisioning template | New | **blocked**: `rpc_create_center` publishes v1, `trg_rate_profiles_draft_publish_lock` refuses every UPDATE on a published profile, and `create_or_update_draft_rate_profile` only admits an admin/owner of the target center, so the seat cannot clone rates without a migration | 18 (blocked) |
+| SA-CTR-09 Per-center data export | Built | `GET /api/v1/admin/super/centers/[id]/export` — profile, active-entry total and settlement summaries as one audited CSV | 17 |
 | SA-USR-01 Search users across centers | New | Global Search covers entries only | 15 |
 | SA-USR-02 Disable or enable an account; force sign-out | New | center-scoped `admin_manage_user` only | 15 |
 | SA-USR-03 Cross-center device view and revoke | New | center-scoped `admin_manage_device` only | 15 |
@@ -73,12 +73,12 @@ Labels are v0.4's own. `Built` is in the repository today, `Partial` is present 
 | SA-LED-05 Closed-month reopen and edit | New | `reopen_month` is Owner-gated | 13 |
 | SA-LED-06 Guarded purge | Partial | `pnpm db:purge-entry` → `maintenance_purge_entries`, CLI only | 13 |
 | SA-LED-07 Platform-wide anomaly view | Partial | per-center views exist | 15 |
-| SA-LED-08 Filtered export (CSV, XLSX, PDF) | New | none | 16 (deferred) |
+| SA-LED-08 Filtered export (CSV, XLSX, PDF) | Built (CSV) | `GET /api/v1/admin/super/ledger/export` — the ledger's own scope and filters, RFC 4180 CSV with BOM and formula guard; XLSX and PDF are not built | 17 |
 | SA-CFG-01 BDT only, integer poisha | Built | `packages/shared/src/money.ts` | — |
 | SA-CFG-02 English and Bangla | New | English only | 16 (deferred, app-wide) |
-| SA-CFG-03 Maintenance mode | New | none | 16 (deferred) |
+| SA-CFG-03 Maintenance mode | Discarded | owner decision 2026-11-20 (CLT-T-092); suspension is the withholding mechanism | — |
 | SA-CFG-04 Minimum supported app version | New | none | 16 (deferred) |
-| SA-CFG-05 Corporate rate template | New | none; open design question in v0.4 | 16 (deferred) |
+| SA-CFG-05 Corporate rate template | Discarded | owner decision 2026-11-20 (CLT-T-092); rate governance stays per center | — |
 | SA-AUD-01 Append-only audit log | Built | `fn_audit_log_immutability` | — |
 | SA-AUD-02 Every Super Admin action logged with before and after | Partial | center admin actions are logged; ledger actions do not exist | 11, 13, 14 |
 | SA-AUD-03 Keep audit at least 7 years | New | the archive does not run | 2, 15 |
@@ -156,6 +156,9 @@ Labels are v0.4's own. `Built` is in the repository today, `Partial` is present 
 | `supabase/migrations/20261114000009_center_write_guard.sql` | create | 3–4 (CLT-T-083) |
 | `supabase/migrations/20261116000010_push_rpc_seat_authoritative.sql` | create | 3, 11 |
 | `supabase/migrations/20261116000011_platform_entry_creator.sql` | create | 12 |
+| `apps/web/src/routes/api/v1/admin/super/ledger/export/+server.ts` | create | 17 |
+| `apps/web/src/routes/api/v1/admin/super/centers/[id]/export/+server.ts` | create | 17 |
+| `apps/web/tests/admin/super-exports.test.ts` | create | 17 |
 
 ## 5. Steps
 
@@ -245,12 +248,22 @@ Shell: bash. Working directory for all steps is `/home/zia/Documents/My Projects
 |---|---|
 | SA-AUTH-05, SA-AUTH-06 | the first hosted production database |
 | SA-CTR-06 demote-or-deactivate | the first ownership transfer on a real center |
-| SA-CTR-08 provisioning template | the second center created with non-default rates |
-| SA-CTR-09, SA-LED-08, SA-RPT-01 exports | the first franchisee request for their own data |
-| SA-DASH-03, SA-CFG-03, SA-CFG-04 | the first hosted fleet of two or more centers |
+| SA-CTR-08 provisioning template | not deferred but blocked: it needs a seat-aware draft routine or a clone routine in a migration, because the v1 profile is published and immutable at provisioning time (see step 18) |
+| SA-RPT-01 platform reports | the first franchisee request for their own data |
+| SA-CFG-04 minimum app version | the first hosted fleet of two or more centers |
+| SA-DASH-03, SA-CFG-03, SA-CFG-05 | discarded by the owner on 2026-11-20 (CLT-T-092), not deferred |
 | SA-USR-04, SA-USR-05, SA-AUD-06, SA-COM-01 | a lost-device or misuse incident on a hosted center |
 | SA-CFG-02 Bangla | app-wide i18n, tracked outside this plan |
 | SA-CFG-05 corporate rates | an owner decision on rate governance |
+
+17. Export the fleet as data, not screenshots: `GET /api/v1/admin/super/ledger/export` takes the read route's mandatory `centerId` scope and its `from`, `to`, `methodId`, `status` and `createdBy` filters and returns RFC 4180 CSV with a UTF-8 BOM, the shared formula-injection guard and exact 2-decimal BDT columns, audited as `ledger.export`. `GET /api/v1/admin/super/centers/[id]/export` returns one rectangular table — the center profile row with its active-entry total and gross, then one row per settlement — audited as `center.export`. Both require `super_admin`, `aal2` and the capability the read route requires; a failed audit write fails the export. `/admin/super/ledger` gains an **Export CSV** button that sends the active filters, and `/admin/super/centers` gains a per-row **Export Data** button.
+    - Command: write the two routes, the two buttons and the test.
+    - Check: `pnpm --filter @clt/web test tests/admin/super-exports.test.ts`
+    - Expected output: `8 passed`.
+
+18. SA-CTR-08 (provisioning rate cloning) is not built. `rpc_create_center` inserts the baseline profile as a draft and publishes it inside the same transaction, `trg_rate_profiles_draft_publish_lock` then raises `403 published_rate_profile_immutable` on any UPDATE of that row — and `trg_method_rates_draft_publish_lock` raises `403 method_rates_published_profile_immutable` for its method rates — while the only sanctioned write path, `create_or_update_draft_rate_profile`, resolves the actor through `profiles.center_id = p_center_id` and admits only `admin`/`owner`, which the platform seat (center_id NULL) can never satisfy. Migration `20261116000012_platform_actor_overrides.sql` admitted the seat to `publish_rate_profile` and not to the draft routine. Cloning therefore needs a seat-aware draft routine or a dedicated clone routine in a new migration, plus the modal select; neither is in this task's SCOPE, so SA-CTR-08 stays unbuilt rather than shipping a control that always fails.
+    - Command: none; blocked pending a migration.
+    - Expected output: a migration that admits the seat to draft creation, or a clone routine.
 
 ## 6. Specifications
 
