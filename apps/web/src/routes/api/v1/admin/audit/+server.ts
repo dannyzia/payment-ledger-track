@@ -1,48 +1,49 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { getCallerContext } from '$lib/server/auth';
-import { getServiceSupabase } from '$lib/server/supabase';
+import { queryAuditLog } from '$lib/server/audit-read-model';
 
+/**
+ * GET /api/v1/admin/audit — Plan 023 steps 9 and 14.
+ *
+ * The route parses the request and answers; the tenant predicate and the audit visibility
+ * mode live in `audit-read-model.ts`, which is the one reader center screens, search and
+ * export share. Keeping the mode out of this file is what stops a fourth surface from
+ * quietly disagreeing with the other three about what a franchisee may see.
+ */
 export const GET: RequestHandler = async (event) => {
   const caller = await getCallerContext(event);
   if (caller.role !== 'admin' && caller.role !== 'owner' && caller.role !== 'super_admin') {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 403 });
+    return json({ error: 'unauthorized' }, 403);
   }
 
-  const table = event.url.searchParams.get('table');
-  const action = event.url.searchParams.get('action');
-  const actor = event.url.searchParams.get('actor');
-  const startDate = event.url.searchParams.get('startDate');
-  const endDate = event.url.searchParams.get('endDate');
   const limit = Math.min(
     100,
     Math.max(1, parseInt(event.url.searchParams.get('limit') || '50', 10)),
   );
 
-  const supabase = getServiceSupabase();
-  let query = supabase.from('audit_log').select('*').order('id', { ascending: false }).limit(limit);
+  const result = await queryAuditLog(
+    {
+      centerId: event.url.searchParams.get('centerId'),
+      table: event.url.searchParams.get('table'),
+      action: event.url.searchParams.get('action'),
+      actor: event.url.searchParams.get('actor'),
+      startDate: event.url.searchParams.get('startDate'),
+      endDate: event.url.searchParams.get('endDate'),
+      limit,
+    },
+    { role: caller.role, centerId: caller.centerId },
+  );
 
-  // Tenant isolation (Hard Rule 9): only a super_admin may view another center's
-  // audit rows, and only by explicitly selecting that center.
-  if (caller.role === 'super_admin') {
-    const filterCenter = event.url.searchParams.get('centerId');
-    if (filterCenter) query = query.eq('center_id', filterCenter);
-  } else if (caller.centerId) {
-    query = query.eq('center_id', caller.centerId);
+  if (result.error) {
+    return json({ error: result.error }, 500);
   }
 
-  if (table) query = query.eq('target_table', table);
-  if (action) query = query.ilike('action', `%${action}%`);
-  if (actor) query = query.eq('actor', actor);
-  if (startDate) query = query.gte('at', startDate);
-  if (endDate) query = query.lte('at', endDate + 'T23:59:59.999Z');
+  return json({ events: result.events }, 200);
+};
 
-  const { data, error } = await query;
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-  }
-
-  return new Response(JSON.stringify({ events: data }), {
-    status: 200,
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
     headers: { 'Content-Type': 'application/json' },
   });
-};
+}
