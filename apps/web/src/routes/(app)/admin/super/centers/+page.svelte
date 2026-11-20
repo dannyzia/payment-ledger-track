@@ -50,6 +50,8 @@
   let ownerEmail = $state('');
   let ownerPassword = $state('');
   let showProvisionPassword = $state(false);
+  // SA-CTR-08: empty means keep the 42% day-zero baseline instead of cloning.
+  let cloneRatesFromCenterId = $state('');
 
   // Edit Center state
   let showEditModal = $state(false);
@@ -158,6 +160,7 @@
           ownerEmail: ownerEmail.trim(),
           ownerName: ownerName.trim(),
           ownerPassword: ownerPassword.trim() || undefined,
+          cloneRatesFromCenterId: cloneRatesFromCenterId || null,
         }),
       });
       if (!res.ok) {
@@ -167,6 +170,9 @@
         }
         throw new Error(err.message || err.error || 'Provisioning failed');
       }
+      // The centre is created even when the clone fails, so the clone answer is
+      // reported rather than thrown away with the modal.
+      const data = (await res.json().catch(() => ({}))) as { cloneError?: string | null };
       showModal = false;
       code =
         name =
@@ -179,8 +185,12 @@
         ownerEmail =
         ownerPassword =
           '';
+      cloneRatesFromCenterId = '';
       showProvisionPassword = false;
       await loadCenters();
+      if (data.cloneError) {
+        errorMessage = `Center created, but its rates could not be copied: ${data.cloneError}`;
+      }
     } catch (e) {
       formError = adminFetchError(e);
     } finally {
@@ -539,6 +549,23 @@
           </div>
           <span class="text-xs text-[var(--muted)]"
             >If left blank, an invite link will be sent to the email address.</span
+          >
+        </label>
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-[var(--muted)]">Copy initial rates from existing center (Optional)</span
+          >
+          <select
+            class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-3 text-[var(--ink)]"
+            bind:value={cloneRatesFromCenterId}
+          >
+            <option value="">Default (42% Kumon baseline)</option>
+            {#each centers as c (c.id)}
+              <option value={c.id}>{c.code} — {c.name}</option>
+            {/each}
+          </select>
+          <span class="text-xs text-[var(--muted)]"
+            >Copies the chosen center's latest published rates onto a new published version of this
+            center. The default keeps the day-zero 42% profile.</span
           >
         </label>
         <div class="flex justify-end gap-2 mt-2">

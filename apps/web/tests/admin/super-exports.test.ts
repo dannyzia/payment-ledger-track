@@ -20,13 +20,15 @@ import type { RequestEvent } from '@sveltejs/kit';
  *    and whose settlement rows carry expected/paid/variance;
  *  - each export writes its audit row (`ledger.export`, `center.export`) with the counts.
  *
- * SA-CTR-08 (provisioning rate cloning) is not covered because it is not built: the
- * published v1 profile is immutable by trigger and the draft routine does not admit the
- * platform seat. See the task report.
+ * SA-CTR-08 provisioning rate cloning rides here too: `POST /centers` must ask the
+ * clone routine for the source the operator chose, and must not fail the provisioning
+ * that already succeeded when the clone refuses.
  */
 
 const CENTER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_CENTER_ID = '22222222-2222-4222-8222-222222222222';
+const NEW_CENTER_ID = '33333333-3333-4333-8333-333333333333';
+const CLONED_PROFILE_ID = '44444444-4444-4444-8444-444444444444';
 
 type Role = 'owner' | 'admin' | 'staff' | 'super_admin';
 type Aal = 'aal1' | 'aal2';
@@ -59,6 +61,12 @@ function claimsOf(token: string): { sub: string; role: Role; center_id: string |
 
 /** Written by the routes, read by the assertions. */
 const audits: Array<Record<string, unknown>> = [];
+
+/** Every `supabase.rpc` call, in order. */
+const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+
+/** Set to make the clone routine refuse, leaving `rpc_create_center` successful. */
+let cloneRpcError: { message: string } | null = null;
 
 /** The profile row `getCallerContext` reads; each test sets the role it expects. */
 let currentRole: Role = 'super_admin';
@@ -98,7 +106,28 @@ function queryBuilder(single: { data: unknown; error: unknown }): unknown {
 
 vi.mock('$lib/server/supabase', () => ({
   getServiceSupabase: () => ({
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args: args ?? {} });
+      if (fn === 'rpc_create_center') {
+        return { data: { center_id: NEW_CENTER_ID, code: 'NEW' }, error: null };
+      }
+      if (fn === 'rpc_clone_center_rates') {
+        return cloneRpcError
+          ? { data: null, error: cloneRpcError }
+          : { data: CLONED_PROFILE_ID, error: null };
+      }
+      return { data: null, error: null };
+    },
     auth: {
+      admin: {
+        listUsers: async () => ({
+          data: { users: [{ id: 'user-owner', email: 'owner@example.com' }] },
+          error: null,
+        }),
+        updateUserById: async () => ({ data: { user: { id: 'user-owner' } }, error: null }),
+        inviteUserByEmail: async () => ({ data: { user: { id: 'user-owner' } }, error: null }),
+        createUser: async () => ({ data: { user: { id: 'user-owner' } }, error: null }),
+      },
       getUser: async (token: string) => {
         try {
           const claims = claimsOf(token);
@@ -334,6 +363,8 @@ const { GET: ledgerExport } =
   await import('../../src/routes/api/v1/admin/super/ledger/export/+server');
 const { GET: centerExport } =
   await import('../../src/routes/api/v1/admin/super/centers/[id]/export/+server');
+const { POST: provisionCenter } =
+  await import('../../src/routes/api/v1/admin/super/centers/+server');
 
 function ledgerEvent(token: string, query: Record<string, string>): RequestEvent {
   const url = new URL('http://localhost/api/v1/admin/super/ledger/export');
@@ -343,6 +374,34 @@ function ledgerEvent(token: string, query: Record<string, string>): RequestEvent
     request: new Request(url, { headers: { Authorization: `Bearer ${token}` } }),
     params: {},
   } as unknown as RequestEvent;
+}
+
+function provisionEvent(token: string, body: Record<string, unknown>): RequestEvent {
+  const url = new URL('http://localhost/api/v1/admin/super/centers');
+  return {
+    url,
+    request: new Request(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    params: {},
+  } as unknown as RequestEvent;
+}
+
+function provisionBody(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    code: 'NEW',
+    name: 'New Center',
+    legalEntityName: 'New Center Ltd',
+    binNumber: null,
+    tradeLicense: null,
+    address: '1 Road, Dhaka',
+    phone: '01799999999',
+    ownerEmail: 'owner@example.com',
+    ownerName: 'Owner One',
+    ...extra,
+  };
 }
 
 function centerEvent(token: string, id: string): RequestEvent {
@@ -392,6 +451,8 @@ async function outcome(run: () => Promise<Response> | Response): Promise<{
 
 beforeEach(() => {
   audits.length = 0;
+  rpcCalls.length = 0;
+  cloneRpcError = null;
   currentRole = 'super_admin';
 });
 
@@ -584,5 +645,82 @@ describe('GET /api/v1/admin/super/centers/[id]/export (SA-CTR-09)', () => {
     expect(result.status).toBe(404);
     expect(result.message).toBe('center_not_found');
     expect(audits).toHaveLength(0);
+  });
+});
+
+describe('POST /api/v1/admin/super/centers (SA-CTR-08)', () => {
+  it('clones the chosen source centre onto the centre it just provisioned', async () => {
+    currentRole = 'super_admin';
+    const result = await outcome(() =>
+      provisionCenter(
+        provisionEvent(
+          tokenFor('super_admin'),
+          provisionBody({ cloneRatesFromCenterId: CENTER_ID }),
+        ),
+      ),
+    );
+
+    expect(result.status).toBe(201);
+    expect(rpcCalls.map((call) => call.fn)).toEqual([
+      'rpc_create_center',
+      'rpc_clone_center_rates',
+    ]);
+    expect(rpcCalls[1].args).toEqual({
+      p_actor_id: 'user-super_admin',
+      p_target_center_id: NEW_CENTER_ID,
+      p_source_center_id: CENTER_ID,
+    });
+
+    const body = (await result.response!.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ rateProfileCloned: true, cloneError: null });
+  });
+
+  it('leaves the day-zero baseline alone when no source is chosen', async () => {
+    currentRole = 'super_admin';
+    const result = await outcome(() =>
+      provisionCenter(
+        provisionEvent(tokenFor('super_admin'), provisionBody({ cloneRatesFromCenterId: null })),
+      ),
+    );
+
+    expect(result.status).toBe(201);
+    expect(rpcCalls.map((call) => call.fn)).toEqual(['rpc_create_center']);
+    const body = (await result.response!.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ rateProfileCloned: false, cloneError: null });
+  });
+
+  it('reports a refused clone without failing the provisioning it followed', async () => {
+    currentRole = 'super_admin';
+    cloneRpcError = { message: '422 source_rate_profile_not_found' };
+    const result = await outcome(() =>
+      provisionCenter(
+        provisionEvent(
+          tokenFor('super_admin'),
+          provisionBody({ cloneRatesFromCenterId: CENTER_ID }),
+        ),
+      ),
+    );
+
+    expect(result.status).toBe(201);
+    expect(result.message).toBe('');
+    const body = (await result.response!.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      rateProfileCloned: false,
+      cloneError: '422 source_rate_profile_not_found',
+    });
+    expect(body.center).toEqual({ center_id: NEW_CENTER_ID, code: 'NEW' });
+  });
+
+  it('refuses a malformed source id before provisioning anything', async () => {
+    currentRole = 'super_admin';
+    const result = await outcome(() =>
+      provisionCenter(
+        provisionEvent(tokenFor('super_admin'), provisionBody({ cloneRatesFromCenterId: 'mhk' })),
+      ),
+    );
+
+    expect(result.status).toBe(400);
+    expect(result.message).toBe('invalid_payload');
+    expect(rpcCalls).toHaveLength(0);
   });
 });

@@ -1687,6 +1687,14 @@ export type Database = {
         };
         Returns: number;
       };
+      rpc_clone_center_rates: {
+        Args: {
+          p_actor_id: string;
+          p_target_center_id: string;
+          p_source_center_id: string;
+        };
+        Returns: string;
+      };
       rpc_create_center: {
         Args: {
           p_actor_id: string;

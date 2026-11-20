@@ -16,6 +16,8 @@ const createCenterSchema = z.object({
   ownerEmail: z.string().email('Valid owner email is required'),
   ownerName: z.string().min(1, 'Owner name is required'),
   ownerPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  // SA-CTR-08: copy another centre's published rates onto a new version after provisioning.
+  cloneRatesFromCenterId: z.string().uuid().optional().nullable(),
 });
 
 /**
@@ -121,6 +123,25 @@ export const POST: RequestHandler = async (event) => {
   }
 
   const centerId = (result as { center_id?: string } | null)?.center_id ?? null;
+
+  // SA-CTR-08: the centre and its published v1 already exist by now. Cloning appends a
+  // published v2 from the source centre's latest published profile in its own
+  // transaction, so a clone failure cannot undo the provisioning that succeeded.
+  let rateProfileCloned = false;
+  let cloneError: string | null = null;
+  if (centerId && parsed.data.cloneRatesFromCenterId) {
+    const { error: cloneRpcError } = await supabase.rpc('rpc_clone_center_rates', {
+      p_actor_id: caller.userId,
+      p_target_center_id: centerId,
+      p_source_center_id: parsed.data.cloneRatesFromCenterId,
+    });
+    if (cloneRpcError) {
+      cloneError = cloneRpcError.message;
+    } else {
+      rateProfileCloned = true;
+    }
+  }
+
   let ownerProvisioned = false;
   let ownerError: string | null = null;
 
@@ -193,7 +214,14 @@ export const POST: RequestHandler = async (event) => {
   }
 
   return new Response(
-    JSON.stringify({ success: true, center: result, ownerProvisioned, ownerError }),
+    JSON.stringify({
+      success: true,
+      center: result,
+      rateProfileCloned,
+      cloneError,
+      ownerProvisioned,
+      ownerError,
+    }),
     { status: 201 },
   );
 };
