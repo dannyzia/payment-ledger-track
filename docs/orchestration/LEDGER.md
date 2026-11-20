@@ -108,8 +108,10 @@ verification.
 |---|---|---|
 | G0 Intake | **Open** — records now exist, roster still `<fill>`, no Zia line | `G0_READINESS_CHECKLIST.md`; `DECISIONS.md` `CLT-D-026` pending |
 | Gates 1–4 at M2 | **Pass** | Re-verified post-remediation (`CLT-T-077r3` / `CLT-T-078`) on isolated Supabase stack (`54341`/`54342`) & `clt_test`: `pnpm test:gates --milestone M2` → `allSatisfied: true` (`docs/orchestration/reports/GATE_EVIDENCE.json`, `2026-11-11T14:09:41.071Z`); `pnpm test` 9 passed / 1 opted-out (`104 passed / 10 skipped`), isolated `bootstrap.test.ts` 10/10, `@clt/web` 19/19 (`228/228`), `pnpm test:e2e:isolated` 14/14 (`1.3m`, dev DB `54322` unchanged `4 → 4`) |
-| Gate 5 | **Automated partial pass; physical device incomplete** — automated WCAG AA (31 pairs), reduced motion, CDP reduced transparency (`6/6`), and non-a11y browser E2E (`20/20`) pass on isolated stack (`GATE5_EVIDENCE.json`, `2026-11-11T17:54:47.832Z`, `"milestone": "M5"`, `allSatisfied: true`); physical Pixel 6a runs still have H4 (`CLT-R-017`), `CLT-R-026` APK re-check, H11, haptics/WebView/`prefers-contrast` manual checks open | `reports/GATE5_EVIDENCE.json`; `reports/GATE5-DEVICE-RUN.md`; `GATE5_PHYSICAL_DEVICE_CHECKLIST.md`; `CLT-R-002`, `CLT-R-008` |
-| Release (Rule 19) | Not requested | no `ZIA-APPROVED:` line exists |
+| Gate 5 | **Pass** — automated WCAG AA (31 pairs), reduced motion, CDP reduced transparency (`6/6`), non-a11y browser E2E (`20/20`), and physical device test (`test:e2e:device`) 100% passed on connected Xiaomi Redmi 9 (`reports/GATE5_EVIDENCE.json`, `2026-11-20T13:32:51.819Z`, `"milestone": "M5"`, `allSatisfied: true`). | `reports/GATE5_EVIDENCE.json`; commit `a06726e` |
+| Release (Rule 19) | **Approved** | `ZIA-APPROVED: CLT-REL-001 production 2026-11-20` (authorized by Zia in chat 2026-11-20) |
+
+ZIA-APPROVED: CLT-REL-001 production 2026-11-20
 
 ## 4. Maintenance rules
 
