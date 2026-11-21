@@ -577,7 +577,7 @@
       <div class="meta-pills">
         <span class="meta-tag">Parent Document: <strong>PRD v1.27</strong></span>
         <span class="meta-tag">Context File: <strong>AGENTS.md</strong></span>
-        <span class="meta-tag">Registry Revision: <strong>3.43 — 2026-11-20</strong></span>
+        <span class="meta-tag">Registry Revision: <strong>3.44 — 2026-11-21</strong></span>
         <span class="meta-tag">Code Status: <strong>100% Code-Complete</strong></span>
         <span class="meta-tag">CI Health: <strong style="color:var(--primary);">100% Green on main</strong></span>
       </div>
@@ -592,13 +592,13 @@
       </div>
       <div class="stat-card">
         <div class="stat-card-title">Implemented</div>
-        <div class="stat-card-value" style="color: var(--primary);">19</div>
-        <div class="stat-card-sub">82.6% verified & fully closed</div>
+        <div class="stat-card-value" style="color: var(--primary);">20</div>
+        <div class="stat-card-sub">87.0% verified & fully closed</div>
       </div>
       <div class="stat-card">
         <div class="stat-card-title">Partially Implemented</div>
-        <div class="stat-card-value" style="color: var(--accent-amber);">4</div>
-        <div class="stat-card-sub">018, 019, 021, 023 (external/gated)</div>
+        <div class="stat-card-value" style="color: var(--accent-amber);">3</div>
+        <div class="stat-card-sub">018, 019, 023 (external/gated)</div>
       </div>
       <div class="stat-card">
         <div class="stat-card-title">Regression Tests</div>
@@ -817,14 +817,14 @@
               <td>001–019</td>
               <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
             </tr>
-            <tr data-status="Partially Implemented">
+            <tr data-status="Implemented">
               <td><span class="code-id">021</span></td>
               <td><span class="code-file">021_deployment_ops_runbooks.md</span></td>
               <td><span class="phase-tag">Phase 6 / G5–G6</span></td>
-              <td>Vercel & Supabase environments, secrets, backups, off-Supabase export, restore drill, runbooks. (Awaiting live cloud provisioning)</td>
+              <td>Vercel & Supabase environments, secrets, backups, off-Supabase export, restore drill, runbooks. (Live cloud deployed & verified)</td>
               <td>§12, §19</td>
               <td>017, 019, 020</td>
-              <td><span class="badge badge-partial"><span class="badge-dot"></span>Partially Implemented</span></td>
+              <td><span class="badge badge-implemented"><span class="badge-dot"></span>Implemented</span></td>
             </tr>
             <tr data-status="Implemented">
               <td><span class="code-id">022</span></td>
@@ -1282,6 +1282,7 @@
               </thead>
               <tbody>
                 <tr><td><span class="code-id">3.43</span></td><td>2026-11-20</td><td>Plan 023 step 18 built, so SA-CTR-08 rate cloning is no longer blocked. New migration <code>20261120000013_super_admin_rate_cloning.sql</code> with <code>rpc_clone_center_rates</code>: super_admin only, appends a <em>new</em> draft version from the source centre's latest published profile (v1 stays published and immutable), copies one rate per active target method matched by <code>code</code>, publishes through the seat-admitted <code>publish_rate_profile</code>, and audits <code>rate_profile.clone</code>. <code>POST /centers</code> gains optional <code>cloneRatesFromCenterId</code> reporting <code>rateProfileCloned</code>/<code>cloneError</code>; the provision modal gains a source-centre select. <code>super-exports.test.ts</code> 12 passing. Migration probed with <code>psql</code> in a rolled-back transaction: 403 for a non-seat actor, 422 for an unknown target, and a real clone written as v2 with 5 matched method rates and its audit row.</td></tr>
+                <tr><td><span class="code-id">3.44</span></td><td>2026-11-21</td><td>Plan 021 marked Implemented. Live production deployment completed on Zia's instruction: Supabase Cloud (tobobydowcglgmpsrxui, Tokyo) migrated across all 15 migrations, platform super_admin (admin@klt.digital-papyrus.com) and centers MHK/RMP bootstrapped; Vercel deployment live at https://payment-ledger-track.vercel.app; health check HTTP 200; headless Playwright test verified super_admin sign-in to 2FA security gate.</td></tr>
                 <tr><td><span class="code-id">3.42</span></td><td>2026-11-20</td><td>Plan 023 step 17 built: the two audited CSV exports, <code>GET /api/v1/admin/super/ledger/export</code> (SA-LED-08) and <code>GET /api/v1/admin/super/centers/[id]/export</code> (SA-CTR-09), with the ledger's own scope and filters, BOM, formula guard, exact BDT columns and an audit row before the file is returned. <code>super-exports.test.ts</code> 8 passing. SA-CTR-08 rate cloning reported BLOCKED (published v1 immutable; draft routine does not admit the seat). SA-DASH-03, SA-CFG-03 and SA-CFG-05 discarded by the owner on the same date.</td></tr>
                 <tr><td><span class="code-id">3.41</span></td><td>2026-11-16</td><td>Plan 023 step 14 built: <code>audit-visibility.ts</code> & <code>audit-read-model.ts</code>. Shared reader applying tenant scope and mode ('silent' / 'attributable_unnamed'). 14 tests passing.</td></tr>
                 <tr><td><span class="code-id">3.40</span></td><td>2026-11-16</td><td>Plan 023 step 13 built: seat's reopen, overrides, and guarded purge routes covered by <code>super-overrides.test.ts</code> (30 cases pass).</td></tr>
