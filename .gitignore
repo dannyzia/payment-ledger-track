@@ -57,3 +57,4 @@ apps/web/android/
 # test or CI step, and 4.6 MB of vendored data. Only the skills are ignored, so a shared
 # settings file can still be committed later.
 .claude/skills/
+.mcp.json
