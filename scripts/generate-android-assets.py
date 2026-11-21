@@ -140,6 +140,25 @@ def main():
         logo_src = Image.open(logo_src_path)
         logo_src.save("apps/web/static/images/logo.png")
 
+    # 6. APK Download QR Code
+    try:
+        import qrcode
+        import qrcode.image.svg
+        apk_url = "https://payment-ledger-track.vercel.app/downloads/kumon-ledger-track.apk"
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=2,
+        )
+        qr.add_data(apk_url)
+        qr.make(fit=True)
+        qr.make_image(fill_color="#0F172A", back_color="#FFFFFF").save("apps/web/static/images/apk-qr.png")
+        qrcode.make(apk_url, image_factory=qrcode.image.svg.SvgPathImage, box_size=10, border=2).save("apps/web/static/images/apk-qr.svg")
+        print("Generated APK download QR codes (PNG & SVG)")
+    except Exception as e:
+        print("QR generation error:", e)
+
     print("Asset generation complete!")
 
 if __name__ == "__main__":
