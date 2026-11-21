@@ -45,6 +45,11 @@ export function handleClientGuard(toUrl: URL, cancel: () => void): void {
     return;
   }
 
+  // The download landing page is accessible to everyone (signed-in or signed-out)
+  if (pathname.startsWith('/download')) {
+    return;
+  }
+
   const onAuthRoute = isAuthRoute(pathname);
   const isStaffRestricted =
     pathname.startsWith('/reports') ||
