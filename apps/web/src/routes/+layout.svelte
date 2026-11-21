@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { handleClientGuard } from '$lib/auth/guard';
+  import { session } from '$lib/auth/session.svelte';
   import InstallBanner from '$lib/ui/InstallBanner.svelte';
   import UpgradePromptModal from '$lib/ui/UpgradePromptModal.svelte';
   import { initStoragePersistence } from '$lib/pwa/storage';
@@ -24,6 +25,13 @@
   // the refused path.
   afterNavigate(() => {
     handleClientGuard(new URL(window.location.href), () => {});
+  });
+
+  // Re-evaluate client guard once asynchronous session resolution settles (Plan 008, CLT-R-015)
+  $effect(() => {
+    if (!session.loading && typeof window !== 'undefined') {
+      handleClientGuard(new URL(window.location.href), () => {});
+    }
   });
 
   onMount(() => {
