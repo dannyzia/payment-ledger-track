@@ -15,7 +15,7 @@ export const GET: RequestHandler = async () => {
   try {
     const supabase = getServiceSupabase();
     // Quick ping on database
-    const { error } = await supabase.from('app_settings').select('id').limit(1).single();
+    const { error } = await supabase.from('app_settings').select('center_id').limit(1).maybeSingle();
 
     if (error) {
       return json({ status: 'error', error: error.message }, { status: 503 });
