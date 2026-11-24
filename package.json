@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @clt/web dev",
-    "build": "pnpm -r build && rm -rf .vercel/output && cp -r apps/web/.vercel/output .vercel/output",
+    "build": "pnpm -r build && mkdir -p .vercel && rm -rf .vercel/output && cp -r apps/web/.vercel/output .vercel/output",
     "test": "vitest run --passWithNoTests --no-file-parallelism",
     "test:regression": "pnpm --filter @clt/web test tests/regression/suite.test.ts",
     "test:e2e": "pnpm --filter @clt/web exec playwright test",
