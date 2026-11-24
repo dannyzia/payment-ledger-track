@@ -1055,9 +1055,7 @@
 
         <!-- Sample Lines Table -->
         <div>
-          <h3
-            class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2"
-          >
+          <h3 class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2">
             First 5 Sample Lines
           </h3>
           <div class="overflow-x-auto border border-black/10 rounded-xl">
@@ -1166,8 +1164,7 @@
       <Card class="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div class="flex items-center gap-2">
-            <span
-              class="text-xs uppercase font-semibold tracking-wider text-[var(--muted)]"
+            <span class="text-xs uppercase font-semibold tracking-wider text-[var(--muted)]"
               >Statement Month:</span
             >
             <span class="font-mono font-bold text-sm text-[var(--ink)]"
@@ -1181,8 +1178,7 @@
           </div>
           <div class="text-xs text-[var(--muted)] mt-1 flex items-center gap-3">
             <span
-              >Lines: <strong class="text-[var(--ink)] font-mono"
-                >{statementLines.length}</strong
+              >Lines: <strong class="text-[var(--ink)] font-mono">{statementLines.length}</strong
               ></span
             >
             <span
@@ -1217,9 +1213,7 @@
           class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
         >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--ink)]">
-              Statement Lines Review
-            </h2>
+            <h2 class="text-lg font-semibold text-[var(--ink)]">Statement Lines Review</h2>
             <p class="text-xs text-[var(--muted)] mt-0.5">
               Match each line to an active ledger entry or mark as accepted with a review note.
             </p>
@@ -1245,9 +1239,7 @@
 
         <div class="overflow-x-auto border border-black/10 rounded-xl">
           <table class="w-full text-left text-xs">
-            <thead
-              class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold"
-            >
+            <thead class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold">
               <tr>
                 <th class="p-2.5">Line #</th>
                 <th class="p-2.5">Date</th>
@@ -1353,9 +1345,7 @@
 
         <div class="overflow-x-auto border border-black/10 rounded-xl">
           <table class="w-full text-left text-xs">
-            <thead
-              class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold"
-            >
+            <thead class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold">
               <tr>
                 <th class="p-2.5">Entry #</th>
                 <th class="p-2.5">Date</th>
@@ -1424,9 +1414,7 @@
       <!-- Section: Finalize Reconciliation Card -->
       <Card class="p-5 sm:p-6 space-y-4">
         <div class="border-b border-black/10 dark:border-white/10 pb-3">
-          <h2 class="text-lg font-semibold text-[var(--ink)]">
-            Finalize Statement Reconciliation
-          </h2>
+          <h2 class="text-lg font-semibold text-[var(--ink)]">Finalize Statement Reconciliation</h2>
           <p class="text-xs text-[var(--muted)] mt-0.5">
             Verify totals, inspect tolerance variance, and close the reconciliation.
           </p>

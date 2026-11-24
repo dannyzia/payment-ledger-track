@@ -237,9 +237,7 @@
     <Card class="p-6">
       <form onsubmit={handleSubmit} class="flex flex-col gap-4">
         <div>
-          <label
-            for="recon-month"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="recon-month" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Reconciliation Month</label
           >
           <input
@@ -252,9 +250,7 @@
         </div>
 
         <div>
-          <label
-            for="recon-payable"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="recon-payable" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Target Payable Scope</label
           >
           <select
@@ -270,9 +266,7 @@
         </div>
 
         <div>
-          <label
-            for="recon-total-bdt"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="recon-total-bdt" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Statement Total Amount (BDT)</label
           >
           <input
@@ -289,7 +283,9 @@
           {/if}
         </div>
 
-        <div class="p-4 rounded-xl glass border border-black/5 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+        <div
+          class="p-4 rounded-xl glass border border-black/5 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm"
+        >
           <div>
             <div class="tab-caps text-[10px] text-[var(--muted)]">Expected Liability</div>
             <div class="font-bold carbon-nums text-[var(--carbon)]">
@@ -316,17 +312,16 @@
         </div>
 
         {#if statementTotalPoisha !== null && !meetsTolerance}
-          <div class="p-3 rounded-xl bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-medium">
+          <div
+            class="p-3 rounded-xl bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-medium"
+          >
             Net variance exceeds ±{tolerancePoisha.toString()} poisha tolerance. An explanatory justification
             note is required to complete reconciliation.
           </div>
         {/if}
 
         <div>
-          <label
-            for="rec-note"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
-          >
+          <label for="rec-note" class="block text-xs font-semibold text-[var(--muted)] mb-1">
             Explanatory Note {!meetsTolerance
               ? '(Mandatory for variance > tolerance)'
               : '(Optional)'}

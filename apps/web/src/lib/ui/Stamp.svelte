@@ -24,6 +24,5 @@
 <span
   class="inline-flex items-center justify-center tab-caps border-current rounded-[2px] leading-none {toneClass} {seal
     ? 'border-[3px] px-6 py-3 text-2xl tracking-[0.2em] outline outline-2 outline-offset-[5px]'
-    : 'border-2 px-2 py-0.5 text-[10px] tracking-[0.14em]'} {className}"
-  >{label}</span
+    : 'border-2 px-2 py-0.5 text-[10px] tracking-[0.14em]'} {className}">{label}</span
 >

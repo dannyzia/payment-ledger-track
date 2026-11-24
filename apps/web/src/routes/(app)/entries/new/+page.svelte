@@ -593,368 +593,384 @@
       <div class="relative">
         <span class="coupon-tab absolute -top-[11px] left-6 z-10">Stub</span>
         <Card class="p-6">
-        {#if supersedingOriginalId}
-          <div
-            class="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs flex items-center justify-between"
-          >
-            <span
-              >Superseding Entry: <strong>{supersedingOriginalBadge}</strong> (original entry will be
-              marked superseded)</span
-            >
-            <button
-              type="button"
-              class="text-xs font-semibold underline hover:opacity-80 ml-2"
-              onclick={() => {
-                supersedingOriginalId = null;
-                supersedingOriginalBadge = null;
-                requireExplicitMethodSelection = false;
-                unavailableSupersedeMethodWarning = '';
-              }}>Cancel supersede</button
-            >
-          </div>
-        {/if}
-
-        <form onsubmit={handleLocalSave} class="flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-8">
-          <div class="flex flex-col gap-4 lg:col-span-3">
-          <DuplicateWarning visible={duplicateVisible} />
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label for="input-date" class="block text-xs font-semibold text-[var(--muted)] mb-1"
-                >Date (Asia/Dhaka)</label
-              >
-              <input
-                id="input-date"
-                type="date"
-                required
-                bind:value={entryDate}
-                onchange={updateProfileForDate}
-                class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
-              />
-            </div>
-
-            <div>
-              <label
-                for="input-customer"
-                class="block text-xs font-semibold text-[var(--muted)] mb-1">Customer Name</label
-              >
-              <input
-                id="input-customer"
-                type="text"
-                required
-                placeholder="e.g. Rahim Ahmed"
-                bind:value={customerName}
-                oninput={triggerDuplicateCheck}
-                class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
-              />
-            </div>
-
-            <div>
-              <label for="input-qty" class="block text-xs font-semibold text-[var(--muted)] mb-1"
-                >Sub Quantity / Sessions</label
-              >
-              <input
-                id="input-qty"
-                type="number"
-                min="1"
-                bind:value={subQty}
-                class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
-              />
-            </div>
-
-            <div>
-              <label
-                for="input-sub-desc"
-                class="block text-xs font-semibold text-[var(--muted)] mb-1"
-                >Item / Session Description</label
-              >
-              <input
-                id="input-sub-desc"
-                type="text"
-                placeholder="Optional description"
-                bind:value={subDescription}
-                class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label for="input-gross" class="block text-xs font-semibold text-[var(--muted)] mb-1"
-              >Gross Collected (BDT)</label
-            >
-            <input
-              id="input-gross"
-              type="text"
-              required
-              placeholder="0.00"
-              bind:value={grossInput}
-              oninput={triggerDuplicateCheck}
-              class="w-full px-3 py-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-2xl font-bold carbon-nums text-[var(--carbon)] tracking-tight"
-            />
-            {#if grossInputError}
-              <p class="text-xs text-red-600 mt-1">{grossInputError}</p>
-            {/if}
-          </div>
-
-          <!-- Payment Channel Chips dynamically rendered from db.methods -->
-          <div>
-            <!-- a11y_label_has_associated_control: grouping caption for the method chip buttons below; no single form control to associate (CLT-D-013 pattern) -->
-            <!-- svelte-ignore a11y_label_has_associated_control -->
-            <label class="block text-xs font-semibold text-[var(--muted)] mb-2"
-              >Payment Method</label
-            >
-            <div class="flex flex-wrap gap-2">
-              {#each selectableMethods as m (m.id)}
-                <button
-                  type="button"
-                  aria-pressed={selectedMethodId === m.id}
-                  class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId ===
-                  m.id
-                    ? 'bg-[var(--accent-2)] text-white border-transparent'
-                    : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
-                  onclick={() => {
-                    selectedMethodId = m.id;
-                    requireExplicitMethodSelection = false;
-                    unavailableSupersedeMethodWarning = '';
-                    txnRefError = '';
-                    triggerDuplicateCheck();
-                  }}
-                >
-                  {m.name}
-                </button>
-              {/each}
-              {#if selectableMethods.length === 0}
-                <p class="text-xs text-[var(--muted)] py-1.5">
-                  No payment methods on this device yet — connect once online to sync them.
-                </p>
-              {/if}
-            </div>
-          </div>
-
-          <!-- Transaction Reference -->
-          <div>
-            <label for="input-txn-ref" class="block text-xs font-semibold text-[var(--muted)] mb-1">
-              Transaction Reference {requiresTxnRef ? '(Mandatory)' : '(Optional)'}
-            </label>
-            <input
-              id="input-txn-ref"
-              type="text"
-              aria-invalid={txnRefError ? 'true' : undefined}
-              aria-describedby={txnRefError ? 'input-txn-ref-error' : undefined}
-              placeholder="e.g. BJT84920KL"
-              bind:value={txnRef}
-              oninput={(e) => {
-                txnRef = (e.target as HTMLInputElement).value.toUpperCase();
-                txnRefError = '';
-                triggerDuplicateCheck();
-              }}
-              class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono uppercase"
-            />
-            {#if txnRefError}
-              <p id="input-txn-ref-error" class="text-xs text-red-600 mt-1">{txnRefError}</p>
-            {/if}
-          </div>
-
-          <!-- VAT Section: Manual or Configured Default with Override (CLT-POLICY-Q1) -->
-          {#if activeProfile?.vat_mode === 'manual'}
-            <div>
-              <label for="input-vat" class="block text-xs font-semibold text-[var(--muted)] mb-1"
-                >Manual VAT Collected (BDT)</label
-              >
-              <input
-                id="input-vat"
-                type="text"
-                placeholder="0.00"
-                bind:value={manualVatInput}
-                class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
-              />
-            </div>
-          {:else if activeProfile?.vat_mode}
+          {#if supersedingOriginalId}
             <div
-              class="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/20 p-3"
+              class="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs flex items-center justify-between"
             >
-              <div class="flex items-center justify-between">
-                <div>
-                  <span class="text-xs font-semibold text-[var(--ink)]">
-                    VAT: {((activeProfile.vat_bp ?? 0) / 100).toFixed(2)}% of gross
-                  </span>
-                  <span class="text-xs font-mono text-[var(--muted)] ml-2">
-                    ({formatPoishaToBdt(calculated.vatPoisha)})
-                  </span>
-                </div>
-                {#if !isVatOverridden}
-                  <button
-                    type="button"
-                    class="text-xs text-[var(--accent)] hover:underline font-medium"
-                    onclick={() => {
-                      isVatOverridden = true;
-                      vatOverrideMode = 'amount';
-                      const vp = calculated.vatPoisha;
-                      const vTaka = vp / 100n;
-                      const vRem = vp % 100n;
-                      vatOverrideAmountInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
-                      vatOverridePercentInput = ((activeProfile?.vat_bp ?? 0) / 100).toFixed(2);
-                    }}
-                  >
-                    Change VAT
-                  </button>
-                {:else}
-                  <button
-                    type="button"
-                    class="text-xs text-red-600 hover:underline font-medium"
-                    onclick={() => {
-                      isVatOverridden = false;
-                      vatOverrideAmountInput = '';
-                      vatOverridePercentInput = '';
-                    }}
-                  >
-                    Revert to default ({((activeProfile?.vat_bp ?? 0) / 100).toFixed(2)}%)
-                  </button>
-                {/if}
-              </div>
-
-              {#if isVatOverridden}
-                <div class="mt-3 pt-3 border-t border-black/10 dark:border-white/10 space-y-2">
-                  <div class="flex items-center gap-2 mb-2">
-                    <span class="text-xs text-[var(--muted)]">Override by:</span>
-                    <button
-                      type="button"
-                      class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'amount'
-                        ? 'bg-[var(--accent-2)] text-white font-medium'
-                        : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
-                      onclick={() => (vatOverrideMode = 'amount')}
-                    >
-                      Amount (BDT)
-                    </button>
-                    <button
-                      type="button"
-                      class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'percent'
-                        ? 'bg-[var(--accent-2)] text-white font-medium'
-                        : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
-                      onclick={() => (vatOverrideMode = 'percent')}
-                    >
-                      Rate (%)
-                    </button>
-                  </div>
-
-                  {#if vatOverrideMode === 'amount'}
-                    <div>
-                      <label
-                        for="input-vat-override-amount"
-                        class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
-                        >Override VAT Amount (BDT)</label
-                      >
-                      <input
-                        id="input-vat-override-amount"
-                        type="text"
-                        placeholder="0.00"
-                        bind:value={vatOverrideAmountInput}
-                        class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-sm font-mono"
-                      />
-                    </div>
-                  {:else}
-                    <div>
-                      <label
-                        for="input-vat-override-percent"
-                        class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
-                        >Override VAT Rate (%)</label
-                      >
-                      <input
-                        id="input-vat-override-percent"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        placeholder="0.00"
-                        bind:value={vatOverridePercentInput}
-                        class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-sm font-mono"
-                      />
-                    </div>
-                  {/if}
-
-                  {#if vatOverrideError}
-                    <p class="text-xs text-red-600">{vatOverrideError}</p>
-                  {/if}
-
-                  <div>
-                    <label
-                      for="input-vat-override-reason"
-                      class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
-                      >Override Reason</label
-                    >
-                    <input
-                      id="input-vat-override-reason"
-                      type="text"
-                      placeholder="e.g. Special customer exemption"
-                      bind:value={vatOverrideReason}
-                      class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-xs"
-                    />
-                  </div>
-                </div>
-              {/if}
+              <span
+                >Superseding Entry: <strong>{supersedingOriginalBadge}</strong> (original entry will be
+                marked superseded)</span
+              >
+              <button
+                type="button"
+                class="text-xs font-semibold underline hover:opacity-80 ml-2"
+                onclick={() => {
+                  supersedingOriginalId = null;
+                  supersedingOriginalBadge = null;
+                  requireExplicitMethodSelection = false;
+                  unavailableSupersedeMethodWarning = '';
+                }}>Cancel supersede</button
+              >
             </div>
           {/if}
 
-          <div>
-            <label for="input-notes" class="block text-xs font-semibold text-[var(--muted)] mb-1"
-              >Notes</label
-            >
-            <textarea
-              id="input-notes"
-              rows="2"
-              placeholder="Additional comments or context"
-              bind:value={notes}
-              class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
-            ></textarea>
-          </div>
-          </div>
-
-          <div class="flex flex-col gap-4 lg:col-span-2">
-            <div class="mt-5 lg:mt-0">
-            <ReceiptBreakdown
-              grossPoisha={calculated.grossPoisha}
-              vatPoisha={calculated.vatPoisha}
-              commissionPoisha={calculated.commissionPoisha}
-              chargePoisha={calculated.chargePoisha}
-              netPoisha={calculated.netAfterDeductionsPoisha}
-              chargesBorneBy={activeProfile?.method_rates[selectedMethodId]?.charges_borne_by ??
-                'business'}
-              methodName={currentMethod?.name ?? 'Method Charge'}
-              vatMode={activeProfile?.vat_mode}
-              vatBp={activeProfile?.vat_bp}
-              isVatOverridden={activeProfile?.vat_mode !== 'manual' &&
-                isVatOverridden &&
-                vatOverridePoisha !== undefined}
-              commissionBp={activeProfile?.commission_bp}
-              chargeBp={activeProfile?.method_rates[selectedMethodId]?.fee_bp}
-            />
-          </div>
-
-          <div class="perf mt-5"></div>
-          <Button
-            id="btn-save"
-            variant="default"
-            type="submit"
-            class="btn-stamp w-full py-3 text-sm mt-2"
-            disabled={isSaving ||
-              isMonthClosed ||
-              grossPoisha <= 0n ||
-              !customerName.trim() ||
-              !selectedMethodId ||
-              !activeProfile ||
-              !!grossInputError ||
-              !!vatOverrideError ||
-              !!calculationError}
+          <form
+            onsubmit={handleLocalSave}
+            class="flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-8"
           >
-            {isSaving
-              ? 'Stamping…'
-              : supersedingOriginalId
-                ? 'Supersede & File'
-                : 'Stamp & File'}
-          </Button>
-          </div>
-        </form>
-      </Card>
+            <div class="flex flex-col gap-4 lg:col-span-3">
+              <DuplicateWarning visible={duplicateVisible} />
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    for="input-date"
+                    class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                    >Date (Asia/Dhaka)</label
+                  >
+                  <input
+                    id="input-date"
+                    type="date"
+                    required
+                    bind:value={entryDate}
+                    onchange={updateProfileForDate}
+                    class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    for="input-customer"
+                    class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                    >Customer Name</label
+                  >
+                  <input
+                    id="input-customer"
+                    type="text"
+                    required
+                    placeholder="e.g. Rahim Ahmed"
+                    bind:value={customerName}
+                    oninput={triggerDuplicateCheck}
+                    class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    for="input-qty"
+                    class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                    >Sub Quantity / Sessions</label
+                  >
+                  <input
+                    id="input-qty"
+                    type="number"
+                    min="1"
+                    bind:value={subQty}
+                    class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    for="input-sub-desc"
+                    class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                    >Item / Session Description</label
+                  >
+                  <input
+                    id="input-sub-desc"
+                    type="text"
+                    placeholder="Optional description"
+                    bind:value={subDescription}
+                    class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  for="input-gross"
+                  class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                  >Gross Collected (BDT)</label
+                >
+                <input
+                  id="input-gross"
+                  type="text"
+                  required
+                  placeholder="0.00"
+                  bind:value={grossInput}
+                  oninput={triggerDuplicateCheck}
+                  class="w-full px-3 py-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-2xl font-bold carbon-nums text-[var(--carbon)] tracking-tight"
+                />
+                {#if grossInputError}
+                  <p class="text-xs text-red-600 mt-1">{grossInputError}</p>
+                {/if}
+              </div>
+
+              <!-- Payment Channel Chips dynamically rendered from db.methods -->
+              <div>
+                <!-- a11y_label_has_associated_control: grouping caption for the method chip buttons below; no single form control to associate (CLT-D-013 pattern) -->
+                <!-- svelte-ignore a11y_label_has_associated_control -->
+                <label class="block text-xs font-semibold text-[var(--muted)] mb-2"
+                  >Payment Method</label
+                >
+                <div class="flex flex-wrap gap-2">
+                  {#each selectableMethods as m (m.id)}
+                    <button
+                      type="button"
+                      aria-pressed={selectedMethodId === m.id}
+                      class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId ===
+                      m.id
+                        ? 'bg-[var(--accent-2)] text-white border-transparent'
+                        : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
+                      onclick={() => {
+                        selectedMethodId = m.id;
+                        requireExplicitMethodSelection = false;
+                        unavailableSupersedeMethodWarning = '';
+                        txnRefError = '';
+                        triggerDuplicateCheck();
+                      }}
+                    >
+                      {m.name}
+                    </button>
+                  {/each}
+                  {#if selectableMethods.length === 0}
+                    <p class="text-xs text-[var(--muted)] py-1.5">
+                      No payment methods on this device yet — connect once online to sync them.
+                    </p>
+                  {/if}
+                </div>
+              </div>
+
+              <!-- Transaction Reference -->
+              <div>
+                <label
+                  for="input-txn-ref"
+                  class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                >
+                  Transaction Reference {requiresTxnRef ? '(Mandatory)' : '(Optional)'}
+                </label>
+                <input
+                  id="input-txn-ref"
+                  type="text"
+                  aria-invalid={txnRefError ? 'true' : undefined}
+                  aria-describedby={txnRefError ? 'input-txn-ref-error' : undefined}
+                  placeholder="e.g. BJT84920KL"
+                  bind:value={txnRef}
+                  oninput={(e) => {
+                    txnRef = (e.target as HTMLInputElement).value.toUpperCase();
+                    txnRefError = '';
+                    triggerDuplicateCheck();
+                  }}
+                  class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono uppercase"
+                />
+                {#if txnRefError}
+                  <p id="input-txn-ref-error" class="text-xs text-red-600 mt-1">{txnRefError}</p>
+                {/if}
+              </div>
+
+              <!-- VAT Section: Manual or Configured Default with Override (CLT-POLICY-Q1) -->
+              {#if activeProfile?.vat_mode === 'manual'}
+                <div>
+                  <label
+                    for="input-vat"
+                    class="block text-xs font-semibold text-[var(--muted)] mb-1"
+                    >Manual VAT Collected (BDT)</label
+                  >
+                  <input
+                    id="input-vat"
+                    type="text"
+                    placeholder="0.00"
+                    bind:value={manualVatInput}
+                    class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-mono"
+                  />
+                </div>
+              {:else if activeProfile?.vat_mode}
+                <div
+                  class="rounded-lg border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/20 p-3"
+                >
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-xs font-semibold text-[var(--ink)]">
+                        VAT: {((activeProfile.vat_bp ?? 0) / 100).toFixed(2)}% of gross
+                      </span>
+                      <span class="text-xs font-mono text-[var(--muted)] ml-2">
+                        ({formatPoishaToBdt(calculated.vatPoisha)})
+                      </span>
+                    </div>
+                    {#if !isVatOverridden}
+                      <button
+                        type="button"
+                        class="text-xs text-[var(--accent)] hover:underline font-medium"
+                        onclick={() => {
+                          isVatOverridden = true;
+                          vatOverrideMode = 'amount';
+                          const vp = calculated.vatPoisha;
+                          const vTaka = vp / 100n;
+                          const vRem = vp % 100n;
+                          vatOverrideAmountInput = `${vTaka.toString()}.${vRem.toString().padStart(2, '0')}`;
+                          vatOverridePercentInput = ((activeProfile?.vat_bp ?? 0) / 100).toFixed(2);
+                        }}
+                      >
+                        Change VAT
+                      </button>
+                    {:else}
+                      <button
+                        type="button"
+                        class="text-xs text-red-600 hover:underline font-medium"
+                        onclick={() => {
+                          isVatOverridden = false;
+                          vatOverrideAmountInput = '';
+                          vatOverridePercentInput = '';
+                        }}
+                      >
+                        Revert to default ({((activeProfile?.vat_bp ?? 0) / 100).toFixed(2)}%)
+                      </button>
+                    {/if}
+                  </div>
+
+                  {#if isVatOverridden}
+                    <div class="mt-3 pt-3 border-t border-black/10 dark:border-white/10 space-y-2">
+                      <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs text-[var(--muted)]">Override by:</span>
+                        <button
+                          type="button"
+                          class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'amount'
+                            ? 'bg-[var(--accent-2)] text-white font-medium'
+                            : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
+                          onclick={() => (vatOverrideMode = 'amount')}
+                        >
+                          Amount (BDT)
+                        </button>
+                        <button
+                          type="button"
+                          class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'percent'
+                            ? 'bg-[var(--accent-2)] text-white font-medium'
+                            : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
+                          onclick={() => (vatOverrideMode = 'percent')}
+                        >
+                          Rate (%)
+                        </button>
+                      </div>
+
+                      {#if vatOverrideMode === 'amount'}
+                        <div>
+                          <label
+                            for="input-vat-override-amount"
+                            class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
+                            >Override VAT Amount (BDT)</label
+                          >
+                          <input
+                            id="input-vat-override-amount"
+                            type="text"
+                            placeholder="0.00"
+                            bind:value={vatOverrideAmountInput}
+                            class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-sm font-mono"
+                          />
+                        </div>
+                      {:else}
+                        <div>
+                          <label
+                            for="input-vat-override-percent"
+                            class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
+                            >Override VAT Rate (%)</label
+                          >
+                          <input
+                            id="input-vat-override-percent"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            placeholder="0.00"
+                            bind:value={vatOverridePercentInput}
+                            class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-sm font-mono"
+                          />
+                        </div>
+                      {/if}
+
+                      {#if vatOverrideError}
+                        <p class="text-xs text-red-600">{vatOverrideError}</p>
+                      {/if}
+
+                      <div>
+                        <label
+                          for="input-vat-override-reason"
+                          class="block text-[11px] font-semibold text-[var(--muted)] mb-1"
+                          >Override Reason</label
+                        >
+                        <input
+                          id="input-vat-override-reason"
+                          type="text"
+                          placeholder="e.g. Special customer exemption"
+                          bind:value={vatOverrideReason}
+                          class="w-full px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/70 text-xs"
+                        />
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              <div>
+                <label
+                  for="input-notes"
+                  class="block text-xs font-semibold text-[var(--muted)] mb-1">Notes</label
+                >
+                <textarea
+                  id="input-notes"
+                  rows="2"
+                  placeholder="Additional comments or context"
+                  bind:value={notes}
+                  class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-4 lg:col-span-2">
+              <div class="mt-5 lg:mt-0">
+                <ReceiptBreakdown
+                  grossPoisha={calculated.grossPoisha}
+                  vatPoisha={calculated.vatPoisha}
+                  commissionPoisha={calculated.commissionPoisha}
+                  chargePoisha={calculated.chargePoisha}
+                  netPoisha={calculated.netAfterDeductionsPoisha}
+                  chargesBorneBy={activeProfile?.method_rates[selectedMethodId]?.charges_borne_by ??
+                    'business'}
+                  methodName={currentMethod?.name ?? 'Method Charge'}
+                  vatMode={activeProfile?.vat_mode}
+                  vatBp={activeProfile?.vat_bp}
+                  isVatOverridden={activeProfile?.vat_mode !== 'manual' &&
+                    isVatOverridden &&
+                    vatOverridePoisha !== undefined}
+                  commissionBp={activeProfile?.commission_bp}
+                  chargeBp={activeProfile?.method_rates[selectedMethodId]?.fee_bp}
+                />
+              </div>
+
+              <div class="perf mt-5"></div>
+              <Button
+                id="btn-save"
+                variant="default"
+                type="submit"
+                class="btn-stamp w-full py-3 text-sm mt-2"
+                disabled={isSaving ||
+                  isMonthClosed ||
+                  grossPoisha <= 0n ||
+                  !customerName.trim() ||
+                  !selectedMethodId ||
+                  !activeProfile ||
+                  !!grossInputError ||
+                  !!vatOverrideError ||
+                  !!calculationError}
+              >
+                {isSaving
+                  ? 'Stamping…'
+                  : supersedingOriginalId
+                    ? 'Supersede & File'
+                    : 'Stamp & File'}
+              </Button>
+            </div>
+          </form>
+        </Card>
       </div>
     </div>
   </div>

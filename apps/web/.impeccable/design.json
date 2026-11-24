@@ -13,45 +13,337 @@
       "themeEngine": "color-scheme: light on :root and color-scheme: dark on [data-theme='dark'] (src/app.css), so native control chrome follows the theme. [data-theme='dark'] .btn-stamp re-asserts solid jet red var(--accent) because dark .glass out-specifies .btn-stamp — the stamp stays solid at night, never outline. The dead --c-ink/--c-muted legacy tokens are fully swept from all components; only the documented token names (--ink, --muted, --surface, --pearl-border, --accent, --accent-2, --carbon, --radius) remain in use."
     },
     "colorMeta": {
-      "jet-red": { "role": "primary", "displayName": "Jet Red", "canonical": "#D7262D", "tonalRamp": ["#3B0407", "#7A1013", "#A5161B", "#C11D22", "#D7262D", "#E4555A", "#F09496", "#FBDFE0"] },
-      "carrier-navy": { "role": "secondary", "displayName": "Carrier Navy", "canonical": "#0D1B3D", "tonalRamp": ["#05091A", "#0D1B3D", "#16264F", "#1F3263", "#2A3F78", "#566B9C", "#8FA0C4", "#DDE3F0"] },
-      "carbon-purple": { "role": "tertiary", "displayName": "Carbon Purple", "canonical": "#4B2E83", "tonalRamp": ["#150A2B", "#2A1852", "#3A246B", "#4B2E83", "#674AA3", "#9178C2", "#BBA9DE", "#EDE8F7"] },
-      "stock-ground": { "role": "neutral", "displayName": "Cold Stock", "canonical": "#F2F3F0", "tonalRamp": ["#1B1E1C", "#333835", "#4C534F", "#67706B", "#8B948E", "#B4BBB5", "#D6DAD3", "#F2F3F0"] },
-      "coupon-white": { "role": "neutral", "displayName": "Coupon White", "canonical": "#FFFFFF", "tonalRamp": ["#1D2333", "#333A4D", "#4C556B", "#69738A", "#8F98AB", "#B9C0CE", "#DDE2EA", "#FFFFFF"] },
-      "carbon-ink": { "role": "neutral", "displayName": "Carbon Ink", "canonical": "#1D2333", "tonalRamp": ["#0B0E17", "#1D2333", "#2C3348", "#3B445D", "#515C77", "#7A8499", "#A9B1C2", "#E4E7EE"] },
-      "quiet-slate": { "role": "neutral", "displayName": "Quiet Slate", "canonical": "#5A6373", "tonalRamp": ["#171B21", "#2B313B", "#3C4350", "#4C5565", "#5A6373", "#848CA0", "#AEB5C4", "#E5E8EE"] },
-      "navy-paper": { "role": "neutral", "displayName": "Navy Paper", "canonical": "#E9EDF6", "tonalRamp": ["#10152A", "#1A2340", "#242F52", "#2F3D66", "#44517E", "#7D89AC", "#B9C2D9", "#E9EDF6"] },
-      "navy-muted": { "role": "neutral", "displayName": "Navy Muted", "canonical": "#A9B5CD", "tonalRamp": ["#141B2D", "#202B45", "#2D3A5C", "#3B4A72", "#5A6B93", "#8494B6", "#A9B5CD", "#E2E8F3"] },
-      "navy-night": { "role": "neutral", "displayName": "Navy Night (dark ground)", "canonical": "#0A1124", "tonalRamp": ["#040711", "#0A1124", "#111A33", "#182342", "#212F55", "#45537C", "#7F8CAC", "#D8DEF0"] },
-      "coupon-navy": { "role": "neutral", "displayName": "Coupon Navy (dark surface)", "canonical": "#141D36", "tonalRamp": ["#080C19", "#141D36", "#1B2748", "#23315A", "#2D3D6E", "#54648F", "#8B98B8", "#DEE4F2"] },
-      "band-night": { "role": "secondary", "displayName": "Band Night (dark shell band)", "canonical": "#1A2749", "tonalRamp": ["#0A1020", "#1A2749", "#233157", "#2D3D67", "#3A4C7C", "#5F709B", "#97A3C3", "#E0E5F2"] },
-      "carbon-night": { "role": "tertiary", "displayName": "Carbon Night (dark money ink)", "canonical": "#B9A7EC", "tonalRamp": ["#1E1438", "#31245C", "#43337D", "#56449E", "#7A66BD", "#B9A7EC", "#D3C8F3", "#F0EBFB"] },
-      "commission-green": { "role": "data-series", "displayName": "Commission Green", "canonical": "#17694F", "tonalRamp": ["#05211A", "#0A3A2C", "#0F523F", "#17694F", "#2E8B6E", "#62AF94", "#A3D2BF", "#E1F2EB"] },
-      "vat-amber": { "role": "data-series", "displayName": "VAT Amber", "canonical": "#8C4F00", "tonalRamp": ["#271502", "#452603", "#673B04", "#8C4F00", "#B0700E", "#CC9440", "#E3BC7F", "#F7EACF"] },
-      "bkash-magenta": { "role": "data-series", "displayName": "bKash Magenta", "canonical": "#B80053", "tonalRamp": ["#2C0013", "#560026", "#82003B", "#B80053", "#D62E76", "#E56CA0", "#F2A8C7", "#FBE4EE"] },
-      "visa-blue": { "role": "data-series", "displayName": "Visa Blue", "canonical": "#1A54B8", "tonalRamp": ["#081631", "#0E2A5F", "#143D8A", "#1A54B8", "#3D74D0", "#7AA0E0", "#B4CBEE", "#E4EDF9"] },
-      "mastercard-rust": { "role": "data-series", "displayName": "Mastercard Rust", "canonical": "#9E3600", "tonalRamp": ["#270D02", "#481903", "#712702", "#9E3600", "#C45A1E", "#DA8A55", "#EBBC98", "#F8EAE0"] },
-      "stamp-pad": { "role": "state", "displayName": "Stamp Pad (disabled primary)", "canonical": "#EFC4C6", "tonalRamp": ["#3B1416", "#6B2A2E", "#8F3A3E", "#B05F63", "#C99295", "#EFC4C6", "#F7DDE0", "#FCF0F1"] }
+      "jet-red": {
+        "role": "primary",
+        "displayName": "Jet Red",
+        "canonical": "#D7262D",
+        "tonalRamp": [
+          "#3B0407",
+          "#7A1013",
+          "#A5161B",
+          "#C11D22",
+          "#D7262D",
+          "#E4555A",
+          "#F09496",
+          "#FBDFE0"
+        ]
+      },
+      "carrier-navy": {
+        "role": "secondary",
+        "displayName": "Carrier Navy",
+        "canonical": "#0D1B3D",
+        "tonalRamp": [
+          "#05091A",
+          "#0D1B3D",
+          "#16264F",
+          "#1F3263",
+          "#2A3F78",
+          "#566B9C",
+          "#8FA0C4",
+          "#DDE3F0"
+        ]
+      },
+      "carbon-purple": {
+        "role": "tertiary",
+        "displayName": "Carbon Purple",
+        "canonical": "#4B2E83",
+        "tonalRamp": [
+          "#150A2B",
+          "#2A1852",
+          "#3A246B",
+          "#4B2E83",
+          "#674AA3",
+          "#9178C2",
+          "#BBA9DE",
+          "#EDE8F7"
+        ]
+      },
+      "stock-ground": {
+        "role": "neutral",
+        "displayName": "Cold Stock",
+        "canonical": "#F2F3F0",
+        "tonalRamp": [
+          "#1B1E1C",
+          "#333835",
+          "#4C534F",
+          "#67706B",
+          "#8B948E",
+          "#B4BBB5",
+          "#D6DAD3",
+          "#F2F3F0"
+        ]
+      },
+      "coupon-white": {
+        "role": "neutral",
+        "displayName": "Coupon White",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#1D2333",
+          "#333A4D",
+          "#4C556B",
+          "#69738A",
+          "#8F98AB",
+          "#B9C0CE",
+          "#DDE2EA",
+          "#FFFFFF"
+        ]
+      },
+      "carbon-ink": {
+        "role": "neutral",
+        "displayName": "Carbon Ink",
+        "canonical": "#1D2333",
+        "tonalRamp": [
+          "#0B0E17",
+          "#1D2333",
+          "#2C3348",
+          "#3B445D",
+          "#515C77",
+          "#7A8499",
+          "#A9B1C2",
+          "#E4E7EE"
+        ]
+      },
+      "quiet-slate": {
+        "role": "neutral",
+        "displayName": "Quiet Slate",
+        "canonical": "#5A6373",
+        "tonalRamp": [
+          "#171B21",
+          "#2B313B",
+          "#3C4350",
+          "#4C5565",
+          "#5A6373",
+          "#848CA0",
+          "#AEB5C4",
+          "#E5E8EE"
+        ]
+      },
+      "navy-paper": {
+        "role": "neutral",
+        "displayName": "Navy Paper",
+        "canonical": "#E9EDF6",
+        "tonalRamp": [
+          "#10152A",
+          "#1A2340",
+          "#242F52",
+          "#2F3D66",
+          "#44517E",
+          "#7D89AC",
+          "#B9C2D9",
+          "#E9EDF6"
+        ]
+      },
+      "navy-muted": {
+        "role": "neutral",
+        "displayName": "Navy Muted",
+        "canonical": "#A9B5CD",
+        "tonalRamp": [
+          "#141B2D",
+          "#202B45",
+          "#2D3A5C",
+          "#3B4A72",
+          "#5A6B93",
+          "#8494B6",
+          "#A9B5CD",
+          "#E2E8F3"
+        ]
+      },
+      "navy-night": {
+        "role": "neutral",
+        "displayName": "Navy Night (dark ground)",
+        "canonical": "#0A1124",
+        "tonalRamp": [
+          "#040711",
+          "#0A1124",
+          "#111A33",
+          "#182342",
+          "#212F55",
+          "#45537C",
+          "#7F8CAC",
+          "#D8DEF0"
+        ]
+      },
+      "coupon-navy": {
+        "role": "neutral",
+        "displayName": "Coupon Navy (dark surface)",
+        "canonical": "#141D36",
+        "tonalRamp": [
+          "#080C19",
+          "#141D36",
+          "#1B2748",
+          "#23315A",
+          "#2D3D6E",
+          "#54648F",
+          "#8B98B8",
+          "#DEE4F2"
+        ]
+      },
+      "band-night": {
+        "role": "secondary",
+        "displayName": "Band Night (dark shell band)",
+        "canonical": "#1A2749",
+        "tonalRamp": [
+          "#0A1020",
+          "#1A2749",
+          "#233157",
+          "#2D3D67",
+          "#3A4C7C",
+          "#5F709B",
+          "#97A3C3",
+          "#E0E5F2"
+        ]
+      },
+      "carbon-night": {
+        "role": "tertiary",
+        "displayName": "Carbon Night (dark money ink)",
+        "canonical": "#B9A7EC",
+        "tonalRamp": [
+          "#1E1438",
+          "#31245C",
+          "#43337D",
+          "#56449E",
+          "#7A66BD",
+          "#B9A7EC",
+          "#D3C8F3",
+          "#F0EBFB"
+        ]
+      },
+      "commission-green": {
+        "role": "data-series",
+        "displayName": "Commission Green",
+        "canonical": "#17694F",
+        "tonalRamp": [
+          "#05211A",
+          "#0A3A2C",
+          "#0F523F",
+          "#17694F",
+          "#2E8B6E",
+          "#62AF94",
+          "#A3D2BF",
+          "#E1F2EB"
+        ]
+      },
+      "vat-amber": {
+        "role": "data-series",
+        "displayName": "VAT Amber",
+        "canonical": "#8C4F00",
+        "tonalRamp": [
+          "#271502",
+          "#452603",
+          "#673B04",
+          "#8C4F00",
+          "#B0700E",
+          "#CC9440",
+          "#E3BC7F",
+          "#F7EACF"
+        ]
+      },
+      "bkash-magenta": {
+        "role": "data-series",
+        "displayName": "bKash Magenta",
+        "canonical": "#B80053",
+        "tonalRamp": [
+          "#2C0013",
+          "#560026",
+          "#82003B",
+          "#B80053",
+          "#D62E76",
+          "#E56CA0",
+          "#F2A8C7",
+          "#FBE4EE"
+        ]
+      },
+      "visa-blue": {
+        "role": "data-series",
+        "displayName": "Visa Blue",
+        "canonical": "#1A54B8",
+        "tonalRamp": [
+          "#081631",
+          "#0E2A5F",
+          "#143D8A",
+          "#1A54B8",
+          "#3D74D0",
+          "#7AA0E0",
+          "#B4CBEE",
+          "#E4EDF9"
+        ]
+      },
+      "mastercard-rust": {
+        "role": "data-series",
+        "displayName": "Mastercard Rust",
+        "canonical": "#9E3600",
+        "tonalRamp": [
+          "#270D02",
+          "#481903",
+          "#712702",
+          "#9E3600",
+          "#C45A1E",
+          "#DA8A55",
+          "#EBBC98",
+          "#F8EAE0"
+        ]
+      },
+      "stamp-pad": {
+        "role": "state",
+        "displayName": "Stamp Pad (disabled primary)",
+        "canonical": "#EFC4C6",
+        "tonalRamp": [
+          "#3B1416",
+          "#6B2A2E",
+          "#8F3A3E",
+          "#B05F63",
+          "#C99295",
+          "#EFC4C6",
+          "#F7DDE0",
+          "#FCF0F1"
+        ]
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Page titles on navy coupon-head bands; Archivo 800." },
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles on navy coupon-head bands; Archivo 800."
+      },
       "headline": { "displayName": "Headline", "purpose": "Card and section titles." },
       "body": { "displayName": "Body", "purpose": "Field values, prose, nav links." },
-      "label": { "displayName": "Tab Caps", "purpose": "Field labels and table heads — Archivo Narrow 700 uppercase, +0.08em." },
-      "micro-label": { "displayName": "Micro Label", "purpose": "A deliberate ramp step at 10px (.tab-caps, Archivo Narrow 700, +0.08em uppercase), not a fallback — carries VOID/status chips, date-flag internals and serial previews, and holds AA at its sizes." },
-      "tab": { "displayName": "Coupon Tab", "purpose": "Notched tab-caps and the stamp button — Archivo Narrow 700, +0.14em." },
-      "money": { "displayName": "Carbon Numerals", "purpose": "The only voice for money, serials and timestamps — Spline Sans Mono tabular." }
+      "label": {
+        "displayName": "Tab Caps",
+        "purpose": "Field labels and table heads — Archivo Narrow 700 uppercase, +0.08em."
+      },
+      "micro-label": {
+        "displayName": "Micro Label",
+        "purpose": "A deliberate ramp step at 10px (.tab-caps, Archivo Narrow 700, +0.08em uppercase), not a fallback — carries VOID/status chips, date-flag internals and serial previews, and holds AA at its sizes."
+      },
+      "tab": {
+        "displayName": "Coupon Tab",
+        "purpose": "Notched tab-caps and the stamp button — Archivo Narrow 700, +0.14em."
+      },
+      "money": {
+        "displayName": "Carbon Numerals",
+        "purpose": "The only voice for money, serials and timestamps — Spline Sans Mono tabular."
+      }
     },
     "shadows": [
-      { "name": "paper-lift", "value": "0 1px 2px rgba(13,27,61,0.05), 0 12px 28px -16px rgba(13,27,61,0.14)", "purpose": "The single sanctioned elevation: a contact line plus a wide low navy-tinted falloff under coupon-white stubs. Dark theme swaps to black equivalents." }
+      {
+        "name": "paper-lift",
+        "value": "0 1px 2px rgba(13,27,61,0.05), 0 12px 28px -16px rgba(13,27,61,0.14)",
+        "purpose": "The single sanctioned elevation: a contact line plus a wide low navy-tinted falloff under coupon-white stubs. Dark theme swaps to black equivalents."
+      }
     ],
     "motion": [
-      { "name": "press", "value": "transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Button lift (-1px) on hover and press (+1px) on active. Fully collapsed under prefers-reduced-motion." }
+      {
+        "name": "press",
+        "value": "transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Button lift (-1px) on hover and press (+1px) on active. Fully collapsed under prefers-reduced-motion."
+      }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
       { "name": "md", "value": "768px — desktop navy rail appears; floating pill hides" },
-      { "name": "lg", "value": "1024px — boarding-pass two-column stub (fields 3 / breakdown+action 2)" }
+      {
+        "name": "lg",
+        "value": "1024px — boarding-pass two-column stub (fields 3 / breakdown+action 2)"
+      }
     ]
   },
   "components": [
@@ -155,11 +447,31 @@
       "Reserved devices held as headroom: security-dot guilloche, void-red hatch, carbon-copy lavender treatment, chamfered ticket corners, /// hatch marks."
     ],
     "rules": [
-      { "name": "The Colour Owns Regions Rule", "body": "Navy owns whole regions — bands, rails, pills — through the .on-navy scope, which re-points --ink, --muted, --surface and --pearl-border so children read navy-safe without markup changes. Colour is never applied as a chip-level accent to fake structure; red accents an action, navy declares a region.", "section": "colors" },
-      { "name": "Approved status washes", "body": "LedgerRow's internal amber/red/blue washes are approved status accents — they mark void, superseded and pending states inside a stub, not structure, so they do not break the Colour Owns Regions Rule.", "section": "colors" },
-      { "name": "The Carbon Ink Rule", "body": "Every entered figure, amount, serial and money value sets in Spline Sans Mono with tabular-nums (.carbon-nums), in carbon purple. Money never sets in the sans face and never in a colour other than carbon (dark: carbon night).", "section": "colors" },
-      { "name": "The Paper Rule", "body": "Stubs are paper. Solid fills, one hairline border, no backdrop-filter, no translucency in primary surfaces; .glass-subtle translucency exists only as a background wash and collapses to solid under prefers-reduced-transparency and browsers without backdrop-filter support.", "section": "colors" },
-      { "name": "The Two Ink Voices Rule", "body": "Uppercase text is always Archivo Narrow 700 with tracking (labels, tabs, stamps); mono is always tabular and always for numbers. Sans never fakes either voice — no letter-spaced sans caps, no proportional digits in money.", "section": "typography" }
+      {
+        "name": "The Colour Owns Regions Rule",
+        "body": "Navy owns whole regions — bands, rails, pills — through the .on-navy scope, which re-points --ink, --muted, --surface and --pearl-border so children read navy-safe without markup changes. Colour is never applied as a chip-level accent to fake structure; red accents an action, navy declares a region.",
+        "section": "colors"
+      },
+      {
+        "name": "Approved status washes",
+        "body": "LedgerRow's internal amber/red/blue washes are approved status accents — they mark void, superseded and pending states inside a stub, not structure, so they do not break the Colour Owns Regions Rule.",
+        "section": "colors"
+      },
+      {
+        "name": "The Carbon Ink Rule",
+        "body": "Every entered figure, amount, serial and money value sets in Spline Sans Mono with tabular-nums (.carbon-nums), in carbon purple. Money never sets in the sans face and never in a colour other than carbon (dark: carbon night).",
+        "section": "colors"
+      },
+      {
+        "name": "The Paper Rule",
+        "body": "Stubs are paper. Solid fills, one hairline border, no backdrop-filter, no translucency in primary surfaces; .glass-subtle translucency exists only as a background wash and collapses to solid under prefers-reduced-transparency and browsers without backdrop-filter support.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Ink Voices Rule",
+        "body": "Uppercase text is always Archivo Narrow 700 with tracking (labels, tabs, stamps); mono is always tabular and always for numbers. Sans never fakes either voice — no letter-spaced sans caps, no proportional digits in money.",
+        "section": "typography"
+      }
     ],
     "dos": [
       "Do wrap any navy region in .on-navy so ink tokens flip automatically; never hand-pick light text colours per child.",

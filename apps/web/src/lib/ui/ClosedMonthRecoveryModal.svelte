@@ -186,9 +186,7 @@
         </div>
 
         <div>
-          <label
-            for="reassign-date"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="reassign-date" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Destination Open Month Date</label
           >
           <input
@@ -206,9 +204,7 @@
             satisfy mode exclusivity.
           </div>
           <div>
-            <label
-              for="manual-vat-bdt"
-              class="block text-xs font-semibold text-[var(--muted)] mb-1"
+            <label for="manual-vat-bdt" class="block text-xs font-semibold text-[var(--muted)] mb-1"
               >Manual VAT Input (BDT)</label
             >
             <input
@@ -224,9 +220,7 @@
         {/if}
 
         <div>
-          <label
-            for="reassign-reason"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="reassign-reason" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Mandatory Reassign Reason</label
           >
           <textarea
@@ -266,9 +260,7 @@
         </div>
 
         <div>
-          <label
-            for="reopen-reason"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="reopen-reason" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Mandatory Month Reopen Reason</label
           >
           <textarea
@@ -307,9 +299,7 @@
         </div>
 
         <div>
-          <label
-            for="discard-reason"
-            class="block text-xs font-semibold text-[var(--muted)] mb-1"
+          <label for="discard-reason" class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Mandatory Discard Reason</label
           >
           <textarea

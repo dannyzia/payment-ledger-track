@@ -418,9 +418,7 @@
   <!-- Overall Shop Turnover (PRD §8.5) -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
     <Card class="p-6">
-      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">
-        Total Shop Collections Today
-      </div>
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Total Shop Collections Today</div>
       <div class="text-3xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(overallShop.todayGrossPoisha)}
       </div>
@@ -446,9 +444,7 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--muted)] mb-1">
-          Stale Reviews (>৳50k)
-        </div>
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">Stale Reviews (>৳50k)</div>
         <div class="text-2xl font-bold text-amber-600">{highValueStaleCount} Pending</div>
         {#if lowValueStaleCount > 0}
           <div class="text-[10px] text-[var(--muted)] mt-1">
@@ -481,9 +477,7 @@
 
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--muted)] mb-1">
-          Duplicate Txn Flags
-        </div>
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">Duplicate Txn Flags</div>
         <div
           class="text-2xl font-bold {duplicateTxnCount > 0 ? 'text-amber-600' : 'text-slate-700'}"
         >
@@ -503,9 +497,7 @@
 
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--muted)] mb-1">
-          Closed-Month Offline
-        </div>
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">Closed-Month Offline</div>
         <div
           class="text-2xl font-bold {closedMonthRejectedCount > 0
             ? 'text-red-600'
@@ -530,9 +522,7 @@
 
   <!-- Shop Collections by Payment Method (PRD §8.5) -->
   <Card class="p-6">
-    <h2 class="font-bold text-base text-[var(--ink)] mb-4">
-      Shop Collections by Payment Method
-    </h2>
+    <h2 class="font-bold text-base text-[var(--ink)] mb-4">Shop Collections by Payment Method</h2>
     <div class="overflow-x-auto">
       <table class="w-full text-left text-sm">
         <thead>

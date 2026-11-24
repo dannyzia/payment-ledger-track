@@ -78,7 +78,8 @@
   --c-mastercard: #9e3600;
   --c-mastercard-bg: #ffdbc8;
   --font-sans:
-    'Archivo', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    'Archivo', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
   --font-narrow: 'Archivo Narrow', 'Archivo', 'Noto Sans Bengali', sans-serif;
   --font-mono: 'Spline Sans Mono', 'Noto Sans Bengali', ui-monospace, monospace;
 }

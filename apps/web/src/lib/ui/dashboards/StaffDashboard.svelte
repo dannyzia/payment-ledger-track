@@ -148,6 +148,17 @@
   <!-- Action zone under the band: the band carries the headline only, so the
        stamp and the attention chip never crush it at phone width. -->
   <div class="flex flex-wrap items-center justify-end gap-3">
+    <div
+      class="px-3 py-1.5 rounded-xl border border-[var(--pearl-border)] text-xs font-semibold flex items-center gap-2"
+    >
+      <span
+        class="w-2 h-2 rounded-full {pendingSyncCount > 0
+          ? 'bg-amber-500 animate-pulse'
+          : 'bg-emerald-500'}"
+      ></span>
+      <span class="carbon-nums text-[var(--carbon)]">{pendingSyncCount} Outbox Pending</span>
+    </div>
+
     {#if rejectedOps.length > 0}
       <div
         class="px-3 py-1.5 rounded-xl border border-[var(--accent)]/30 bg-red-500/10 text-xs font-semibold flex items-center gap-2"
@@ -182,7 +193,8 @@
         {#each rejectedOps as item (item.id)}
           <div class="flex items-center justify-between p-2 rounded-lg bg-white/60 text-xs">
             <span class="font-medium text-[var(--ink)]">
-              {item.customerName} <span class="carbon-nums text-[var(--carbon)]"
+              {item.customerName}
+              <span class="carbon-nums text-[var(--carbon)]"
                 >({formatPoishaToBdt(BigInt(item.grossPoisha))})</span
               >
             </span>
@@ -214,9 +226,7 @@
     </Card>
 
     <Card class="p-6">
-      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">
-        My Month-to-Date Collections
-      </div>
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">My Month-to-Date Collections</div>
       <div class="text-2xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(metrics.mtdGrossPoisha)}
       </div>
@@ -229,9 +239,7 @@
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-bold text-base text-[var(--ink)]">My Recent Transactions</h2>
-      <a href="/ledger" class="text-xs text-[var(--muted)] hover:underline"
-        >View All Ledger</a
-      >
+      <a href="/ledger" class="text-xs text-[var(--muted)] hover:underline">View All Ledger</a>
     </div>
 
     {#if recentEntries.length === 0}

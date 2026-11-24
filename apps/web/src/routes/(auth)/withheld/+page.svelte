@@ -19,7 +19,9 @@
 </script>
 
 <div class="min-h-screen flex items-center justify-center p-4 sm:p-6 app-bg">
-  <div class="max-w-md w-full glass p-6 sm:p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
+  <div
+    class="max-w-md w-full glass p-6 sm:p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl"
+  >
     <!-- Coupon head: navy band with the ACCOUNT tab-cap (login pattern) -->
     <div class="on-navy -mx-6 sm:-mx-8 px-6 sm:px-8 py-3 mb-5">
       <div class="flex items-center gap-3">

@@ -220,9 +220,7 @@
     </CouponHead>
 
     <div class="mb-6 flex flex-wrap items-center justify-end gap-2">
-      <Button variant="default" onclick={() => goto('/settlements')}>
-        ← Back to Settlements
-      </Button>
+      <Button variant="default" onclick={() => goto('/settlements')}>← Back to Settlements</Button>
       <Button
         class="btn-stamp min-h-[44px]"
         onclick={() => {
@@ -359,7 +357,9 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr class="tab-caps text-[11px] text-[var(--muted)] border-b border-[var(--pearl-border)]">
+              <tr
+                class="tab-caps text-[11px] text-[var(--muted)] border-b border-[var(--pearl-border)]"
+              >
                 <th class="pb-2">Date</th>
                 <th class="pb-2 text-right">Amount (BDT)</th>
                 <th class="pb-2">Reference</th>
@@ -368,7 +368,7 @@
                 <th class="pb-2 text-right">Action</th>
               </tr>
             </thead>
-                            <tbody class="divide-y divide-[var(--pearl-border)] text-xs">
+            <tbody class="divide-y divide-[var(--pearl-border)] text-xs">
               {#each payments as p (p.id)}
                 {@const reversibleBalance = getReversibleBalance(p, payments)}
                 {@const isFullyReversed = !p.is_reversal && reversibleBalance === 0n}

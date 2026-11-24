@@ -48,7 +48,8 @@
   {:else if syncRunner.status === 'offline'}
     <span class="w-2 h-2 rounded-full bg-amber-500"></span>
     <span class="text-amber-700 dark:text-amber-300"
-      >Offline{#if pendingCount > 0}<span class="sm:hidden carbon-nums"> ({pendingCount})</span
+      >Offline{#if pendingCount > 0}<span class="sm:hidden carbon-nums">
+          ({pendingCount})</span
         ><span class="hidden sm:inline carbon-nums"> ({pendingCount} pending)</span>{/if}</span
     >
   {:else if pendingCount > 0}

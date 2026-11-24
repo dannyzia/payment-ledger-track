@@ -46,9 +46,7 @@
     </div>
     <div class="min-w-0">
       <div class="font-bold text-sm text-[var(--ink)] truncate flex items-center gap-2">
-        <span
-          class={isVoided ? 'line-through decoration-[var(--accent)] decoration-2' : ''}
-        >
+        <span class={isVoided ? 'line-through decoration-[var(--accent)] decoration-2' : ''}>
           {entry.customer_name}
         </span>
         {#if isVoided}

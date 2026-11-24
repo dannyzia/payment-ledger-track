@@ -67,7 +67,9 @@
               class="w-11 h-11 rounded-xl shadow-sm border border-[#83CDF4]/40 object-cover"
             />
             <div>
-              <h1 class="text-xl font-bold tracking-tight text-[var(--ink)]">{messages.app.title}</h1>
+              <h1 class="text-xl font-bold tracking-tight text-[var(--ink)]">
+                {messages.app.title}
+              </h1>
               <p class="text-xs text-[var(--muted)]">{messages.app.subtitle}</p>
             </div>
           </div>
@@ -272,7 +274,8 @@
         <!-- Header & App Overview -->
         <div>
           <div class="flex flex-wrap items-center justify-end gap-2 mb-3">
-            <span class="text-[10px] carbon-nums text-[var(--muted)]">{messages.login.version}</span>
+            <span class="text-[10px] carbon-nums text-[var(--muted)]">{messages.login.version}</span
+            >
           </div>
 
           <h2 class="text-xl font-bold tracking-tight text-[var(--ink)] mb-1">
@@ -358,7 +361,8 @@
                 <span class="text-[var(--accent)] font-bold">4.</span>
                 <span
                   >{messages.login.registrationSteps.license}
-                  <span class="text-[var(--muted)]">{messages.login.registrationSteps.optional}</span
+                  <span class="text-[var(--muted)]"
+                    >{messages.login.registrationSteps.optional}</span
                   ></span
                 >
               </div>

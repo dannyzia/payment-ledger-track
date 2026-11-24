@@ -127,7 +127,8 @@
             <div>
               <strong>Tap "Download anyway"</strong>
               <p class="text-[11px] text-[var(--muted)]">
-                Android prompts this standard warning for all direct APK downloads outside Google Play.
+                Android prompts this standard warning for all direct APK downloads outside Google
+                Play.
               </p>
             </div>
           </div>
@@ -141,7 +142,9 @@
             <div>
               <strong>Open downloaded file</strong>
               <p class="text-[11px] text-[var(--muted)]">
-                Tap the download notification or open <code class="font-mono text-[10px]">kumon-ledger-track.apk</code> from your Downloads folder.
+                Tap the download notification or open <code class="font-mono text-[10px]"
+                  >kumon-ledger-track.apk</code
+                > from your Downloads folder.
               </p>
             </div>
           </div>
@@ -155,7 +158,8 @@
             <div>
               <strong>Tap "Install"</strong>
               <p class="text-[11px] text-[var(--muted)]">
-                If prompted, toggle "Allow from this source" in settings, then complete installation.
+                If prompted, toggle "Allow from this source" in settings, then complete
+                installation.
               </p>
             </div>
           </div>
