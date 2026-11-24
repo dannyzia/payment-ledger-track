@@ -1,6 +1,7 @@
 <script lang="ts">
   import { supabase } from '$lib/supabase/client';
   import Button from '$lib/ui/Button.svelte';
+  import { messages } from '$lib/i18n/messages';
   import { goto } from '$app/navigation';
 
   let password = $state('');
@@ -13,12 +14,12 @@
   async function handleSetPassword(e: SubmitEvent) {
     e.preventDefault();
     if (password !== confirmPassword) {
-      errorMessage = 'Passwords do not match.';
+      errorMessage = messages.setPassword.mismatch;
       return;
     }
 
     if (password.length < 8) {
-      errorMessage = 'Password must be at least 8 characters long.';
+      errorMessage = messages.setPassword.tooShort;
       return;
     }
 
@@ -37,24 +38,31 @@
       goto('/dashboard');
     } catch (err: unknown) {
       errorMessage =
-        err instanceof Error ? err.message || 'Failed to set password.' : 'Failed to set password.';
+        err instanceof Error ? err.message || messages.setPassword.failed : messages.setPassword.failed;
     } finally {
       loading = false;
     }
   }
 </script>
 
-<div class="min-h-screen flex items-center justify-center p-6 bg-[var(--bg)]">
-  <div class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
-    <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Set Your Password</h1>
-      <p class="text-xs text-[var(--muted)] mt-1">
-        Complete your account setup to access Kumon Ledger Track.
-      </p>
+<div class="min-h-screen flex items-center justify-center p-4 sm:p-6 app-bg">
+  <div class="max-w-md w-full glass p-6 sm:p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
+    <!-- Coupon head: navy band with the SET PASSWORD tab-cap (login pattern) -->
+    <div class="on-navy -mx-6 sm:-mx-8 px-6 sm:px-8 py-3 mb-5">
+      <div class="flex items-center gap-3">
+        <span class="coupon-tab shrink-0">{messages.setPassword.tab}</span>
+        <div class="min-w-0">
+          <h1 class="text-base font-semibold text-[var(--ink)]">{messages.setPassword.heading}</h1>
+          <p class="text-xs text-[var(--muted)] mt-0.5">{messages.setPassword.subheading}</p>
+        </div>
+      </div>
     </div>
 
     {#if errorMessage}
-      <div role="alert" class="p-3 mb-4 rounded-xl bg-red-500/10 text-red-700 text-xs font-medium">
+      <div
+        role="alert"
+        class="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs font-medium"
+      >
         {errorMessage}
       </div>
     {/if}
@@ -62,7 +70,7 @@
     <form onsubmit={handleSetPassword} class="flex flex-col gap-4">
       <div>
         <label for="new-password" class="block text-xs font-semibold text-[var(--muted)] mb-1">
-          New Password
+          {messages.setPassword.passwordLabel}
         </label>
         <div class="relative flex items-center">
           <input
@@ -71,15 +79,19 @@
             required
             autocomplete="new-password"
             bind:value={password}
-            class="w-full pl-4 pr-12 py-2.5 min-h-[44px] rounded-xl border border-[var(--pearl-border)] bg-white/50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            placeholder="At least 8 characters"
+            class="w-full pl-4 pr-14 py-2.5 min-h-[44px] rounded-xl border border-[var(--pearl-border)] bg-white/50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            placeholder={messages.setPassword.passwordPlaceholder}
           />
           <button
             type="button"
-            class="absolute right-1 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
+            class="absolute right-0 w-11 h-11 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             onclick={() => (showPassword = !showPassword)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-            title={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword
+              ? messages.setPassword.hidePassword
+              : messages.setPassword.showPassword}
+            title={showPassword
+              ? messages.setPassword.hidePassword
+              : messages.setPassword.showPassword}
           >
             {#if showPassword}
               <svg
@@ -119,11 +131,12 @@
             {/if}
           </button>
         </div>
+        <p class="text-[11px] text-[var(--muted)] mt-1">{messages.setPassword.rule}</p>
       </div>
 
       <div>
         <label for="confirm-password" class="block text-xs font-semibold text-[var(--muted)] mb-1">
-          Confirm Password
+          {messages.setPassword.confirmLabel}
         </label>
         <div class="relative flex items-center">
           <input
@@ -132,15 +145,19 @@
             required
             autocomplete="new-password"
             bind:value={confirmPassword}
-            class="w-full pl-4 pr-12 py-2.5 min-h-[44px] rounded-xl border border-[var(--pearl-border)] bg-white/50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            placeholder="Repeat password"
+            class="w-full pl-4 pr-14 py-2.5 min-h-[44px] rounded-xl border border-[var(--pearl-border)] bg-white/50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            placeholder={messages.setPassword.confirmPlaceholder}
           />
           <button
             type="button"
-            class="absolute right-1 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
+            class="absolute right-0 w-11 h-11 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             onclick={() => (showConfirmPassword = !showConfirmPassword)}
-            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            title={showConfirmPassword ? 'Hide password' : 'Show password'}
+            aria-label={showConfirmPassword
+              ? messages.setPassword.hidePassword
+              : messages.setPassword.showPassword}
+            title={showConfirmPassword
+              ? messages.setPassword.hidePassword
+              : messages.setPassword.showPassword}
           >
             {#if showConfirmPassword}
               <svg
@@ -183,8 +200,8 @@
       </div>
 
       <div class="mt-2">
-        <Button variant="commission" type="submit" class="w-full min-h-[44px]" {loading}>
-          Set Password & Continue
+        <Button type="submit" class="btn-stamp w-full min-h-[44px]" {loading}>
+          {messages.setPassword.submit}
         </Button>
       </div>
     </form>

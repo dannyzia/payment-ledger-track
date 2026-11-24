@@ -5,6 +5,7 @@
   import { securityReturnTarget } from '$lib/auth/security-return';
   import { supabase } from '$lib/supabase/client';
   import { session } from '$lib/auth/session.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
 
   /**
    * Plan 023 step 6 — mandatory TOTP for the platform seat.
@@ -218,11 +219,11 @@
 </script>
 
 <div class="max-w-2xl mx-auto p-6">
-  <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Two-factor authentication</h1>
-  <p class="text-xs text-[var(--muted)] mt-1 mb-6">
-    The platform seat requires an authenticator app. No platform route opens until it is enrolled
-    and this session has proven it.
-  </p>
+  <CouponHead
+    tab="Security"
+    title="Two-factor authentication"
+    subtitle="The platform seat requires an authenticator app. No platform route opens until it is enrolled and this session has proven it."
+  />
 
   {#if errorMessage}
     <div

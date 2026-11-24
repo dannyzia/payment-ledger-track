@@ -2,6 +2,7 @@
   import { supabase } from '$lib/supabase/client';
   import { session } from '$lib/auth/session.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import { messages } from '$lib/i18n/messages';
   import { goto } from '$app/navigation';
 
   let email = $state('');
@@ -42,8 +43,8 @@
     } catch (err: unknown) {
       errorMessage =
         err instanceof Error
-          ? err.message || 'Invalid email or password.'
-          : 'Invalid email or password.';
+          ? err.message || messages.login.invalidCredentials
+          : messages.login.invalidCredentials;
     } finally {
       loading = false;
     }
@@ -62,20 +63,24 @@
           <div class="flex items-center gap-3 mb-6">
             <img
               src="/icons/icon-192.png"
-              alt="Kumon Ledger Track Icon"
+              alt={messages.login.iconAlt}
               class="w-11 h-11 rounded-xl shadow-sm border border-[#83CDF4]/40 object-cover"
             />
             <div>
-              <h1 class="text-xl font-bold tracking-tight text-[var(--ink)]">Kumon Ledger Track</h1>
-              <p class="text-xs text-[var(--muted)]">Payment Ledger & Settlement Tracker</p>
+              <h1 class="text-xl font-bold tracking-tight text-[var(--ink)]">{messages.app.title}</h1>
+              <p class="text-xs text-[var(--muted)]">{messages.app.subtitle}</p>
             </div>
           </div>
 
-          <div class="mb-5">
-            <h2 class="text-base font-semibold text-[var(--ink)]">Sign In to Center</h2>
-            <p class="text-xs text-[var(--muted)] mt-0.5">
-              Enter your authorized staff or owner credentials to continue.
-            </p>
+          <!-- Coupon head: navy band with the SIGN IN tab-cap -->
+          <div class="on-navy -mx-6 sm:-mx-8 px-6 sm:px-8 py-3 mb-5">
+            <div class="flex items-center gap-3">
+              <span class="coupon-tab shrink-0">{messages.login.tab}</span>
+              <div class="min-w-0">
+                <h2 class="text-base font-semibold text-[var(--ink)]">{messages.login.heading}</h2>
+                <p class="text-xs text-[var(--muted)] mt-0.5">{messages.login.subheading}</p>
+              </div>
+            </div>
           </div>
 
           {#if errorMessage}
@@ -90,7 +95,7 @@
           <form onsubmit={handleLogin} class="flex flex-col gap-4">
             <div>
               <label for="login-email" class="block text-xs font-semibold text-[var(--muted)] mb-1">
-                Email Address
+                {messages.login.emailLabel}
               </label>
               <input
                 id="login-email"
@@ -99,7 +104,7 @@
                 autocomplete="email"
                 bind:value={email}
                 class="w-full px-4 py-2.5 min-h-[44px] rounded-xl border border-[var(--pearl-border)] bg-white/50 dark:bg-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                placeholder="name@company.com"
+                placeholder={messages.login.emailPlaceholder}
               />
             </div>
 
@@ -108,7 +113,7 @@
                 for="login-password"
                 class="block text-xs font-semibold text-[var(--muted)] mb-1"
               >
-                Password
+                {messages.login.passwordLabel}
               </label>
               <div class="relative flex items-center">
                 <input
@@ -124,8 +129,10 @@
                   type="button"
                   class="absolute right-1 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
                   onclick={() => (showPassword = !showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword
+                    ? messages.login.hidePassword
+                    : messages.login.showPassword}
+                  title={showPassword ? messages.login.hidePassword : messages.login.showPassword}
                 >
                   {#if showPassword}
                     <svg
@@ -168,8 +175,8 @@
             </div>
 
             <div class="mt-2">
-              <Button variant="commission" type="submit" class="w-full min-h-[44px]" {loading}>
-                Sign In
+              <Button type="submit" class="btn-stamp w-full min-h-[44px]" {loading}>
+                {messages.login.submit}
               </Button>
             </div>
           </form>
@@ -192,8 +199,12 @@
                     </svg>
                   </div>
                   <div class="min-w-0">
-                    <div class="text-xs font-bold text-[var(--ink)] truncate">Android App (APK)</div>
-                    <div class="text-[11px] text-[var(--muted)] truncate">Direct Install · 7.4 MB</div>
+                    <div class="text-xs font-bold text-[var(--ink)] truncate">
+                      {messages.login.apkTitle}
+                    </div>
+                    <div class="text-[11px] text-[var(--muted)] truncate">
+                      {messages.login.apkMeta}
+                    </div>
                   </div>
                 </div>
 
@@ -216,7 +227,7 @@
                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                     />
                   </svg>
-                  <span>Download APK</span>
+                  <span>{messages.login.downloadApk}</span>
                 </a>
               </div>
 
@@ -227,16 +238,16 @@
                 <div class="p-1 rounded-lg bg-white shrink-0 border border-slate-200/80 shadow-sm">
                   <img
                     src="/images/apk-qr.svg"
-                    alt="Scan QR code to download Android App"
+                    alt={messages.login.qrAlt}
                     class="w-16 h-16 sm:w-18 sm:h-18"
                     width="72"
                     height="72"
                   />
                 </div>
                 <div class="text-xs text-[var(--muted)] leading-tight">
-                  <div class="font-bold text-[var(--ink)] mb-0.5">Scan to Download on Phone</div>
+                  <div class="font-bold text-[var(--ink)] mb-0.5">{messages.login.qrTitle}</div>
                   <p class="text-[11px] text-[var(--muted)] leading-relaxed">
-                    Point your phone camera to download and install the offline ledger app directly.
+                    {messages.login.qrBody}
                   </p>
                 </div>
               </div>
@@ -246,8 +257,8 @@
 
         <div class="mt-6 pt-4 border-t border-[var(--pearl-border)] text-center">
           <p class="text-xs text-[var(--muted)]">
-            <span class="hidden lg:inline">New center onboarding details on the right &rarr;</span>
-            <span class="lg:hidden">New center onboarding details below &darr;</span>
+            <span class="hidden lg:inline">{messages.login.onboardingHintDesktop} &rarr;</span>
+            <span class="lg:hidden">{messages.login.onboardingHintMobile} &darr;</span>
           </p>
         </div>
       </div>
@@ -260,27 +271,18 @@
       >
         <!-- Header & App Overview -->
         <div>
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div
-              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-            >
-              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Free & Active Until End of 2027
-            </div>
-            <span class="text-[11px] font-mono text-[var(--muted)]">v1.0 Production</span>
+          <div class="flex flex-wrap items-center justify-end gap-2 mb-3">
+            <span class="text-[10px] carbon-nums text-[var(--muted)]">{messages.login.version}</span>
           </div>
 
           <h2 class="text-xl font-bold tracking-tight text-[var(--ink)] mb-1">
-            About Kumon Ledger Track
+            {messages.login.aboutTitle}
           </h2>
           <div class="text-xs font-semibold text-[var(--accent)] mb-2">
-            Modern Offline-First Payment Ledger for Centers
+            {messages.login.aboutKicker}
           </div>
           <p class="text-xs sm:text-sm text-[var(--muted)] leading-relaxed">
-            Kumon Ledger Track replaces manual notebooks with a resilient, offline-first digital
-            ledger. Designed specifically for educational franchise centers, it delivers quick
-            payment recording, automated VAT/commission splits, and seamless multi-channel
-            settlement tracking.
+            {messages.login.description}
           </p>
 
           <!-- Core Feature Badges -->
@@ -289,74 +291,76 @@
               class="p-2.5 rounded-xl bg-white/40 dark:bg-black/20 border border-[var(--pearl-border)] flex flex-col gap-1"
             >
               <span class="text-base">⚡</span>
-              <span class="text-xs font-semibold text-[var(--ink)]">&lt; 20s Entry</span>
-              <span class="text-[10px] text-[var(--muted)]">Fast phone recording</span>
+              <span class="text-xs font-semibold text-[var(--ink)]">
+                {messages.login.features.fastEntryValue}
+              </span>
+              <span class="text-[10px] text-[var(--muted)]">
+                {messages.login.features.fastEntry}
+              </span>
             </div>
             <div
               class="p-2.5 rounded-xl bg-white/40 dark:bg-black/20 border border-[var(--pearl-border)] flex flex-col gap-1"
             >
               <span class="text-base">📴</span>
-              <span class="text-xs font-semibold text-[var(--ink)]">Offline-First</span>
-              <span class="text-[10px] text-[var(--muted)]">Works without internet</span>
+              <span class="text-xs font-semibold text-[var(--ink)]">
+                {messages.login.features.offline}
+              </span>
+              <span class="text-[10px] text-[var(--muted)]">
+                {messages.login.features.offlineValue}
+              </span>
             </div>
             <div
               class="p-2.5 rounded-xl bg-white/40 dark:bg-black/20 border border-[var(--pearl-border)] flex flex-col gap-1"
             >
               <span class="text-base">🧮</span>
-              <span class="text-xs font-semibold text-[var(--ink)]">Auto Splits</span>
-              <span class="text-[10px] text-[var(--muted)]">VAT, bKash & Cards</span>
+              <span class="text-xs font-semibold text-[var(--ink)]">
+                {messages.login.features.splits}
+              </span>
+              <span class="text-[10px] text-[var(--muted)]">
+                {messages.login.features.splitsValue}
+              </span>
             </div>
             <div
               class="p-2.5 rounded-xl bg-white/40 dark:bg-black/20 border border-[var(--pearl-border)] flex flex-col gap-1"
             >
               <span class="text-base">⚖️</span>
-              <span class="text-xs font-semibold text-[var(--ink)]">Reconciliation</span>
-              <span class="text-[10px] text-[var(--muted)]">Monthly statements</span>
+              <span class="text-xs font-semibold text-[var(--ink)]">
+                {messages.login.features.reconciliation}
+              </span>
+              <span class="text-[10px] text-[var(--muted)]">
+                {messages.login.features.reconciliationValue}
+              </span>
             </div>
-          </div>
-
-          <!-- Free Access & Longevity Notice -->
-          <div
-            class="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 text-xs text-[var(--ink)] space-y-1.5"
-          >
-            <div class="font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-              <span>📅</span>
-              <span>100% Free & Active Through End of 2027</span>
-            </div>
-            <p class="text-[11px] text-[var(--muted)] leading-relaxed">
-              This system is completely free to use with all cloud hosting, security, and updates
-              fully active until <strong>December 31, 2027</strong>. If centers like and actively
-              use the app in daily operations, ongoing maintenance, support, and development will
-              happily continue beyond 2027. If centers do not use it, future maintenance and
-              development will be postponed.
-            </p>
           </div>
 
           <!-- New Center Sign Up Requirements -->
           <div class="mt-4 pt-3 border-t border-[var(--pearl-border)]">
             <h3 class="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2">
-              New Center Registration Details
+              {messages.login.registrationTitle}
             </h3>
             <p class="text-xs text-[var(--muted)] mb-2">
-              Accounts are created per center to guarantee complete data isolation. To onboard your
-              center, please send:
+              {messages.login.registrationBody}
             </p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-[var(--ink)]">
               <div class="flex items-start gap-1.5">
                 <span class="text-[var(--accent)] font-bold">1.</span>
-                <span>Center Code (e.g. MHK) & Name</span>
+                <span>{messages.login.registrationSteps.centerCode}</span>
               </div>
               <div class="flex items-start gap-1.5">
                 <span class="text-[var(--accent)] font-bold">2.</span>
-                <span>Center Address & Phone Number</span>
+                <span>{messages.login.registrationSteps.address}</span>
               </div>
               <div class="flex items-start gap-1.5">
                 <span class="text-[var(--accent)] font-bold">3.</span>
-                <span>Center Owner / Admin Name & Email</span>
+                <span>{messages.login.registrationSteps.owner}</span>
               </div>
               <div class="flex items-start gap-1.5">
                 <span class="text-[var(--accent)] font-bold">4.</span>
-                <span>BIN / Trade License <span class="text-[var(--muted)]">(optional)</span></span>
+                <span
+                  >{messages.login.registrationSteps.license}
+                  <span class="text-[var(--muted)]">{messages.login.registrationSteps.optional}</span
+                  ></span
+                >
               </div>
             </div>
           </div>
@@ -367,8 +371,8 @@
           class="pt-3 border-t border-[var(--pearl-border)] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-black/5 dark:bg-white/5 -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-4 sm:p-6 rounded-b-2xl"
         >
           <div class="text-xs text-[var(--muted)]">
-            <div class="font-semibold text-[var(--ink)]">Send Info or Request Support:</div>
-            <div class="text-[11px]">For new center creation or technical issues</div>
+            <div class="font-semibold text-[var(--ink)]">{messages.login.supportTitle}</div>
+            <div class="text-[11px]">{messages.login.supportMeta}</div>
           </div>
 
           <div class="flex items-center gap-2 flex-wrap">

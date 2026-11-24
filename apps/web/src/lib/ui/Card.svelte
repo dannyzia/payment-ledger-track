@@ -28,7 +28,7 @@
   });
 </script>
 
-<div class="{variantClass} rounded-[18px] p-5 shadow-sm {className}" {...restProps}>
+<div class="{variantClass} rounded-[var(--radius)] p-5 shadow-sm {className}" {...restProps}>
   {#if children}
     {@render children()}
   {/if}

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import { session } from '$lib/auth/session.svelte';
   import { hasCenterCapability } from '$lib/capabilities';
   import {
@@ -204,29 +205,31 @@
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied</h2>
-      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">
+      <p class="text-sm text-[var(--muted)] mb-4">
         Reconciliation is restricted strictly to Administrators and Owners.
       </p>
       <Button variant="default" onclick={() => goto('/dashboard')}>Return to Dashboard</Button>
     </Card>
   </div>
 {:else}
-  <div class="max-w-2xl mx-auto p-6 w-full">
-    <div class="mb-6">
-      <Button variant="default" class="text-xs mb-3 min-h-[36px]" onclick={() => goto('/reconcile')}
-        >‹ Back to Overview</Button
-      >
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-        Mode A Manual Statement Reconciliation
-      </h1>
-      <p class="text-sm text-[var(--c-muted,#6b7280)]">
-        Totals-only reconciliation comparing total vendor invoice to internal liabilities (PRD
-        §11.2).
-      </p>
+  <div class="reconcile-manual max-w-2xl mx-auto p-6 w-full">
+    <CouponHead
+      tab="Reconcile"
+      title="Mode A Manual Statement"
+      subtitle="Totals-only reconciliation of a vendor invoice total against internal liabilities (PRD §11.2)."
+    />
+
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <Button variant="default" class="min-h-[44px]" onclick={() => goto('/reconcile')}>
+        ‹ Back to Overview
+      </Button>
     </div>
 
     {#if errorMessage}
-      <div role="alert" class="p-3 mb-4 rounded-xl bg-red-500/10 text-red-700 text-xs font-medium">
+      <div
+        role="alert"
+        class="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-400 text-xs font-medium"
+      >
         {errorMessage}
       </div>
     {/if}
@@ -236,7 +239,7 @@
         <div>
           <label
             for="recon-month"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Reconciliation Month</label
           >
           <input
@@ -251,7 +254,7 @@
         <div>
           <label
             for="recon-payable"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Target Payable Scope</label
           >
           <select
@@ -269,7 +272,7 @@
         <div>
           <label
             for="recon-total-bdt"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Statement Total Amount (BDT)</label
           >
           <input
@@ -286,27 +289,34 @@
           {/if}
         </div>
 
-        <div class="p-4 rounded-xl glass border border-black/5 flex justify-between text-sm">
+        <div class="p-4 rounded-xl glass border border-black/5 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
           <div>
-            <div class="text-xs text-[var(--c-muted,#6b7280)]">Expected Liability</div>
-            <div class="font-bold tabular-nums">{formatPoishaToBdt(expectedPoisha)}</div>
-          </div>
-          <div>
-            <div class="text-xs text-[var(--c-muted,#6b7280)]">Net Variance</div>
-            <div class="font-bold tabular-nums {variancePoisha !== 0n ? 'text-blue-600' : ''}">
-              {formatPoishaToBdt(variancePoisha)}
+            <div class="tab-caps text-[10px] text-[var(--muted)]">Expected Liability</div>
+            <div class="font-bold carbon-nums text-[var(--carbon)]">
+              {formatPoishaToBdt(expectedPoisha)}
             </div>
           </div>
           <div>
-            <div class="text-xs text-[var(--c-muted,#6b7280)]">Tolerance</div>
-            <div class="font-bold">
-              ±{formatPoishaToBdt(tolerancePoisha)} ({tolerancePoisha.toString()} poisha)
+            <div class="tab-caps text-[10px] text-[var(--muted)]">Net Variance</div>
+            <div
+              class="font-bold carbon-nums {variancePoisha !== 0n
+                ? 'text-[var(--accent)] dark:text-[#ff8a8f]'
+                : 'text-[var(--carbon)]'}"
+            >
+              {formatPoishaToBdt(variancePoisha)}
+            </div>
+          </div>
+          <div class="col-span-2 sm:col-span-1">
+            <div class="tab-caps text-[10px] text-[var(--muted)]">Tolerance</div>
+            <div class="font-bold carbon-nums">±{formatPoishaToBdt(tolerancePoisha)}</div>
+            <div class="text-[10px] text-[var(--muted)]">
+              {tolerancePoisha.toString()} poisha
             </div>
           </div>
         </div>
 
         {#if statementTotalPoisha !== null && !meetsTolerance}
-          <div class="p-3 rounded-xl bg-amber-500/10 text-amber-800 text-xs font-medium">
+          <div class="p-3 rounded-xl bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-medium">
             Net variance exceeds ±{tolerancePoisha.toString()} poisha tolerance. An explanatory justification
             note is required to complete reconciliation.
           </div>
@@ -315,7 +325,7 @@
         <div>
           <label
             for="rec-note"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
           >
             Explanatory Note {!meetsTolerance
               ? '(Mandatory for variance > tolerance)'
@@ -336,9 +346,8 @@
           >
           <Button
             id="btn-save"
-            variant="commission"
             type="submit"
-            class="min-h-[44px]"
+            class="btn-stamp min-h-[44px]"
             disabled={!meetsTolerance ||
               statementTotalPoisha === null ||
               targetPayableIds.length === 0}

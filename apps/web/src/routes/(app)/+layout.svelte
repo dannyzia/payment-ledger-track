@@ -3,7 +3,6 @@
   import Sidebar from '$lib/ui/Sidebar.svelte';
   import FloatingMenu from '$lib/ui/FloatingMenu.svelte';
   import CommandPalette from '$lib/ui/CommandPalette.svelte';
-  import SyncIndicator from '$lib/ui/SyncIndicator.svelte';
   import Button from '$lib/ui/Button.svelte';
   import { session } from '$lib/auth/session.svelte';
   import { syncRunner } from '$lib/sync/runner.svelte';
@@ -96,9 +95,9 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="flex h-screen overflow-hidden bg-[var(--bg)]">
-  <!-- Desktop Sidebar Navigation Rail -->
+  <!-- Desktop Sidebar Navigation Rail — carrier-navy shell region -->
   <div
-    class="hidden md:flex flex-col justify-between w-64 border-r border-[var(--pearl-border)] glass"
+    class="hidden md:flex flex-col justify-between w-64 border-r border-[var(--pearl-border)] glass on-navy"
   >
     <div class="flex-1 overflow-y-auto">
       <Sidebar role={userRole} />
@@ -131,7 +130,7 @@
       </div>
       <Button
         variant="default"
-        class="w-full text-xs text-red-600 hover:bg-red-500/10 min-h-[44px]"
+        class="w-full text-xs text-[#f0a9ac] hover:bg-white/10 hover:text-[#ffd7d9] min-h-[44px]"
         onclick={() => session.signOut()}
       >
         Sign Out
@@ -144,10 +143,8 @@
     <FloatingMenu role={userRole} />
   </div>
 
-  <!-- Sync Status Indicator — visible on every authenticated screen (Plan 011) -->
-  <div class="fixed top-3 right-4 z-50">
-    <SyncIndicator />
-  </div>
+  <!-- Sync status docks inside the shared coupon head (CouponHead.svelte); the
+       shell no longer floats a pill, which rode over every band's top edge. -->
 
   <!-- Desktop Command Palette Overlay (PRD §14.5) -->
   <CommandPalette

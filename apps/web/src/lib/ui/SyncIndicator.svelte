@@ -16,7 +16,7 @@
 </script>
 
 <div
-  class="sync-indicator inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border border-black/10 dark:border-white/10 glass shadow-xs"
+  class="sync-indicator inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold px-2.5 py-1 rounded-full border border-black/10 dark:border-white/10 glass shadow-xs"
 >
   {#if syncRunner.status === 'syncing'}
     <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
@@ -27,23 +27,29 @@
       onclick={() => syncRunner.triggerCycle()}
       class="flex items-center gap-1.5 text-red-600 dark:text-red-400 hover:underline cursor-pointer focus:outline-hidden"
       title="Sync encountered an error. Click to retry."
+      aria-label="Sync error. Tap to retry."
     >
       <span class="w-2 h-2 rounded-full bg-red-500"></span>
-      <span>Sync error (tap to retry)</span>
+      <!-- Narrow bands get the short word so the headline keeps its room. -->
+      <span class="sm:hidden">Retry</span>
+      <span class="hidden sm:inline">Sync error (tap to retry)</span>
     </button>
   {:else if syncRunner.status === 'signed_out'}
     <!-- CLT-R-015: a missing session is not a sync failure; say so and offer the way back in. -->
     <a
       href="/login"
       class="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 hover:underline"
+      aria-label="Signed out — sign in"
     >
       <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-      <span>Signed out — sign in</span>
+      <span class="sm:hidden">Sign in</span>
+      <span class="hidden sm:inline">Signed out — sign in</span>
     </a>
   {:else if syncRunner.status === 'offline'}
     <span class="w-2 h-2 rounded-full bg-amber-500"></span>
     <span class="text-amber-700 dark:text-amber-300"
-      >Offline{pendingCount > 0 ? ` (${pendingCount} pending)` : ''}</span
+      >Offline{#if pendingCount > 0}<span class="sm:hidden carbon-nums"> ({pendingCount})</span
+        ><span class="hidden sm:inline carbon-nums"> ({pendingCount} pending)</span>{/if}</span
     >
   {:else if pendingCount > 0}
     <span class="w-2 h-2 rounded-full bg-amber-500"></span>

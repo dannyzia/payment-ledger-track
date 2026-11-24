@@ -7,6 +7,7 @@
   import { formatPoishaToBdt } from '@clt/shared';
   import Button from '$lib/ui/Button.svelte';
   import Card from '$lib/ui/Card.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import { db, type CachedPayable } from '$lib/db';
   import { currentDhakaMonth } from '$lib/reconcile/tolerance';
@@ -809,25 +810,19 @@
   }
 </script>
 
-<div class="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+<div class="max-w-6xl mx-auto p-6 space-y-6">
+  <!-- Coupon head: navy band with the MODE B tab-cap -->
+  <CouponHead
+    tab="Mode B"
+    title="File-Based Reconciliation"
+    subtitle="Upload bank or gateway CSV statements, auto-match against ledger entries, and resolve discrepancies."
+  />
+
   <!-- Header & Navigation -->
-  <div
-    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-black/10 dark:border-white/10 pb-4"
-  >
-    <div>
-      <div class="flex items-center gap-2 text-xs text-[var(--c-muted,#6b7280)] mb-1">
-        <a href="/reconcile" class="hover:underline">Reconciliation</a>
-        <span>/</span>
-        <span class="text-[var(--c-ink,#111827)]">Mode B Upload</span>
-      </div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-        File-Based Reconciliation (Mode B)
-      </h1>
-      <p class="text-xs text-[var(--c-muted,#6b7280)] mt-1">
-        Upload bank or gateway CSV statements, auto-match against ledger entries, and resolve
-        discrepancies.
-      </p>
-    </div>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <a href="/reconcile" class="text-xs text-[var(--muted)] hover:underline">
+      &larr; Reconciliation
+    </a>
     <div class="flex items-center gap-2">
       <Button id="btn-back" variant="default" class="min-h-[44px]" onclick={handleBack}>
         &larr; {returnTo === 'close' ? 'Back to Month Close' : 'Back to Overview'}
@@ -871,18 +866,18 @@
   {/if}
 
   {#if loading}
-    <Card class="p-8 text-center text-[var(--c-muted,#6b7280)] text-sm">Loading...</Card>
+    <Card class="p-8 text-center text-[var(--muted)] text-sm">Loading...</Card>
   {:else if !activeStatement}
     <!-- Section: Step 1 Upload Statement File -->
     <Card class="p-5 sm:p-6 space-y-5">
       <div
         class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
       >
-        <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+        <h2 class="text-lg font-semibold text-[var(--ink)]">
           1. Select Statement File &amp; Coverage
         </h2>
         <span
-          class="text-xs font-mono px-2 py-1 bg-black/5 dark:bg-white/10 rounded text-[var(--c-muted,#6b7280)]"
+          class="text-xs font-mono px-2 py-1 bg-black/5 dark:bg-white/10 rounded text-[var(--muted)]"
           >Step 1 of 2</span
         >
       </div>
@@ -892,7 +887,7 @@
         <div>
           <label
             for="month-select"
-            class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+            class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
           >
             Statement Month
           </label>
@@ -901,9 +896,9 @@
             type="month"
             bind:value={selectedMonthInput}
             onchange={handleMonthChange}
-            class="w-full min-h-[44px] px-3 text-sm rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+            class="w-full min-h-[44px] px-3 text-sm rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
           />
-          <p class="text-[11px] text-[var(--c-muted,#6b7280)] mt-1">
+          <p class="text-[11px] text-[var(--muted)] mt-1">
             Normalized to {selectedMonth}
           </p>
         </div>
@@ -912,7 +907,7 @@
         <div>
           <label
             for="payables-select"
-            class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+            class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
           >
             Covered Payables
           </label>
@@ -920,13 +915,13 @@
             id="payables-select"
             multiple
             bind:value={selectedPayableIds}
-            class="w-full h-24 p-2 text-sm rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+            class="w-full h-24 p-2 text-sm rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
           >
             {#each payables as p (p.id)}
               <option value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>
             {/each}
           </select>
-          <p class="text-[11px] text-[var(--c-muted,#6b7280)] mt-1">
+          <p class="text-[11px] text-[var(--muted)] mt-1">
             Hold Ctrl/Cmd to select multiple payables for combined card statements.
           </p>
         </div>
@@ -971,8 +966,8 @@
         for="file-upload-input"
         class="cursor-pointer block border-2 border-dashed border-black/15 rounded-2xl p-6 text-center space-y-2 hover:border-[var(--brand,#3b82f6)] transition-colors"
       >
-        <div class="text-3xl text-[var(--c-muted,#6b7280)]">&uarr;</div>
-        <div class="text-sm font-medium text-[var(--c-ink,#111827)]">
+        <div class="text-3xl text-[var(--muted)]">&uarr;</div>
+        <div class="text-sm font-medium text-[var(--ink)]">
           {#if statementFile}
             <span class="font-semibold">{statementFile.name}</span> ({(
               statementFile.size / 1024
@@ -981,7 +976,7 @@
             Click to browse or drop statement CSV file here
           {/if}
         </div>
-        <p class="text-xs text-[var(--c-muted,#6b7280)]">
+        <p class="text-xs text-[var(--muted)]">
           Supports bKash Merchant CSV and Combined Card Settlement CSV up to 10 MB
         </p>
       </label>
@@ -1006,11 +1001,11 @@
           class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
         >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+            <h2 class="text-lg font-semibold text-[var(--ink)]">
               2. Preview &amp; Confirm Ingestion
             </h2>
-            <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
-              Adapter detected: <span class="font-mono font-medium text-[var(--c-ink,#111827)]"
+            <p class="text-xs text-[var(--muted)] mt-0.5">
+              Adapter detected: <span class="font-mono font-medium text-[var(--ink)]"
                 >{uploadPreview.detectedAdapter}</span
               >
             </p>
@@ -1024,34 +1019,34 @@
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Total Lines</span
             >
-            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]"
+            <span class="text-lg font-bold font-mono text-[var(--ink)]"
               >{uploadPreview.linesCount}</span
             >
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Total Gross</span
             >
-            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
+            <span class="text-lg font-bold font-mono text-[var(--ink)]">
               ৳{formatPoishaToBdt(BigInt(uploadPreview.previewSummary.totalGrossPoisha || '0'))}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Total Fee / MDR</span
             >
-            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
+            <span class="text-lg font-bold font-mono text-[var(--ink)]">
               ৳{formatPoishaToBdt(BigInt(uploadPreview.previewSummary.totalFeePoisha || '0'))}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Date Span</span
             >
-            <span class="text-xs font-mono text-[var(--c-ink,#111827)] mt-1 block">
+            <span class="text-xs font-mono text-[var(--ink)] mt-1 block">
               {uploadPreview.previewSummary.minDate || '—'} to {uploadPreview.previewSummary
                 .maxDate || '—'}
             </span>
@@ -1061,14 +1056,14 @@
         <!-- Sample Lines Table -->
         <div>
           <h3
-            class="text-xs font-semibold text-[var(--c-muted,#6b7280)] uppercase tracking-wider mb-2"
+            class="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2"
           >
             First 5 Sample Lines
           </h3>
           <div class="overflow-x-auto border border-black/10 rounded-xl">
             <table class="w-full text-left text-xs">
               <thead
-                class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold"
+                class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold"
               >
                 <tr>
                   <th class="p-2.5">Line #</th>
@@ -1078,7 +1073,7 @@
                   <th class="p-2.5 text-right">Fee (BDT)</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-black/10 font-mono text-[var(--c-ink,#111827)]">
+              <tbody class="divide-y divide-black/10 font-mono text-[var(--ink)]">
                 {#each uploadPreview.parsedLines.slice(0, 5) as line (line.lineIndex)}
                   <tr>
                     <td class="p-2.5">{line.lineIndex}</td>
@@ -1172,10 +1167,10 @@
         <div>
           <div class="flex items-center gap-2">
             <span
-              class="text-xs uppercase font-semibold tracking-wider text-[var(--c-muted,#6b7280)]"
+              class="text-xs uppercase font-semibold tracking-wider text-[var(--muted)]"
               >Statement Month:</span
             >
-            <span class="font-mono font-bold text-sm text-[var(--c-ink,#111827)]"
+            <span class="font-mono font-bold text-sm text-[var(--ink)]"
               >{activeStatement.month}</span
             >
             <span
@@ -1184,9 +1179,9 @@
               {activeStatement.status}
             </span>
           </div>
-          <div class="text-xs text-[var(--c-muted,#6b7280)] mt-1 flex items-center gap-3">
+          <div class="text-xs text-[var(--muted)] mt-1 flex items-center gap-3">
             <span
-              >Lines: <strong class="text-[var(--c-ink,#111827)] font-mono"
+              >Lines: <strong class="text-[var(--ink)] font-mono"
                 >{statementLines.length}</strong
               ></span
             >
@@ -1206,7 +1201,7 @@
 
         <div class="flex items-center gap-2">
           {#if resumedStatementId}
-            <span class="text-[11px] text-[var(--c-muted,#6b7280)] font-mono hidden sm:inline">
+            <span class="text-[11px] text-[var(--muted)] font-mono hidden sm:inline">
               Resumed statement
             </span>
           {/if}
@@ -1222,10 +1217,10 @@
           class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
         >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+            <h2 class="text-lg font-semibold text-[var(--ink)]">
               Statement Lines Review
             </h2>
-            <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
+            <p class="text-xs text-[var(--muted)] mt-0.5">
               Match each line to an active ledger entry or mark as accepted with a review note.
             </p>
           </div>
@@ -1240,7 +1235,7 @@
                 class="px-2.5 py-1 text-[11px] uppercase font-semibold rounded-lg min-h-[36px] {lineFilter ===
                 f
                   ? 'bg-[var(--brand,#3b82f6)] text-white'
-                  : 'bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)]'}"
+                  : 'bg-black/5 dark:bg-white/10 text-[var(--muted)]'}"
               >
                 {f}
               </button>
@@ -1251,7 +1246,7 @@
         <div class="overflow-x-auto border border-black/10 rounded-xl">
           <table class="w-full text-left text-xs">
             <thead
-              class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold"
+              class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold"
             >
               <tr>
                 <th class="p-2.5">Line #</th>
@@ -1263,7 +1258,7 @@
                 <th class="p-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-black/10 font-mono text-[var(--c-ink,#111827)]">
+            <tbody class="divide-y divide-black/10 font-mono text-[var(--ink)]">
               {#each filteredStatementLines as line, idx (line.id)}
                 <tr class="hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-colors">
                   <td class="p-2.5">{idx + 1}</td>
@@ -1327,7 +1322,7 @@
                 </tr>
               {:else}
                 <tr
-                  ><td colspan="7" class="p-4 text-center text-[var(--c-muted,#6b7280)] font-sans"
+                  ><td colspan="7" class="p-4 text-center text-[var(--muted)] font-sans"
                     >No lines for this filter.</td
                   ></tr
                 >
@@ -1343,15 +1338,15 @@
           class="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3"
         >
           <div>
-            <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+            <h2 class="text-lg font-semibold text-[var(--ink)]">
               Covered Ledger Entries Review (PRD §11.3)
             </h2>
-            <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
+            <p class="text-xs text-[var(--muted)] mt-0.5">
               All active entries generating liability for covered payables must be matched or have
               approved reconciliation exceptions.
             </p>
           </div>
-          <span class="text-xs font-mono text-[var(--c-muted,#6b7280)]">
+          <span class="text-xs font-mono text-[var(--muted)]">
             {coveredEntries.length} covered
           </span>
         </div>
@@ -1359,7 +1354,7 @@
         <div class="overflow-x-auto border border-black/10 rounded-xl">
           <table class="w-full text-left text-xs">
             <thead
-              class="bg-black/5 dark:bg-white/10 text-[var(--c-muted,#6b7280)] uppercase font-semibold"
+              class="bg-black/5 dark:bg-white/10 text-[var(--muted)] uppercase font-semibold"
             >
               <tr>
                 <th class="p-2.5">Entry #</th>
@@ -1371,7 +1366,7 @@
                 <th class="p-2.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-black/10 font-mono text-[var(--c-ink,#111827)]">
+            <tbody class="divide-y divide-black/10 font-mono text-[var(--ink)]">
               {#each coveredEntries as entry (entry.id + (entry.applicable_payable_id || ''))}
                 <tr class="hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-colors">
                   <td class="p-2.5 font-bold">{entry.entry_number}</td>
@@ -1416,7 +1411,7 @@
                 </tr>
               {:else}
                 <tr
-                  ><td colspan="7" class="p-4 text-center text-[var(--c-muted,#6b7280)] font-sans"
+                  ><td colspan="7" class="p-4 text-center text-[var(--muted)] font-sans"
                     >No covered entries for the selected payables in this month.</td
                   ></tr
                 >
@@ -1429,33 +1424,33 @@
       <!-- Section: Finalize Reconciliation Card -->
       <Card class="p-5 sm:p-6 space-y-4">
         <div class="border-b border-black/10 dark:border-white/10 pb-3">
-          <h2 class="text-lg font-semibold text-[var(--c-ink,#111827)]">
+          <h2 class="text-lg font-semibold text-[var(--ink)]">
             Finalize Statement Reconciliation
           </h2>
-          <p class="text-xs text-[var(--c-muted,#6b7280)] mt-0.5">
+          <p class="text-xs text-[var(--muted)] mt-0.5">
             Verify totals, inspect tolerance variance, and close the reconciliation.
           </p>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Statement Total Fee</span
             >
-            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
+            <span class="text-lg font-bold font-mono text-[var(--ink)]">
               ৳{formatPoishaToBdt(statementTotalFeePoisha)}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Total Entry Liability</span
             >
-            <span class="text-lg font-bold font-mono text-[var(--c-ink,#111827)]">
+            <span class="text-lg font-bold font-mono text-[var(--ink)]">
               ৳{formatPoishaToBdt(coveredEntriesTotalLiabilityPoisha)}
             </span>
           </div>
           <div class="p-3 rounded-xl">
-            <span class="block text-[11px] uppercase tracking-wider text-[var(--c-muted,#6b7280)]"
+            <span class="block text-[11px] uppercase tracking-wider text-[var(--muted)]"
               >Variance</span
             >
             <span
@@ -1486,7 +1481,7 @@
           <div>
             <label
               for="reconcile-note"
-              class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+              class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
             >
               Reconciliation Note (Mandatory)
             </label>
@@ -1495,7 +1490,7 @@
               bind:value={reconcileNote}
               rows="2"
               placeholder="Enter justification for fee variance..."
-              class="w-full p-2.5 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+              class="w-full p-2.5 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
             ></textarea>
           </div>
         {/if}
@@ -1503,7 +1498,7 @@
         <div
           class="flex items-center justify-between pt-3 border-t border-black/10 dark:border-white/10"
         >
-          <div class="text-xs text-[var(--c-muted,#6b7280)] font-sans">
+          <div class="text-xs text-[var(--muted)] font-sans">
             {#if activeStatement.status !== 'open'}
               Statement already {activeStatement.status}.
             {:else if unmatchedLinesCount > 0}
@@ -1548,14 +1543,14 @@
     <div class="p-1 space-y-4">
       <div class="p-3 rounded-xl text-xs">
         <p>
-          <span class="text-[var(--c-muted,#6b7280)]">Line Reference:</span>
-          <strong class="font-mono text-[var(--c-ink,#111827)]"
+          <span class="text-[var(--muted)]">Line Reference:</span>
+          <strong class="font-mono text-[var(--ink)]"
             >{selectedLineForMatch.reference || 'None'}</strong
           >
         </p>
         <p class="mt-1">
-          <span class="text-[var(--c-muted,#6b7280)]">Line Gross:</span>
-          <strong class="font-mono text-[var(--c-ink,#111827)]"
+          <span class="text-[var(--muted)]">Line Gross:</span>
+          <strong class="font-mono text-[var(--ink)]"
             >৳{formatPoishaToBdt(BigInt(selectedLineForMatch.gross_poisha || '0'))}</strong
           >
         </p>
@@ -1564,7 +1559,7 @@
       <div>
         <label
           for="candidate-search"
-          class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+          class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
         >
           Search Candidate Entries
         </label>
@@ -1573,7 +1568,7 @@
           type="text"
           bind:value={candidateSearchQuery}
           placeholder="Filter by entry number, ref, or customer..."
-          class="w-full min-h-[44px] px-3 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+          class="w-full min-h-[44px] px-3 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
         />
       </div>
 
@@ -1581,7 +1576,7 @@
         class="max-h-60 overflow-y-auto border border-black/10 rounded-xl divide-y divide-black/10"
       >
         {#if filteredCandidates.length === 0}
-          <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">
+          <div class="p-4 text-center text-xs text-[var(--muted)]">
             No candidate entries found matching query.
           </div>
         {:else}
@@ -1590,10 +1585,10 @@
               class="p-3 flex items-center justify-between hover:bg-black/[0.03] dark:hover:bg-white/[0.05] transition-colors"
             >
               <div class="text-xs">
-                <div class="font-mono font-bold text-[var(--c-ink,#111827)]">
+                <div class="font-mono font-bold text-[var(--ink)]">
                   {cand.entry_number}
                 </div>
-                <div class="text-[var(--c-muted,#6b7280)]">
+                <div class="text-[var(--muted)]">
                   {cand.entry_date} &bull; {cand.customer_name}
                 </div>
                 <div class="font-mono text-[11px] text-[var(--brand,#3b82f6)]">
@@ -1637,14 +1632,14 @@
   }}
 >
   <div class="p-1 space-y-4">
-    <p class="text-xs text-[var(--c-muted,#6b7280)]">
+    <p class="text-xs text-[var(--muted)]">
       Unmatching this statement line will sever its link to the ledger entry and revert the
       statement status to open.
     </p>
     <div>
       <label
         for="unmatch-reason-input"
-        class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+        class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
       >
         Reason for Unmatching (Mandatory)
       </label>
@@ -1653,7 +1648,7 @@
         type="text"
         bind:value={unmatchReason}
         placeholder="e.g. Inadvertent match, duplicate line reference..."
-        class="w-full min-h-[44px] px-3 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+        class="w-full min-h-[44px] px-3 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
       />
     </div>
     <div class="flex justify-end gap-2 pt-2">
@@ -1689,14 +1684,14 @@
   }}
 >
   <div class="p-1 space-y-4">
-    <p class="text-xs text-[var(--c-muted,#6b7280)]">
+    <p class="text-xs text-[var(--muted)]">
       Accepting an unmatched statement line logs the line into the audit trail as recognized without
       a corresponding ledger entry (e.g. gateway annual charge, fee adjustment).
     </p>
     <div>
       <label
         for="accept-note-input"
-        class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+        class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
       >
         Review Note (Mandatory)
       </label>
@@ -1705,7 +1700,7 @@
         bind:value={acceptReviewNote}
         rows="3"
         placeholder="e.g. Bank monthly account maintenance fee per statement..."
-        class="w-full p-2.5 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+        class="w-full p-2.5 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
       ></textarea>
     </div>
     <div class="flex justify-end gap-2 pt-2">
@@ -1744,11 +1739,11 @@
     <div class="p-1 space-y-4">
       <div class="p-3 rounded-xl text-xs font-mono">
         <p>
-          <span class="text-[var(--c-muted,#6b7280)]">Entry:</span>
+          <span class="text-[var(--muted)]">Entry:</span>
           <strong>{selectedEntryForException.entry_number}</strong>
         </p>
         <p class="mt-1">
-          <span class="text-[var(--c-muted,#6b7280)]">Gross:</span> ৳{formatPoishaToBdt(
+          <span class="text-[var(--muted)]">Gross:</span> ৳{formatPoishaToBdt(
             BigInt(selectedEntryForException.gross_poisha || '0'),
           )}
         </p>
@@ -1756,7 +1751,7 @@
       <div>
         <label
           for="exception-reason-input"
-          class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+          class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
         >
           Exception Reason (Mandatory)
         </label>
@@ -1765,7 +1760,7 @@
           bind:value={exceptionReason}
           rows="3"
           placeholder="e.g. Transaction settled outside reporting window, verified manually..."
-          class="w-full p-2.5 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+          class="w-full p-2.5 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
         ></textarea>
       </div>
       <div class="flex justify-end gap-2 pt-2">
@@ -1802,14 +1797,14 @@
   }}
 >
   <div class="p-1 space-y-4">
-    <p class="text-xs text-[var(--c-muted,#6b7280)]">
+    <p class="text-xs text-[var(--muted)]">
       Superseding archives the current statement in the audit log and creates the replacement
       statement from the uploaded preview's parsed lines (single audited transaction).
     </p>
     <div>
       <label
         for="supersede-reason-input"
-        class="block text-xs font-semibold text-[var(--c-ink,#111827)] uppercase tracking-wider mb-1"
+        class="block text-xs font-semibold text-[var(--ink)] uppercase tracking-wider mb-1"
       >
         Reason for Superseding (Mandatory)
       </label>
@@ -1818,7 +1813,7 @@
         type="text"
         bind:value={supersedeReason}
         placeholder="e.g. Corrupt CSV export, wrong date filter applied..."
-        class="w-full min-h-[44px] px-3 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--c-ink,#111827)]"
+        class="w-full min-h-[44px] px-3 text-xs rounded-xl border border-black/10 bg-white/70 text-[var(--ink)]"
       />
     </div>
     <div class="flex justify-end gap-2 pt-2">

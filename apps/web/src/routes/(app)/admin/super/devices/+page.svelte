@@ -3,6 +3,7 @@
   import { hasCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
@@ -106,14 +107,12 @@
   });
 </script>
 
-<div class="p-4 sm:p-6 max-w-5xl mx-auto w-full flex flex-col gap-4">
-  <div>
-    <h1 class="text-xl font-bold text-[var(--ink)]">Fleet Devices</h1>
-    <p class="text-sm text-[var(--muted)]">
-      Every registered device, across every center. Revoking is killswitch state: it stops the
-      device syncing without deleting its row, so the action is reversible.
-    </p>
-  </div>
+<div class="p-6 max-w-5xl mx-auto w-full flex flex-col gap-4">
+  <CouponHead
+    tab="Fleet"
+    title="Fleet Devices"
+    subtitle="Every registered device, across every center."
+  />
 
   {#if !canRead}
     <Card class="p-6">

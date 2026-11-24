@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
@@ -82,12 +83,11 @@
 </script>
 
 <div class="p-6 max-w-6xl mx-auto w-full">
-  <div class="mb-8">
-    <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Admin Hub</h1>
-    <p class="text-sm text-[var(--muted)]">
-      Manage business configuration, rates, devices, and operational parameters.
-    </p>
-  </div>
+  <CouponHead
+    tab="Admin"
+    title="Admin Hub"
+    subtitle="Manage business configuration, rates, devices, and operational parameters."
+  />
 
   {#if errorMessage}
     <div class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-sm">

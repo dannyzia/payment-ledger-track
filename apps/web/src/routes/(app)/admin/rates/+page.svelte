@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
@@ -189,13 +190,13 @@
 </script>
 
 <div class="p-6 max-w-5xl mx-auto w-full">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Rate Profiles & Rules</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Configure versioned financial deductions, VAT modes, and channel charges.
-      </p>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Rate Profiles & Rules"
+    subtitle="Configure versioned financial deductions, VAT modes, and channel charges."
+  />
+
+  <div class="mb-6 flex items-center justify-end gap-3">
     <div class="flex gap-3">
       <Button
         variant="default"

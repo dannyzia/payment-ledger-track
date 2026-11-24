@@ -1,6 +1,7 @@
 <script lang="ts">
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import { db, type LocalEntry } from '$lib/db';
   import { computeMonthlyAggregates } from '$lib/reports/aggregates';
   import {
@@ -280,21 +281,16 @@
 </script>
 
 <div class="owner-dashboard flex flex-col gap-6">
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-        Executive Summary — {ownerName}
-      </h1>
-      <p class="text-sm text-[var(--c-muted,#6b7280)]">
-        Financial governance, month close gates, and liability settlements ({currentMonth} vs {priorMonth}).
-      </p>
-    </div>
+  <CouponHead
+    tab="Owner"
+    title={`Executive Summary — ${ownerName}`}
+    subtitle={`Financial governance, month close gates, and liability settlements (${currentMonth} vs ${priorMonth}).`}
+  />
 
-    <div class="flex gap-2">
-      <a href="/months/close">
-        <Button variant="commission" class="min-h-[44px]">Month Close Controls</Button>
-      </a>
-    </div>
+  <div class="flex flex-wrap items-center justify-end gap-3">
+    <a href="/months/close">
+      <Button class="btn-stamp min-h-[44px]">Month Close Controls</Button>
+    </a>
   </div>
 
   {#if unclosedMonths.length > 0}
@@ -331,10 +327,8 @@
   <!-- Executive Financial Summary Cards (vs Prior Month) (PRD §8.5) -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
-        Total Shop Gross (MTD)
-      </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--c-ink,#111827)]">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Total Shop Gross (MTD)</div>
+      <div class="text-3xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(currentAgg.totalGrossPoisha)}
       </div>
       <div class="text-xs mt-2 flex items-center gap-1.5">
@@ -346,15 +340,13 @@
           )}
           ({deltas.grossDeltaPercent})
         </span>
-        <span class="text-[var(--c-muted,#6b7280)]">vs {priorMonth}</span>
+        <span class="text-[var(--muted)]">vs {priorMonth}</span>
       </div>
     </Card>
 
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
-        Total Commission Earned
-      </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--c-commission,#10b981)]">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Total Commission Earned</div>
+      <div class="text-2xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(currentAgg.totalCommissionPoisha)}
       </div>
       <div class="text-xs mt-2 flex items-center gap-1.5">
@@ -370,15 +362,13 @@
           )}
           ({deltas.commissionDeltaPercent})
         </span>
-        <span class="text-[var(--c-muted,#6b7280)]">vs {priorMonth}</span>
+        <span class="text-[var(--muted)]">vs {priorMonth}</span>
       </div>
     </Card>
 
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
-        Net Retained Income
-      </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--accent,#3b82f6)]">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Net Retained Income</div>
+      <div class="text-2xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(currentAgg.totalNetPoisha)}
       </div>
       <div class="text-xs mt-2 flex items-center gap-1.5">
@@ -388,7 +378,7 @@
           )}
           ({deltas.netDeltaPercent})
         </span>
-        <span class="text-[var(--c-muted,#6b7280)]">vs {priorMonth}</span>
+        <span class="text-[var(--muted)]">vs {priorMonth}</span>
       </div>
     </Card>
   </div>
@@ -397,14 +387,14 @@
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">
+        <h2 class="font-bold text-base text-[var(--ink)]">
           Daily Collections Trend ({currentMonth})
         </h2>
-        <p class="text-xs text-[var(--c-muted,#6b7280)]">
+        <p class="text-xs text-[var(--muted)]">
           Daily gross revenue progression across Asia/Dhaka calendar days
         </p>
       </div>
-      <span class="text-xs font-semibold tabular-nums text-[var(--c-commission,#10b981)]">
+      <span class="text-xs font-semibold carbon-nums text-[var(--carbon)]">
         MTD Total: {formatPoishaToBdt(currentAgg.totalGrossPoisha)}
       </span>
     </div>
@@ -469,7 +459,7 @@
         {/each}
       </svg>
     </div>
-    <div class="flex justify-between text-[10px] text-[var(--c-muted,#6b7280)] mt-1 px-1">
+    <div class="flex justify-between text-[10px] text-[var(--muted)] mt-1 px-1">
       <span>Day 1</span>
       <span>Day 15</span>
       <span>Day {dailyTrendBars.length}</span>
@@ -479,23 +469,23 @@
   <!-- Payables Due Checklist (with Due Dates and 5-State Statuses) (PRD §8.5) -->
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">
+      <h2 class="font-bold text-base text-[var(--ink)]">
         Payables Due & Settlement Status ({priorMonth} Liabilities Due in {currentMonth})
       </h2>
-      <a href="/settlements" class="text-xs text-[var(--c-muted,#6b7280)] hover:underline"
+      <a href="/settlements" class="text-xs text-[var(--muted)] hover:underline"
         >Manage All Settlements</a
       >
     </div>
 
     {#if settlements.length === 0}
-      <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">
+      <div class="p-4 text-center text-xs text-[var(--muted)]">
         No payable liabilities accrued for {priorMonth} or {currentMonth}.
       </div>
     {:else}
       <div class="overflow-x-auto">
         <table class="w-full text-left text-sm">
           <thead>
-            <tr class="border-b border-black/10 text-xs text-[var(--c-muted,#6b7280)]">
+            <tr class="border-b border-black/10 text-xs text-[var(--muted)]">
               <th class="py-2">Payable Name</th>
               <th class="py-2">Liability Month</th>
               <th class="py-2">Due Date</th>
@@ -508,10 +498,10 @@
             {#each settlements as s (s.id)}
               <tr>
                 <td class="py-2.5 font-medium">{s.payableName}</td>
-                <td class="py-2.5 text-xs text-[var(--c-muted,#6b7280)] font-mono"
+                <td class="py-2.5 text-xs text-[var(--muted)] font-mono"
                   >{s.month.substring(0, 7)}</td
                 >
-                <td class="py-2.5 text-xs text-[var(--c-muted,#6b7280)]">
+                <td class="py-2.5 text-xs text-[var(--muted)]">
                   {s.dueDate} ({s.formattedDueDay})
                   {#if s.isOverdue}
                     <span
@@ -551,8 +541,8 @@
   <!-- Governance Decisions Bento Grid (PRD §8.5) -->
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">Pending Governance Decisions</h2>
-      <span class="text-xs text-[var(--c-muted,#6b7280)]">Owner authorization required</span>
+      <h2 class="font-bold text-base text-[var(--ink)]">Pending Governance Decisions</h2>
+      <span class="text-xs text-[var(--muted)]">Owner authorization required</span>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -561,7 +551,7 @@
       >
         <div>
           <div class="font-bold text-sm">Overpayment Approvals</div>
-          <div class="text-xs text-[var(--c-muted,#6b7280)] mt-1">
+          <div class="text-xs text-[var(--muted)] mt-1">
             {#if pendingOverpayments.length > 0}
               <span class="text-purple-700 font-bold"
                 >{pendingOverpayments.length} Surplus Approval(s) Pending</span
@@ -587,7 +577,7 @@
       >
         <div>
           <div class="font-bold text-sm">High-Value Stale Reviews</div>
-          <div class="text-xs text-[var(--c-muted,#6b7280)] mt-1">
+          <div class="text-xs text-[var(--muted)] mt-1">
             {#if highValueStaleCount > 0}
               <span class="text-amber-700 font-bold"
                 >{highValueStaleCount} Entries (>৳50k) Pending</span
@@ -613,7 +603,7 @@
       >
         <div>
           <div class="font-bold text-sm">Month Close Readiness</div>
-          <div class="text-xs text-[var(--c-muted,#6b7280)] mt-1">
+          <div class="text-xs text-[var(--muted)] mt-1">
             {unclosedMonths.length > 0
               ? `${unclosedMonths.length} historical month(s) open`
               : 'All past months locked'}

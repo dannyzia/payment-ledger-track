@@ -16,6 +16,7 @@
   import LedgerFilterDrawer from '$lib/ui/LedgerFilterDrawer.svelte';
   import EntryDetailDrawer from '$lib/ui/EntryDetailDrawer.svelte';
   import VoidRequestModal from '$lib/ui/VoidRequestModal.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Button from '$lib/ui/Button.svelte';
   import { liveQuery } from 'dexie';
   import { formatPoishaToBdt } from '@clt/shared';
@@ -198,17 +199,15 @@
 </script>
 
 <div class="ledger-page p-6 max-w-5xl mx-auto w-full">
-  <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Ledger</h1>
-      <p class="text-sm text-[var(--muted)]">
-        {#if currentRole === 'staff'}
-          My transaction entries record with search and subtotals.
-        {:else}
-          All shop transactions with search, filters, and daily subtotals.
-        {/if}
-      </p>
-    </div>
+  <CouponHead
+    tab="Ledger"
+    title="Ledger"
+    subtitle={currentRole === 'staff'
+      ? 'My transaction entries record with search and subtotals.'
+      : 'All shop transactions with search, filters, and daily subtotals.'}
+  />
+
+  <div class="mb-6 flex items-center justify-end gap-4">
     <div class="flex items-center gap-3 max-w-md w-full">
       <div class="flex-1">
         <input
@@ -241,7 +240,7 @@
   <div class="flex flex-col gap-6">
     {#if dayGroups.length === 0}
       <div
-        class="p-12 text-center text-sm text-[var(--muted)] glass rounded-2xl border border-black/5"
+        class="p-12 text-center text-sm text-[var(--muted)] glass rounded-[var(--radius)] border border-[var(--pearl-border)]"
       >
         No transactions found matching criteria.
       </div>
@@ -249,16 +248,18 @@
       {#each dayGroups as day (day.date)}
         <section aria-labelledby={`day-${day.date}`} class="day-group flex flex-col gap-3">
           <div
-            class="flex items-center justify-between px-2 text-xs font-semibold text-[var(--muted)] uppercase tracking-wider"
+            class="flex items-center justify-between px-2 tab-caps text-[11px] text-[var(--muted)]"
           >
             <h2 id={`day-${day.date}`}>{day.date}</h2>
-            <div class="flex items-center gap-3 tabular-nums">
+            <div class="flex items-center gap-3 carbon-nums">
               <span>Units: {day.totalSubQty}</span>
-              <span>Gross: {formatPoishaToBdt(day.totalGrossPoisha)}</span>
-              <span class="text-red-600 dark:text-red-400"
+              <span class="text-[var(--carbon)]"
+                >Gross: {formatPoishaToBdt(day.totalGrossPoisha)}</span
+              >
+              <span class="text-[var(--carbon)]"
                 >Deductions: -{formatPoishaToBdt(day.totalDeductionsPoisha)}</span
               >
-              <span class="text-[var(--accent)] font-semibold"
+              <span class="font-semibold text-[var(--carbon)]"
                 >Net: {formatPoishaToBdt(day.totalNetPoisha)}</span
               >
             </div>

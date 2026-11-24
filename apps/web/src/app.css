@@ -1,16 +1,44 @@
 @import 'tailwindcss';
 
+/* Kumon Ledger Track — "Jet-Age Coupon Wallet" world.
+   Replaces the pearl/jade token layer (2026-11-23 redesign, direction round key 24d8a30e).
+   Class names and token names are kept stable; the visual world they resolve to is new.
+   Carrier navy #0D1B3D owns shell regions; jet red #D7262D owns the primary action,
+   date flag and alert accents; coupon white stubs ride cold stock; carbon purple #4B2E83
+   is the ink of entered figures. */
+
 @font-face {
-  font-family: 'Geist';
-  src: url('/fonts/Geist-Regular.woff2') format('woff2');
+  font-family: 'Archivo';
+  src: url('/fonts/Archivo-vf.woff2') format('woff2');
   font-weight: 100 900;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Geist Mono';
-  src: url('/fonts/GeistMono-Regular.woff2') format('woff2');
-  font-weight: 100 900;
+  font-family: 'Archivo Narrow';
+  src: url('/fonts/ArchivoNarrow-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Archivo Narrow';
+  src: url('/fonts/ArchivoNarrow-700.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  src: url('/fonts/SplineSansMono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Spline Sans Mono';
+  src: url('/fonts/SplineSansMono-700.woff2') format('woff2');
+  font-weight: 700;
   font-display: swap;
 }
 
@@ -22,50 +50,63 @@
 }
 
 :root {
-  --bg: #f6f5f1; /* pearl base */
+  color-scheme: light;
+  --bg: #f2f3f0; /* cold stock ground */
+  --surface: #ffffff; /* coupon white */
+  --ink: #1d2333; /* navy carbon ink — 14.5:1 on coupon white */
+  --muted: #5a6373; /* 5.3:1 on white, 4.8:1 on stock */
+  --accent: #d7262d; /* jet red — 4.9:1 against white (both directions) */
+  --accent-2: #0d1b3d; /* carrier navy — shell bands, 15:1 on white */
+  --carbon: #4b2e83; /* carbon purple — entered figures, 9.4:1 on white */
+  --navy-band: #0d1b3d;
+  --navy-ink: #e9edf6; /* 13.6:1 on navy */
+  --navy-muted: #a9b5cd; /* 6.2:1 on navy */
+  --radius: 10px;
+  /* Legacy token names kept for consumers; values re-skinned to the world. */
   --pearl-a: #ffffff;
-  --pearl-b: #f1eef6; /* faint lilac */
-  --pearl-c: #f7eeea; /* faint blush */
-  --pearl-border: rgba(255, 255, 255, 0.6);
-  --surface: #ffffff;
-  --ink: #14161a;
-  --muted: #5c6068; /* 5.78:1 against #F6F5F1 */
-  --accent: #0b6b59; /* dark jade - 5.90:1 against #F6F5F1, 6.44:1 against #FFFFFF */
-  --accent-2: #08556b; /* deep teal, gradient end */
-  --c-commission: #0b6b59; /* 5.90:1 */
-  --c-vat: #8c4f00; /* deep amber-ochre - 5.95:1 against #F6F5F1 */
-  --c-vat-bg: #ffe8c2; /* soft tinted pill background */
-  --c-bkash: #b80053; /* deep magenta - 6.09:1 against #F6F5F1 */
+  --pearl-b: #e9ebee;
+  --pearl-c: #ece9e4;
+  --pearl-border: rgba(29, 35, 51, 0.16);
+  /* Data-series colours (methods and states) — functional, kept stable. */
+  --c-commission: #17694f;
+  --c-vat: #8c4f00;
+  --c-vat-bg: #ffe8c2;
+  --c-bkash: #b80053;
   --c-bkash-bg: #ffd8ea;
-  --c-visa: #1a54b8; /* deep royal blue - 6.41:1 against #F6F5F1 */
+  --c-visa: #1a54b8;
   --c-visa-bg: #dce8ff;
-  --c-mastercard: #9e3600; /* deep rust orange - 6.46:1 against #F6F5F1 */
+  --c-mastercard: #9e3600;
   --c-mastercard-bg: #ffdbc8;
-  --radius: 18px;
   --font-sans:
-    'Geist', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'Geist Mono', monospace;
+    'Archivo', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-narrow: 'Archivo Narrow', 'Archivo', 'Noto Sans Bengali', sans-serif;
+  --font-mono: 'Spline Sans Mono', 'Noto Sans Bengali', ui-monospace, monospace;
 }
 
 [data-theme='dark'] {
-  --bg: #0e1116;
-  --surface: #161a21;
-  --ink: #edeef0;
-  --muted: #9aa0a8;
-  --pearl-a: #14181f;
-  --pearl-b: #181c26;
-  --pearl-c: #1b1a22;
-  --pearl-border: rgba(255, 255, 255, 0.12);
-  --accent: #14b89a; /* 7.52:1 against dark bg */
-  --accent-2: #2bb3d6;
-  --c-commission: #14b89a;
-  --c-vat: #f5b041; /* 10.06:1 against dark bg */
+  color-scheme: dark;
+  --bg: #0a1124; /* navy night */
+  --surface: #141d36; /* coupon navy card */
+  --ink: #e9edf6;
+  --muted: #a3aec6; /* 4.9:1 on surface */
+  --accent: #d7262d;
+  --accent-2: #1a2749; /* shell band, lifted for night */
+  --carbon: #b9a7ec; /* 7.3:1 on surface */
+  --navy-band: #131e3e;
+  --navy-ink: #e9edf6;
+  --navy-muted: #a9b5cd;
+  --pearl-a: #141d36;
+  --pearl-b: #182340;
+  --pearl-c: #1b2038;
+  --pearl-border: rgba(233, 237, 246, 0.16);
+  --c-commission: #2ec48e;
+  --c-vat: #f5b041;
   --c-vat-bg: #3d2b05;
-  --c-bkash: #f75990; /* 6.11:1 against dark bg */
+  --c-bkash: #f75990;
   --c-bkash-bg: #420a21;
-  --c-visa: #64a0ff; /* 7.22:1 against dark bg */
+  --c-visa: #64a0ff;
   --c-visa-bg: #0e254a;
-  --c-mastercard: #ff8c42; /* 8.18:1 against dark bg */
+  --c-mastercard: #ff8c42;
   --c-mastercard-bg: #421b05;
 }
 
@@ -78,57 +119,63 @@ body {
   position: relative;
 }
 
-/* Grainy pearl background from PRD §14.2 */
+/* Browser surfaces themed from the palette (craft floor). */
+::selection {
+  background: rgba(215, 38, 45, 0.22);
+}
+[data-theme='dark'] ::selection {
+  background: rgba(215, 38, 45, 0.38);
+}
+input,
+textarea,
+select {
+  caret-color: var(--accent-2);
+}
+[data-theme='dark'] input,
+[data-theme='dark'] textarea,
+[data-theme='dark'] select {
+  caret-color: var(--carbon);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted) 55%, transparent) transparent;
+}
+:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+[data-theme='dark'] :focus-visible {
+  outline-color: var(--carbon);
+}
+
+/* Flat stock ground — the world's canvas is the counter desktop, not a glowing sky. */
 .app-bg {
-  background:
-    radial-gradient(1200px 600px at 10% -10%, var(--pearl-b), transparent 60%),
-    radial-gradient(900px 500px at 100% 10%, var(--pearl-c), transparent 55%),
-    linear-gradient(180deg, var(--pearl-a), var(--bg));
+  background: var(--bg);
   min-height: 100dvh;
 }
 
-.app-bg::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.06;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-
-[data-theme='dark'] .app-bg::before {
-  opacity: 0.09;
-  mix-blend-mode: screen;
-}
-
-/* Glass surfaces: backdrop blur permitted only on menus, sheets, modals, and buttons (PRD §14.2, §14.3) */
+/* Coupon stub material — solid, crisp, no blur. The old frosted chrome is gone:
+   stubs are paper. */
 .glass {
-  background: color-mix(in oklab, white 55%, transparent);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  background: var(--surface);
   border: 1px solid var(--pearl-border);
+  border-radius: var(--radius);
   box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.8) inset,
-    0 8px 24px rgb(20 22 26 / 0.1),
-    0 2px 6px rgb(20 22 26 / 0.06);
+    0 1px 2px rgba(13, 27, 61, 0.05),
+    0 12px 28px -16px rgba(13, 27, 61, 0.14);
 }
 
 [data-theme='dark'] .glass {
-  background: color-mix(in oklab, white 8%, transparent);
-  border-color: var(--pearl-border);
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 12px 28px -16px rgba(0, 0, 0, 0.5);
 }
 
 .glass-subtle {
-  background: color-mix(in oklab, white 35%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in oklab, var(--surface) 62%, transparent);
   border: 1px solid var(--pearl-border);
-}
-
-[data-theme='dark'] .glass-subtle {
-  background: color-mix(in oklab, white 4%, transparent);
+  border-radius: var(--radius);
 }
 
 @supports not (backdrop-filter: blur(1px)) {
@@ -138,9 +185,93 @@ body {
   }
 }
 
-/* Frosted glass buttons with colorful engraved text & solid fallback (PRD §14.4) */
+/* Coupon mechanics ------------------------------------------------------- */
+
+/* Navy shell region: scope token overrides so Tailwind text-[var(--ink)] children
+   resolve to navy-safe inks without touching markup. */
+.on-navy {
+  --ink: var(--navy-ink);
+  --muted: var(--navy-muted);
+  --pearl-border: rgba(233, 237, 246, 0.16);
+  --surface: transparent;
+  background: var(--navy-band);
+  color: var(--navy-ink);
+}
+
+/* Tab-cap label voice: narrow caps on coupon heads and field labels. */
+.tab-caps {
+  font-family: var(--font-narrow);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* The notched coupon head tab. */
+.coupon-tab {
+  display: inline-flex;
+  align-items: center;
+  background: var(--navy-band);
+  color: var(--navy-ink);
+  font-family: var(--font-narrow);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.6875rem;
+  line-height: 1;
+  padding: 6px 16px 7px 12px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 9px));
+}
+
+/* Money voice: carbon numerals, always tabular. */
+.carbon-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Tear-off perforation between the stub and its action zone. */
+.perf {
+  position: relative;
+  border-top: 2px dashed color-mix(in oklab, var(--ink) 26%, transparent);
+}
+.perf::before,
+.perf::after {
+  content: '';
+  position: absolute;
+  top: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--pearl-border);
+}
+.perf::before {
+  left: -24px;
+}
+.perf::after {
+  right: -24px;
+}
+
+/* Red date flag riding a coupon head. */
+.date-flag {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--accent);
+  color: #ffffff;
+  font-family: var(--font-narrow);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  padding: 4px 12px;
+}
+
+/* Buttons: solid coupon stock, navy ink. The engraved gradient is retired. */
 .btn-glass {
   position: relative;
+  background: var(--surface);
+  border: 1px solid var(--pearl-border);
   border-radius: var(--radius);
   padding: 10px 18px;
   min-height: 44px;
@@ -163,71 +294,101 @@ body {
 }
 
 .btn-label {
-  color: var(--c1, var(--ink));
-  background: linear-gradient(135deg, var(--c1, var(--accent)), var(--c2, var(--accent-2)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  filter: drop-shadow(0 1px 0 rgb(255 255 255 / 0.75)) drop-shadow(0 -1px 0 rgb(0 0 0 / 0.12));
+  color: var(--accent-2);
   font-weight: 650;
-  letter-spacing: 0.01em;
-}
-
-@supports (-webkit-background-clip: text) or (background-clip: text) {
-  .btn-label {
-    color: transparent;
-  }
-}
-
-.btn--commission {
-  --c1: #0b6b59;
-  --c2: #08556b;
-}
-.btn--vat {
-  --c1: #8c4f00;
-  --c2: #6e3d00;
-}
-.btn--bkash {
-  --c1: #b80053;
-  --c2: #8c003e;
-}
-.btn--visa {
-  --c1: #1a54b8;
-  --c2: #103a82;
-}
-.btn--mastercard {
-  --c1: #9e3600;
-  --c2: #7a2a00;
+  letter-spacing: 0.02em;
 }
 
 [data-theme='dark'] .btn-label {
-  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.6)) drop-shadow(0 -1px 0 rgb(255 255 255 / 0.15));
+  color: var(--carbon);
 }
-[data-theme='dark'] .btn--commission {
-  --c1: #14b89a;
-  --c2: #16b09f;
+
+/* Semantic action variants: solid fills in the method's colour. */
+.btn--commission {
+  background: var(--c-commission);
+  border-color: var(--c-commission);
+  color: #ffffff;
 }
-[data-theme='dark'] .btn--vat {
-  --c1: #f5b041;
-  --c2: #e09f30;
+.btn--vat {
+  background: var(--c-vat);
+  border-color: var(--c-vat);
+  color: #ffffff;
 }
-[data-theme='dark'] .btn--bkash {
-  --c1: #ff6ba0;
-  --c2: #f75990;
+.btn--bkash {
+  background: var(--c-bkash);
+  border-color: var(--c-bkash);
+  color: #ffffff;
 }
-[data-theme='dark'] .btn--visa {
-  --c1: #75adff;
-  --c2: #5898ff;
+.btn--visa {
+  background: var(--c-visa);
+  border-color: var(--c-visa);
+  color: #ffffff;
 }
+.btn--mastercard {
+  background: var(--c-mastercard);
+  border-color: var(--c-mastercard);
+  color: #ffffff;
+}
+[data-theme='dark'] .btn--commission,
+[data-theme='dark'] .btn--vat,
+[data-theme='dark'] .btn--bkash,
+[data-theme='dark'] .btn--visa,
 [data-theme='dark'] .btn--mastercard {
-  --c1: #ff944d;
-  --c2: #f07828;
+  color: #0a1124;
+}
+
+/* The stamp action: solid jet red, narrow caps — the wallet's one primary.
+   Declared after .btn-glass so the world's fill wins the cascade. */
+.btn-stamp {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+  font-family: var(--font-narrow);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.btn-stamp:hover:not(:disabled) {
+  background: #b81e24;
+  border-color: #b81e24;
+}
+.btn-stamp .btn-label {
+  color: #ffffff;
+}
+/* Dark: the dark .glass rule out-specifies .btn-stamp, so the one red stamp
+   primary must re-assert its fill here — solid jet red at night, never outline. */
+[data-theme='dark'] .btn-stamp {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+[data-theme='dark'] .btn-stamp .btn-label {
+  color: #ffffff;
+}
+/* Disabled stamp: an ink-starved stamp pad — readable, unmistakably not ready. */
+.btn-stamp:disabled {
+  opacity: 1;
+  background: #efc4c6;
+  border-color: #efc4c6;
+  color: #8f3a3e;
+}
+[data-theme='dark'] .btn-stamp:disabled {
+  background: #43282d;
+  border-color: #43282d;
+  color: #d8989c;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* Accessibility & Adaptive Media Queries (PRD §14.3, §14.6) */
+/* Placeholders carry the world's muted ink at AA (4.5:1). */
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+/* Accessibility & Adaptive Media Queries (kept from the incumbent contract) */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -240,10 +401,7 @@ body {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .glass,
   .glass-subtle {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
     background: var(--surface) !important;
   }
 }
@@ -252,18 +410,9 @@ body {
   .glass,
   .glass-subtle {
     background: var(--surface) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
     border: 2px solid var(--ink) !important;
   }
-  .btn-label {
-    color: var(--c1, var(--ink)) !important;
-    background: none !important;
-    -webkit-background-clip: unset !important;
-    background-clip: unset !important;
-    filter: none !important;
-  }
-  .app-bg::before {
-    display: none !important;
+  .app-bg {
+    background: var(--surface) !important;
   }
 }

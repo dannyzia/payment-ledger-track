@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
@@ -65,17 +66,15 @@
 </script>
 
 <div class="p-6 max-w-6xl mx-auto w-full">
-  <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Audit Log Viewer</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Chronological, append-only record of all financial mutations and administrative actions.
-      </p>
-    </div>
-    <div class="flex items-center gap-2">
-      <Button variant="default" onclick={resetFilters}>Reset</Button>
-      <Button variant="default" onclick={loadAuditLog}>Apply Filters</Button>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Audit Log Viewer"
+    subtitle="Chronological, append-only record of all financial mutations and administrative actions."
+  />
+
+  <div class="mb-6 flex items-center justify-end gap-2">
+    <Button variant="default" onclick={resetFilters}>Reset</Button>
+    <Button variant="default" onclick={loadAuditLog}>Apply Filters</Button>
   </div>
 
   <!-- Multi-parameter Filtering Controls -->

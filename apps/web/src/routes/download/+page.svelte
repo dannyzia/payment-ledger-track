@@ -53,14 +53,19 @@
         </div>
       </div>
 
-      <!-- App Title & Metadata -->
-      <div>
-        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-[var(--ink)]">
-          Kumon Ledger Track
-        </h1>
-        <p class="text-xs text-[var(--muted)] mt-1">
-          Official Android APK · Version 1.0 · 7.4 MB
-        </p>
+      <!-- Coupon head: navy band with the DOWNLOAD tab-cap -->
+      <div class="on-navy w-full -mx-6 sm:-mx-8 px-6 sm:px-8 py-3 text-left">
+        <div class="flex items-center gap-3">
+          <span class="coupon-tab shrink-0">Download</span>
+          <div class="min-w-0">
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight text-[var(--ink)]">
+              Kumon Ledger Track
+            </h1>
+            <p class="text-xs text-[var(--muted)] mt-0.5">
+              Official Android APK · Version 1.0 · 7.4 MB
+            </p>
+          </div>
+        </div>
       </div>
 
       <!-- Auto-Download Notice -->
@@ -83,7 +88,7 @@
           href="/downloads/kumon-ledger-track.apk"
           download="kumon-ledger-track.apk"
           onclick={startDownload}
-          class="w-full min-h-[48px] px-6 py-3 rounded-2xl bg-[var(--ink)] text-[var(--bg)] hover:opacity-90 font-semibold text-sm transition-opacity shadow-lg flex items-center justify-center gap-2"
+          class="btn-stamp w-full min-h-[48px] px-6 py-3 rounded-[var(--radius)] font-semibold text-sm flex items-center justify-center gap-2"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

@@ -133,8 +133,8 @@
 
     {#if mode === 'choose'}
       <div class="flex flex-col gap-4 text-sm">
-        <p class="text-xs text-[var(--c-muted,#6b7280)]">
-          This transaction originally dated <span class="font-bold text-[var(--c-ink,#111827)]"
+        <p class="text-xs text-[var(--muted)]">
+          This transaction originally dated <span class="font-bold text-[var(--ink)]"
             >{originalDate}</span
           >
           (Gross: {formatPoishaToBdt(BigInt(grossPoisha || '0'))}, Entry ID:
@@ -163,7 +163,7 @@
           >
             2. Reopen Month {originalMonth} (Owner Only)
             {#if !canReopen}
-              <span class="text-xs text-[var(--c-muted,#6b7280)] ml-2">(Owner role required)</span>
+              <span class="text-xs text-[var(--muted)] ml-2">(Owner role required)</span>
             {/if}
           </Button>
 
@@ -188,7 +188,7 @@
         <div>
           <label
             for="reassign-date"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Destination Open Month Date</label
           >
           <input
@@ -208,7 +208,7 @@
           <div>
             <label
               for="manual-vat-bdt"
-              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              class="block text-xs font-semibold text-[var(--muted)] mb-1"
               >Manual VAT Input (BDT)</label
             >
             <input
@@ -226,7 +226,7 @@
         <div>
           <label
             for="reassign-reason"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Mandatory Reassign Reason</label
           >
           <textarea
@@ -268,7 +268,7 @@
         <div>
           <label
             for="reopen-reason"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Mandatory Month Reopen Reason</label
           >
           <textarea
@@ -309,7 +309,7 @@
         <div>
           <label
             for="discard-reason"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >Mandatory Discard Reason</label
           >
           <textarea

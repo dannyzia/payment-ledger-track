@@ -2,6 +2,7 @@
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import PayablesSummaryTable from '$lib/ui/PayablesSummaryTable.svelte';
   import {
     db,
@@ -247,15 +248,17 @@
       </div>
     </div>
 
-    <!-- Header & Interactive Toolbar (Hidden in print) -->
-    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Monthly Reports</h1>
-        <p class="text-sm text-[var(--muted)]">
-          Aggregated financial statements, daily breakdown, and settlement payables.
-        </p>
-      </div>
+    <!-- Coupon head (Hidden in print) -->
+    <div class="no-print">
+      <CouponHead
+        tab="Reports"
+        title="Monthly Reports"
+        subtitle="Aggregated financial statements, daily breakdown, and settlement payables."
+      />
+    </div>
 
+    <!-- Interactive Toolbar (Hidden in print) -->
+    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-end gap-4 no-print">
       <div class="flex items-center flex-wrap gap-2">
         <Button variant="default" onclick={handlePrevMonth} aria-label="Previous month">◀</Button>
         <input
@@ -267,7 +270,7 @@
         <Button variant="default" onclick={handleNextMonth} aria-label="Next month">▶</Button>
         <Button variant="default" onclick={handleCsvExport}>Export CSV</Button>
         <Button variant="default" onclick={handleXlsxExport}>Export Excel</Button>
-        <Button variant="commission" onclick={triggerPrintStatement}>Print PDF</Button>
+        <Button class="btn-stamp min-h-[44px]" onclick={triggerPrintStatement}>Print PDF</Button>
       </div>
     </div>
 
@@ -299,8 +302,8 @@
         class="text-left w-full cursor-pointer rounded-2xl focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
       >
         <Card class="p-5 hover:border-[var(--accent)] transition-colors h-full">
-          <div class="text-xs font-semibold text-[var(--muted)] mb-1">Total Collected (Gross)</div>
-          <div class="text-xl font-bold tabular-nums text-[var(--ink)]">
+          <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Total Collected (Gross)</div>
+          <div class="text-xl font-bold carbon-nums text-[var(--carbon)]">
             {formatPoishaToBdt(aggregates.totalGrossPoisha)}
           </div>
           <div
@@ -327,8 +330,8 @@
         class="text-left w-full cursor-pointer rounded-2xl focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
       >
         <Card class="p-5 hover:border-[var(--accent)] transition-colors h-full">
-          <div class="text-xs font-semibold text-[var(--muted)] mb-1">Total Units / Qty</div>
-          <div class="text-xl font-bold tabular-nums text-[var(--ink)]">
+          <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Total Units / Qty</div>
+          <div class="text-xl font-bold carbon-nums text-[var(--ink)]">
             {aggregates.totalSubQty}
           </div>
           <div
@@ -352,8 +355,8 @@
         class="text-left w-full cursor-pointer rounded-2xl focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
       >
         <Card class="p-5 hover:border-[var(--accent)] transition-colors h-full">
-          <div class="text-xs font-semibold text-[var(--muted)] mb-1">Commission Earned</div>
-          <div class="text-xl font-bold tabular-nums text-[var(--c-commission)]">
+          <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Commission Earned</div>
+          <div class="text-xl font-bold carbon-nums text-[var(--carbon)]">
             {formatPoishaToBdt(aggregates.totalCommissionPoisha)}
           </div>
           <div
@@ -380,8 +383,8 @@
         class="text-left w-full cursor-pointer rounded-2xl focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
       >
         <Card class="p-5 hover:border-[var(--accent)] transition-colors h-full">
-          <div class="text-xs font-semibold text-[var(--muted)] mb-1">{netLabel}</div>
-          <div class="text-xl font-bold tabular-nums text-[var(--accent)]">
+          <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">{netLabel}</div>
+          <div class="text-xl font-bold carbon-nums text-[var(--carbon)]">
             {formatPoishaToBdt(aggregates.totalNetPoisha)}
           </div>
           <div
@@ -595,7 +598,7 @@
                 <th class="pb-2 text-right">Net</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-black/5 dark:divide-white/5 font-mono">
+            <tbody class="divide-y divide-black/5 dark:divide-white/5 carbon-nums">
               {#each aggregates.dailyBreakdowns as day (day.date)}
                 <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
                   <td class="py-2 font-bold text-[var(--ink)]">{day.date}</td>
@@ -681,7 +684,7 @@
                 <th class="py-2 text-right">Net</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-black/5 dark:divide-white/5 font-mono">
+            <tbody class="divide-y divide-black/5 dark:divide-white/5 carbon-nums">
               {#each activeMonthEntries as entry (entry.id)}
                 {@const m = methodsMap[entry.method_id]}
                 <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
@@ -88,13 +89,13 @@
 </script>
 
 <div class="p-6 max-w-4xl mx-auto w-full">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Application Settings</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Configure operational parameters, net terminology, and reconciliation tolerances.
-      </p>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Application Settings"
+    subtitle="Configure operational parameters, net terminology, and reconciliation tolerances."
+  />
+
+  <div class="mb-6 flex items-center justify-end">
     <Button variant="default" onclick={saveSettings} disabled={saving || !settings.net_label}>
       {saving ? 'Saving...' : 'Save Settings'}
     </Button>

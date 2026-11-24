@@ -3,6 +3,8 @@
   import { page } from '$app/state';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
+  import Stamp from '$lib/ui/Stamp.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import { session } from '$lib/auth/session.svelte';
   import { hasCenterCapability } from '$lib/capabilities';
@@ -332,7 +334,7 @@
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied (Owner Role Required)</h2>
-      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">
+      <p class="text-sm text-[var(--muted)] mb-4">
         Month Close and Reopen controls are restricted exclusively to the Owner (Hard Rule 7, PRD
         §8.4).
       </p>
@@ -341,20 +343,17 @@
   </div>
 {:else}
   <div class="month-close-page p-6 max-w-4xl mx-auto w-full">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-          Month Close Controls
-        </h1>
-        <p class="text-sm text-[var(--c-muted,#6b7280)]">
-          Owner-only execution permanently locking financial transactions (PRD §8.4).
-        </p>
-      </div>
+    <CouponHead
+      tab="Close"
+      title="Month Close Controls"
+      subtitle="Owner-only execution permanently locking financial transactions (PRD §8.4)."
+    />
 
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-end gap-4">
       <input
         type="month"
         bind:value={selectedMonth}
-        class="px-3 py-2 rounded-xl border border-black/10 text-sm font-semibold min-h-[44px]"
+        class="px-3 py-2 rounded-[var(--radius)] border border-black/10 dark:border-white/10 text-sm font-semibold min-h-[44px]"
       />
     </div>
 
@@ -365,23 +364,36 @@
     {/if}
 
     <Card class="p-6 mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h2 class="font-bold text-base text-[var(--ink)]">
           Implementation Readiness Checklist for {selectedMonth}
         </h2>
-        <div>
+        <div class="shrink-0">
           {#if monthStatus === 'closed'}
-            <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-700"
+            <span
+              class="tab-caps inline-block whitespace-nowrap px-3 py-1 rounded-full text-[10px] font-bold border border-[var(--muted)] text-[var(--muted)]"
               >Closed & Locked</span
             >
           {:else}
             <span
-              class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700"
+              class="tab-caps inline-block whitespace-nowrap px-3 py-1 rounded-full text-[10px] font-bold bg-[var(--accent-2)] text-[var(--navy-ink)]"
               >Open for Entries</span
             >
           {/if}
         </div>
       </div>
+
+      {#if monthStatus === 'closed'}
+        <!-- The world's biggest moment: a closed month reads as SEALED. -->
+        <div
+          class="flex flex-col items-center gap-3 py-7 my-4 border-y border-[var(--pearl-border)] bg-[var(--accent)]/5"
+        >
+          <Stamp label="Closed" seal class="-rotate-6" />
+          <p class="text-xs text-[var(--muted)] text-center max-w-sm">
+            {selectedMonth} is sealed. Reopening is an Owner action and is audited.
+          </p>
+        </div>
+      {/if}
 
       <div class="flex flex-col gap-3 text-sm">
         <div
@@ -390,7 +402,7 @@
           <span>1. All payables reconciled or marked not_applicable</span>
           <span
             class="font-bold {gatesLoading || gatesUnsynced
-              ? 'text-[var(--c-muted,#6b7280)]'
+              ? 'text-[var(--muted)]'
               : allPayablesReconciled
                 ? 'text-green-600'
                 : 'text-red-600'}"
@@ -411,7 +423,7 @@
             data-testid="blocking-statements"
           >
             {#if blockingStatements.length === 0}
-              <p class="text-xs text-[var(--c-muted,#6b7280)]">
+              <p class="text-xs text-[var(--muted)]">
                 No open statement covers the outstanding payables for {selectedMonth}.
                 <a
                   href={`/reconcile?month=${selectedMonth}&return=close`}
@@ -420,13 +432,13 @@
                 >.
               </p>
             {:else}
-              <p class="text-xs font-semibold text-[var(--c-ink,#111827)] mb-2">
+              <p class="text-xs font-semibold text-[var(--ink)] mb-2">
                 Open statements waiting on matching for {selectedMonth}:
               </p>
               <ul class="flex flex-col gap-2">
                 {#each blockingStatements as st (st.id)}
                   <li class="flex items-center justify-between gap-3">
-                    <span class="text-xs text-[var(--c-muted,#6b7280)]">
+                    <span class="text-xs text-[var(--muted)]">
                       {st.label} &middot; {st.source === 'file' ? 'Mode B' : 'Mode A'}
                     </span>
                     {#if st.source === 'file'}
@@ -464,7 +476,7 @@
           <span>2. Active Owner approvals for any overpaid settlements (exact surplus)</span>
           <span
             class="font-bold {gatesLoading || gatesUnsynced
-              ? 'text-[var(--c-muted,#6b7280)]'
+              ? 'text-[var(--muted)]'
               : overpaymentsApproved
                 ? 'text-green-600'
                 : 'text-red-600'}"
@@ -485,7 +497,7 @@
           <span>3. Zero unreviewed stale entries (>৳50,000 flagged active entries)</span>
           <span
             class="font-bold {gatesLoading || gatesUnsynced
-              ? 'text-[var(--c-muted,#6b7280)]'
+              ? 'text-[var(--muted)]'
               : zeroPendingStaleReviews
                 ? 'text-green-600'
                 : 'text-red-600'}"
@@ -540,8 +552,7 @@
         {#if monthStatus === 'open'}
           <Button
             id="btn-save"
-            variant="commission"
-            class="min-h-[44px]"
+            class="btn-stamp min-h-[44px]"
             disabled={gatesLoading || gatesUnsynced || !gatesResult.canClose}
             loading={isSubmitting}
             onclick={handleCloseMonth}
@@ -551,7 +562,7 @@
         {:else}
           <Button
             id="btn-reopen-modal"
-            variant="mastercard"
+            variant="default"
             class="min-h-[44px]"
             onclick={() => {
               showReopenModal = true;
@@ -580,7 +591,7 @@
         <div>
           <label
             for="modal-reopen-reason"
-            class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+            class="block text-xs font-semibold text-[var(--muted)] mb-1"
           >
             Mandatory Month Reopen Reason
           </label>
@@ -605,7 +616,7 @@
                and duplicate ids broke element lookups (E2E, 2026-11-07). -->
           <Button
             id="btn-confirm-reopen"
-            variant="mastercard"
+            variant="default"
             type="submit"
             loading={isSubmitting}
             disabled={!reopenReason.trim()}

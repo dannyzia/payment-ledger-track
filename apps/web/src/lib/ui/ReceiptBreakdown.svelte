@@ -34,16 +34,11 @@
 </script>
 
 <div class="receipt-breakdown">
-  <Card
-    class="p-5 border-dashed border-2 border-black/10 dark:border-white/10 bg-white/70 dark:bg-black/20"
-  >
+  <Card class="p-5">
     <div
       class="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10 mb-4"
     >
-      <span class="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]"
-        >Live Calculation Breakdown</span
-      >
-      <span class="text-[11px] font-mono text-[var(--muted)]">Engine v1</span>
+      <span class="tab-caps text-[11px] text-[var(--muted)]">Live Calculation Breakdown</span>
     </div>
 
     <div class="space-y-2.5 text-xs font-mono">
@@ -102,10 +97,10 @@
       <!-- Divider -->
       <div class="border-t border-dashed border-black/20 dark:border-white/20 pt-2.5 mt-2">
         <div class="flex justify-between items-center">
-          <span class="font-sans font-bold text-xs uppercase tracking-wider text-[var(--ink)]"
-            >Net After Deductions</span
+          <span class="tab-caps text-xs text-[var(--accent-2)]">Net After Deductions</span>
+          <span class="carbon-nums font-bold text-base text-[var(--carbon)]"
+            >{formatPoishaToBdt(netPoisha)}</span
           >
-          <span class="font-bold text-base text-[var(--ink)]">{formatPoishaToBdt(netPoisha)}</span>
         </div>
       </div>
     </div>

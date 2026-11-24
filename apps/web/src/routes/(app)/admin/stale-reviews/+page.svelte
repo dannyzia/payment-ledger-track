@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { formatPoishaToBdt } from '@clt/shared';
@@ -92,13 +93,13 @@
 </script>
 
 <div class="p-6 max-w-5xl mx-auto w-full">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Stale Rate Review Queue</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Audit high-value offline transactions (&gt;৳50,000) recorded under superseded rate profiles.
-      </p>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Stale Rate Review Queue"
+    subtitle="Audit high-value offline transactions (>৳50,000) recorded under superseded rate profiles."
+  />
+
+  <div class="mb-6 flex items-center justify-end">
     <Button variant="default" onclick={loadStaleEntries}>Refresh Queue</Button>
   </div>
 
@@ -127,7 +128,7 @@
           <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
             <td class="py-3 px-4 font-mono font-medium text-[var(--ink)]">#{e.entry_number}</td>
             <td class="py-3 px-4 font-mono text-xs">{e.entry_date}</td>
-            <td class="py-3 px-4 font-mono font-bold text-[var(--ink)]">
+            <td class="py-3 px-4 carbon-nums font-bold text-[var(--carbon)]">
               {formatPoishaToBdt(BigInt(e.gross_amount))}
             </td>
             <td class="py-3 px-4">
@@ -184,7 +185,7 @@
     <p class="text-sm text-[var(--ink)]">
       Reviewing Entry <strong class="font-mono">#{selectedEntry?.entry_number}</strong> with gross
       amount
-      <strong class="font-mono"
+      <strong class="carbon-nums text-[var(--carbon)]"
         >{selectedEntry ? formatPoishaToBdt(BigInt(selectedEntry.gross_amount)) : ''}</strong
       >.
     </p>

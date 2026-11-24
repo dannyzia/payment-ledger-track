@@ -5,6 +5,7 @@
   import { hasCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
@@ -206,14 +207,11 @@
   </div>
 {:else}
   <div class="p-6 max-w-6xl mx-auto w-full">
-    <div class="flex items-start justify-between gap-4 mb-6">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Cross-Center Ledger</h1>
-        <p class="text-sm text-[var(--muted)]">
-          Every entry across the fleet, newest first. Totals follow the filters, not the page.
-        </p>
-      </div>
-    </div>
+    <CouponHead
+      tab="Fleet"
+      title="Cross-Center Ledger"
+      subtitle="Every entry across the fleet, newest first. Totals follow the filters, not the page."
+    />
 
     <Card class="p-4 mb-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -313,7 +311,7 @@
       </Card>
       <Card class="p-4">
         <p class="text-xs text-[var(--muted)]">Gross in scope</p>
-        <p class="text-xl font-bold text-[var(--ink)]">
+        <p class="text-xl font-bold carbon-nums text-[var(--carbon)]">
           {formatPoishaToBdt(BigInt(totals.grossPoisha))}
         </p>
       </Card>
@@ -339,7 +337,7 @@
                   <span class="text-[var(--muted)]"> · {center.name}</span>
                 </td>
                 <td class="py-3 px-4 text-right text-[var(--ink)]">{center.count}</td>
-                <td class="py-3 px-4 text-right font-mono text-[var(--ink)]">
+                <td class="py-3 px-4 text-right carbon-nums text-[var(--carbon)]">
                   {formatPoishaToBdt(BigInt(center.grossPoisha))}
                 </td>
               </tr>
@@ -380,7 +378,7 @@
                 <td class="py-3 px-4 text-[var(--ink)]">{entry.centerCode}</td>
                 <td class="py-3 px-4 text-[var(--ink)]">{entry.customerName}</td>
                 <td class="py-3 px-4 text-[var(--muted)]">{entry.methodName ?? '—'}</td>
-                <td class="py-3 px-4 text-right font-mono text-[var(--ink)]">
+                <td class="py-3 px-4 text-right carbon-nums text-[var(--carbon)]">
                   {formatPoishaToBdt(BigInt(entry.grossPoisha))}
                 </td>
                 <td class="py-3 px-4">

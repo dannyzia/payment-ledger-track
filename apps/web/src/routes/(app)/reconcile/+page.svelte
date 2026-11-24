@@ -5,6 +5,7 @@
   import { hasCenterCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import ClosedMonthRecoveryModal from '$lib/ui/ClosedMonthRecoveryModal.svelte';
   import { session } from '$lib/auth/session.svelte';
@@ -445,7 +446,7 @@
   <div class="p-8 max-w-lg mx-auto text-center">
     <Card class="p-6">
       <h2 class="text-lg font-bold text-red-600 mb-2">Access Denied</h2>
-      <p class="text-sm text-[var(--c-muted,#6b7280)] mb-4">
+      <p class="text-sm text-[var(--muted)] mb-4">
         Reconciliation controls are restricted strictly to Administrators and Owners.
       </p>
       <Button variant="default" onclick={() => goto('/dashboard')}>Return to Dashboard</Button>
@@ -453,34 +454,29 @@
   </div>
 {:else}
   <div class="reconcile-overview p-6 max-w-5xl mx-auto w-full">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-          Statement Reconciliation
-        </h1>
-        <p class="text-sm text-[var(--c-muted,#6b7280)]">
-          Reconcile internal payment ledgers against provider statements (PRD §11).
-        </p>
-      </div>
+    <CouponHead
+      tab="Reconcile"
+      title="Statement Reconciliation"
+      subtitle="Reconcile internal payment ledgers against provider statements (PRD §11)."
+    />
 
-      <div class="flex items-center gap-3">
-        <input
-          type="month"
-          bind:value={selectedMonth}
-          class="px-3 py-2 rounded-xl border border-black/10 text-sm font-semibold min-h-[44px]"
-        />
-        <Button variant="commission" class="min-h-[44px]" onclick={() => goto('/reconcile/manual')}>
-          + New Mode A Statement
-        </Button>
-        <Button
-          variant="default"
-          class="min-h-[44px]"
-          id="btn-mode-b-upload"
-          onclick={() => goto(workspaceHref())}
-        >
-          + Upload Statement File (Mode B)
-        </Button>
-      </div>
+    <div class="mb-6 flex flex-wrap items-center justify-end gap-3">
+      <input
+        type="month"
+        bind:value={selectedMonth}
+        class="px-3 py-2 rounded-[var(--radius)] border border-black/10 dark:border-white/10 text-sm font-semibold min-h-[44px] max-w-full"
+      />
+      <Button class="btn-stamp min-h-[44px]" onclick={() => goto('/reconcile/manual')}>
+        + New Mode A Statement
+      </Button>
+      <Button
+        variant="default"
+        class="min-h-[44px]"
+        id="btn-mode-b-upload"
+        onclick={() => goto(workspaceHref())}
+      >
+        + Upload Statement File (Mode B)
+      </Button>
     </div>
 
     {#if closedMonthRejectedOps.length > 0}
@@ -525,7 +521,7 @@
 
     <div class="flex flex-col gap-4">
       {#if statements.length === 0}
-        <Card class="p-8 text-center text-[var(--c-muted,#6b7280)] text-sm">
+        <Card class="p-8 text-center text-[var(--muted)] text-sm">
           No statements recorded for {selectedMonth}. Click "+ New Mode A Statement" to submit a
           statement total.
         </Card>
@@ -534,8 +530,8 @@
           <Card class="p-5">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div class="font-bold text-base text-[var(--c-ink,#111827)]">{st.payableNames}</div>
-                <div class="text-xs text-[var(--c-muted,#6b7280)]">
+                <div class="font-bold text-base text-[var(--ink)]">{st.payableNames}</div>
+                <div class="text-xs text-[var(--muted)]">
                   {st.kind} · {st.source} · Month: {st.month}
                   {#if st.note}
                     · <span class="italic">"{st.note}"</span>{/if}
@@ -544,23 +540,23 @@
 
               <div class="flex items-center gap-6">
                 <div class="text-right">
-                  <div class="text-xs text-[var(--c-muted,#6b7280)]">Statement Total</div>
-                  <div class="font-bold text-sm tabular-nums">
+                  <div class="tab-caps text-[10px] text-[var(--muted)]">Statement Total</div>
+                  <div class="font-bold text-sm carbon-nums text-[var(--carbon)]">
                     {formatPoishaToBdt(BigInt(st.statement_total_poisha))}
                   </div>
                 </div>
                 <div class="text-right">
-                  <div class="text-xs text-[var(--c-muted,#6b7280)]">Expected Liability</div>
-                  <div class="font-bold text-sm tabular-nums">
+                  <div class="tab-caps text-[10px] text-[var(--muted)]">Expected Liability</div>
+                  <div class="font-bold text-sm carbon-nums text-[var(--carbon)]">
                     {formatPoishaToBdt(BigInt(st.expected_poisha))}
                   </div>
                 </div>
                 <div class="text-right">
-                  <div class="text-xs text-[var(--c-muted,#6b7280)]">Variance</div>
+                  <div class="tab-caps text-[10px] text-[var(--muted)]">Variance</div>
                   <div
-                    class="font-bold text-sm tabular-nums {BigInt(st.variance_poisha) !== 0n
-                      ? 'text-blue-600'
-                      : ''}"
+                    class="font-bold text-sm carbon-nums {BigInt(st.variance_poisha) !== 0n
+                      ? 'text-[var(--accent)] dark:text-[#ff8a8f]'
+                      : 'text-[var(--carbon)]'}"
                   >
                     {formatPoishaToBdt(BigInt(st.variance_poisha))}
                   </div>
@@ -569,12 +565,12 @@
                 <div class="flex items-center gap-2">
                   {#if st.status === 'reconciled'}
                     <span
-                      class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700"
+                      class="tab-caps px-3 py-1 rounded-full text-[10px] font-semibold bg-[var(--c-commission)]/10 text-[var(--c-commission)] border border-[var(--c-commission)]/40"
                       >Reconciled</span
                     >
                   {:else if st.status === 'superseded'}
                     <span
-                      class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-500/10 text-slate-700"
+                      class="tab-caps px-3 py-1 rounded-full text-[10px] font-semibold border border-[var(--muted)] text-[var(--muted)]"
                       >Superseded</span
                     >
                   {:else}
@@ -652,19 +648,19 @@
 
           <div class="p-4 rounded-xl glass text-sm flex justify-between">
             <div>
-              <div class="text-xs text-[var(--c-muted,#6b7280)]">Statement Total</div>
+              <div class="text-xs text-[var(--muted)]">Statement Total</div>
               <div class="font-bold">
                 {formatPoishaToBdt(BigInt(activeStatement.statement_total_poisha))}
               </div>
             </div>
             <div>
-              <div class="text-xs text-[var(--c-muted,#6b7280)]">Expected Liability</div>
+              <div class="text-xs text-[var(--muted)]">Expected Liability</div>
               <div class="font-bold">
                 {formatPoishaToBdt(BigInt(activeStatement.expected_poisha))}
               </div>
             </div>
             <div>
-              <div class="text-xs text-[var(--c-muted,#6b7280)]">Variance</div>
+              <div class="text-xs text-[var(--muted)]">Variance</div>
               <div class="font-bold">
                 {formatPoishaToBdt(BigInt(activeStatement.variance_poisha))}
               </div>
@@ -674,7 +670,7 @@
           <div>
             <label
               for="modal-rec-note"
-              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              class="block text-xs font-semibold text-[var(--muted)] mb-1"
             >
               Explanatory Note {activeStatement &&
               !isVarianceWithinTolerance(
@@ -739,7 +735,7 @@
           <div>
             <label
               for="modal-sup-total"
-              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              class="block text-xs font-semibold text-[var(--muted)] mb-1"
               >New Statement Total (BDT)</label
             >
             <input
@@ -756,7 +752,7 @@
           <div>
             <label
               for="modal-sup-reason"
-              class="block text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1"
+              class="block text-xs font-semibold text-[var(--muted)] mb-1"
               >Supersede Reason (Mandatory)</label
             >
             <textarea

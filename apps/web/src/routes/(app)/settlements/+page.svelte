@@ -2,6 +2,7 @@
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import {
     db,
     type CachedSettlement,
@@ -231,23 +232,20 @@
       </Button>
     </div>
   {:else}
-    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Monthly Settlements</h1>
-        <p class="text-sm text-[var(--muted)]">
-          Track liabilities, payment records, and provider due dates.
-        </p>
-      </div>
+    <CouponHead
+      tab="Settlement"
+      title="Monthly Settlements"
+      subtitle="Track liabilities, payment records, and provider due dates."
+    />
 
-      <div class="flex items-center gap-2">
-        <Button variant="default" onclick={handlePrevMonth} aria-label="Previous month">◀</Button>
-        <input
-          type="month"
-          bind:value={selectedMonth}
-          class="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm font-bold text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-        />
-        <Button variant="default" onclick={handleNextMonth} aria-label="Next month">▶</Button>
-      </div>
+    <div class="mb-6 flex flex-wrap items-center justify-end gap-2">
+      <Button variant="default" onclick={handlePrevMonth} aria-label="Previous month">◀</Button>
+      <input
+        type="month"
+        bind:value={selectedMonth}
+        class="px-3 py-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-[var(--surface)] text-sm font-bold text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] min-h-[44px] max-w-full"
+      />
+      <Button variant="default" onclick={handleNextMonth} aria-label="Next month">▶</Button>
     </div>
 
     <div class="flex flex-col gap-4">
@@ -299,17 +297,15 @@
 
                 <div class="flex items-center gap-6">
                   <div class="text-right">
-                    <div class="text-xs text-[var(--muted)]">Expected Liability</div>
-                    <div class="text-base font-bold tabular-nums text-[var(--ink)]">
+                    <div class="tab-caps text-[10px] text-[var(--muted)]">Expected Liability</div>
+                    <div class="text-base font-bold carbon-nums text-[var(--carbon)]">
                       {formatPoishaToBdt(item.expectedPoisha)}
                     </div>
                   </div>
 
                   <div class="text-right">
-                    <div class="text-xs text-[var(--muted)]">Paid to Date</div>
-                    <div
-                      class="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
-                    >
+                    <div class="tab-caps text-[10px] text-[var(--muted)]">Paid to Date</div>
+                    <div class="text-base font-bold carbon-nums text-[var(--carbon)]">
                       {formatPoishaToBdt(item.paidPoisha)}
                     </div>
                   </div>

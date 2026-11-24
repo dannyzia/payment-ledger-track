@@ -4,6 +4,7 @@
   import { hasCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
   import { session } from '$lib/auth/session.svelte';
@@ -97,13 +98,11 @@
   </div>
 {:else}
   <div class="p-6 max-w-6xl mx-auto w-full">
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Global Search</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Search ledger entries across all franchise learning centers by entry number, customer,
-        transaction reference, or gross amount.
-      </p>
-    </div>
+    <CouponHead
+      tab="Fleet"
+      title="Global Search"
+      subtitle="Search ledger entries across all franchise learning centers by entry number, customer, transaction reference, or gross amount."
+    />
 
     <form
       class="flex flex-col sm:flex-row gap-2 mb-6"
@@ -169,10 +168,10 @@
                     {e.entryId ?? e.id.slice(0, 8)}
                   </td>
                   <td class="py-3 px-4 font-mono text-xs text-[var(--ink)]">{e.entry_date}</td>
-                  <td class="py-3 px-4 text-right text-[var(--ink)]">
+                  <td class="py-3 px-4 text-right carbon-nums text-[var(--carbon)]">
                     {formatPoishaToBdt(BigInt(e.gross_poisha))}
                   </td>
-                  <td class="py-3 px-4 text-right text-[var(--ink)]">
+                  <td class="py-3 px-4 text-right carbon-nums text-[var(--carbon)]">
                     {formatPoishaToBdt(BigInt(e.net_poisha))}
                   </td>
                   <td class="py-3 px-4 text-[var(--ink)]">

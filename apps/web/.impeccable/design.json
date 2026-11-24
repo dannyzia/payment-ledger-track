@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-24T12:00:00+06:00",
+  "title": "Design System: Kumon Ledger Track",
+  "extensions": {
+    "provenance": {
+      "world": "Jet-Age Coupon Wallet",
+      "seed": "e335f1c6921f8de6",
+      "directionKey": "24d8a30e",
+      "recordedFrom": "src/routes/(app)/entries/new/+page.svelte (proving surface, finish-reviewed 2026-11)",
+      "replaces": "pearl/jade Calm Financial Clarity (frosted glass + Geist) — removed 2026-11-23",
+      "rolloutState": "Shipped and finish-reviewed on every surface — proving surface /entries/new, the three dashboards, ledger, reports, settlements (list and detail), reconcile (overview and upload), months close, the admin family, login and /download. No rollout remains pending.",
+      "themeEngine": "color-scheme: light on :root and color-scheme: dark on [data-theme='dark'] (src/app.css), so native control chrome follows the theme. [data-theme='dark'] .btn-stamp re-asserts solid jet red var(--accent) because dark .glass out-specifies .btn-stamp — the stamp stays solid at night, never outline. The dead --c-ink/--c-muted legacy tokens are fully swept from all components; only the documented token names (--ink, --muted, --surface, --pearl-border, --accent, --accent-2, --carbon, --radius) remain in use."
+    },
+    "colorMeta": {
+      "jet-red": { "role": "primary", "displayName": "Jet Red", "canonical": "#D7262D", "tonalRamp": ["#3B0407", "#7A1013", "#A5161B", "#C11D22", "#D7262D", "#E4555A", "#F09496", "#FBDFE0"] },
+      "carrier-navy": { "role": "secondary", "displayName": "Carrier Navy", "canonical": "#0D1B3D", "tonalRamp": ["#05091A", "#0D1B3D", "#16264F", "#1F3263", "#2A3F78", "#566B9C", "#8FA0C4", "#DDE3F0"] },
+      "carbon-purple": { "role": "tertiary", "displayName": "Carbon Purple", "canonical": "#4B2E83", "tonalRamp": ["#150A2B", "#2A1852", "#3A246B", "#4B2E83", "#674AA3", "#9178C2", "#BBA9DE", "#EDE8F7"] },
+      "stock-ground": { "role": "neutral", "displayName": "Cold Stock", "canonical": "#F2F3F0", "tonalRamp": ["#1B1E1C", "#333835", "#4C534F", "#67706B", "#8B948E", "#B4BBB5", "#D6DAD3", "#F2F3F0"] },
+      "coupon-white": { "role": "neutral", "displayName": "Coupon White", "canonical": "#FFFFFF", "tonalRamp": ["#1D2333", "#333A4D", "#4C556B", "#69738A", "#8F98AB", "#B9C0CE", "#DDE2EA", "#FFFFFF"] },
+      "carbon-ink": { "role": "neutral", "displayName": "Carbon Ink", "canonical": "#1D2333", "tonalRamp": ["#0B0E17", "#1D2333", "#2C3348", "#3B445D", "#515C77", "#7A8499", "#A9B1C2", "#E4E7EE"] },
+      "quiet-slate": { "role": "neutral", "displayName": "Quiet Slate", "canonical": "#5A6373", "tonalRamp": ["#171B21", "#2B313B", "#3C4350", "#4C5565", "#5A6373", "#848CA0", "#AEB5C4", "#E5E8EE"] },
+      "navy-paper": { "role": "neutral", "displayName": "Navy Paper", "canonical": "#E9EDF6", "tonalRamp": ["#10152A", "#1A2340", "#242F52", "#2F3D66", "#44517E", "#7D89AC", "#B9C2D9", "#E9EDF6"] },
+      "navy-muted": { "role": "neutral", "displayName": "Navy Muted", "canonical": "#A9B5CD", "tonalRamp": ["#141B2D", "#202B45", "#2D3A5C", "#3B4A72", "#5A6B93", "#8494B6", "#A9B5CD", "#E2E8F3"] },
+      "navy-night": { "role": "neutral", "displayName": "Navy Night (dark ground)", "canonical": "#0A1124", "tonalRamp": ["#040711", "#0A1124", "#111A33", "#182342", "#212F55", "#45537C", "#7F8CAC", "#D8DEF0"] },
+      "coupon-navy": { "role": "neutral", "displayName": "Coupon Navy (dark surface)", "canonical": "#141D36", "tonalRamp": ["#080C19", "#141D36", "#1B2748", "#23315A", "#2D3D6E", "#54648F", "#8B98B8", "#DEE4F2"] },
+      "band-night": { "role": "secondary", "displayName": "Band Night (dark shell band)", "canonical": "#1A2749", "tonalRamp": ["#0A1020", "#1A2749", "#233157", "#2D3D67", "#3A4C7C", "#5F709B", "#97A3C3", "#E0E5F2"] },
+      "carbon-night": { "role": "tertiary", "displayName": "Carbon Night (dark money ink)", "canonical": "#B9A7EC", "tonalRamp": ["#1E1438", "#31245C", "#43337D", "#56449E", "#7A66BD", "#B9A7EC", "#D3C8F3", "#F0EBFB"] },
+      "commission-green": { "role": "data-series", "displayName": "Commission Green", "canonical": "#17694F", "tonalRamp": ["#05211A", "#0A3A2C", "#0F523F", "#17694F", "#2E8B6E", "#62AF94", "#A3D2BF", "#E1F2EB"] },
+      "vat-amber": { "role": "data-series", "displayName": "VAT Amber", "canonical": "#8C4F00", "tonalRamp": ["#271502", "#452603", "#673B04", "#8C4F00", "#B0700E", "#CC9440", "#E3BC7F", "#F7EACF"] },
+      "bkash-magenta": { "role": "data-series", "displayName": "bKash Magenta", "canonical": "#B80053", "tonalRamp": ["#2C0013", "#560026", "#82003B", "#B80053", "#D62E76", "#E56CA0", "#F2A8C7", "#FBE4EE"] },
+      "visa-blue": { "role": "data-series", "displayName": "Visa Blue", "canonical": "#1A54B8", "tonalRamp": ["#081631", "#0E2A5F", "#143D8A", "#1A54B8", "#3D74D0", "#7AA0E0", "#B4CBEE", "#E4EDF9"] },
+      "mastercard-rust": { "role": "data-series", "displayName": "Mastercard Rust", "canonical": "#9E3600", "tonalRamp": ["#270D02", "#481903", "#712702", "#9E3600", "#C45A1E", "#DA8A55", "#EBBC98", "#F8EAE0"] },
+      "stamp-pad": { "role": "state", "displayName": "Stamp Pad (disabled primary)", "canonical": "#EFC4C6", "tonalRamp": ["#3B1416", "#6B2A2E", "#8F3A3E", "#B05F63", "#C99295", "#EFC4C6", "#F7DDE0", "#FCF0F1"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles on navy coupon-head bands; Archivo 800." },
+      "headline": { "displayName": "Headline", "purpose": "Card and section titles." },
+      "body": { "displayName": "Body", "purpose": "Field values, prose, nav links." },
+      "label": { "displayName": "Tab Caps", "purpose": "Field labels and table heads — Archivo Narrow 700 uppercase, +0.08em." },
+      "micro-label": { "displayName": "Micro Label", "purpose": "A deliberate ramp step at 10px (.tab-caps, Archivo Narrow 700, +0.08em uppercase), not a fallback — carries VOID/status chips, date-flag internals and serial previews, and holds AA at its sizes." },
+      "tab": { "displayName": "Coupon Tab", "purpose": "Notched tab-caps and the stamp button — Archivo Narrow 700, +0.14em." },
+      "money": { "displayName": "Carbon Numerals", "purpose": "The only voice for money, serials and timestamps — Spline Sans Mono tabular." }
+    },
+    "shadows": [
+      { "name": "paper-lift", "value": "0 1px 2px rgba(13,27,61,0.05), 0 12px 28px -16px rgba(13,27,61,0.14)", "purpose": "The single sanctioned elevation: a contact line plus a wide low navy-tinted falloff under coupon-white stubs. Dark theme swaps to black equivalents." }
+    ],
+    "motion": [
+      { "name": "press", "value": "transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Button lift (-1px) on hover and press (+1px) on active. Fully collapsed under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px — desktop navy rail appears; floating pill hides" },
+      { "name": "lg", "value": "1024px — boarding-pass two-column stub (fields 3 / breakdown+action 2)" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Stamp Button (primary)",
+      "kind": "button",
+      "refersTo": "button-stamp",
+      "description": "The one primary action per screen; stamps the stub into the wallet. Stays solid jet red in dark theme (a [data-theme='dark'] re-assertion out-specifies dark .glass), never an outline.",
+      "html": "<button class=\"ds-btn-stamp\">Stamp &amp; File</button>",
+      "css": ".ds-btn-stamp { background: var(--accent, #D7262D); color: #FFFFFF; border: 1px solid var(--accent, #D7262D); border-radius: var(--radius, 10px); padding: 10px 18px; min-height: 44px; font-family: var(--font-narrow, 'Archivo Narrow', sans-serif); font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.875rem; display: inline-flex; align-items: center; justify-content: center; transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1), background 120ms ease; cursor: pointer; } .ds-btn-stamp:hover:not(:disabled) { background: #B81E24; border-color: #B81E24; transform: translateY(-1px); } .ds-btn-stamp:active:not(:disabled) { transform: translateY(1px); } [data-theme='dark'] .ds-btn-stamp { background: #D7262D; border-color: #D7262D; color: #FFFFFF; } .ds-btn-stamp:disabled { opacity: 1; background: #EFC4C6; border-color: #EFC4C6; color: #8F3A3E; cursor: not-allowed; } [data-theme='dark'] .ds-btn-stamp:disabled { background: #43282D; border-color: #43282D; color: #D8989C; } .ds-btn-stamp:focus-visible { outline: 2px solid var(--accent-2, #0D1B3D); outline-offset: 2px; } [data-theme='dark'] .ds-btn-stamp:focus-visible { outline-color: var(--carbon, #B9A7EC); }"
+    },
+    {
+      "name": "Stamp Button (disabled / ink-starved pad)",
+      "kind": "button",
+      "refersTo": "button-stamp-disabled",
+      "description": "The disabled primary: readable pink-pad fill, unmistakably not ready; opacity stays 1.",
+      "html": "<button class=\"ds-btn-stamp\" disabled>Stamp &amp; File</button>",
+      "css": ".ds-btn-stamp { background: #EFC4C6; color: #8F3A3E; border: 1px solid #EFC4C6; border-radius: 10px; padding: 10px 18px; min-height: 44px; font-family: var(--font-narrow, 'Archivo Narrow', sans-serif); font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.875rem; display: inline-flex; align-items: center; justify-content: center; cursor: not-allowed; } [data-theme='dark'] .ds-btn-stamp { background: #43282D; border-color: #43282D; color: #D8989C; }"
+    },
+    {
+      "name": "Stub Button (secondary)",
+      "kind": "button",
+      "refersTo": "button-stub",
+      "description": "Solid coupon-white paper button with navy label; the neutral action.",
+      "html": "<button class=\"ds-btn-stub\"><span class=\"ds-btn-stub-label\">Sign Out</span></button>",
+      "css": ".ds-btn-stub { background: var(--surface, #FFFFFF); border: 1px solid var(--pearl-border, rgba(29,35,51,0.16)); border-radius: var(--radius, 10px); padding: 10px 18px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1); cursor: pointer; } .ds-btn-stub:hover:not(:disabled) { transform: translateY(-1px); } .ds-btn-stub:active:not(:disabled) { transform: translateY(1px); } .ds-btn-stub-label { color: var(--accent-2, #0D1B3D); font-weight: 650; letter-spacing: 0.02em; font-size: 0.875rem; } [data-theme='dark'] .ds-btn-stub-label { color: var(--carbon, #B9A7EC); }"
+    },
+    {
+      "name": "Coupon Tab (notched tab-cap)",
+      "kind": "custom",
+      "refersTo": "coupon-tab",
+      "description": "The notched navy tab naming the coupon head or stub (ENTRY, STUB).",
+      "html": "<span class=\"ds-coupon-tab\">Entry</span>",
+      "css": ".ds-coupon-tab { display: inline-flex; align-items: center; background: var(--navy-band, #0D1B3D); color: var(--navy-ink, #E9EDF6); font-family: var(--font-narrow, 'Archivo Narrow', sans-serif); font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.6875rem; line-height: 1; padding: 6px 16px 7px 12px; clip-path: polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 9px)); }"
+    },
+    {
+      "name": "Date Flag",
+      "kind": "custom",
+      "refersTo": "date-flag",
+      "description": "Red flag riding the coupon-head edge: month / day-of-month hero / year stacked in narrow caps; the month and year ride the 10px micro-label step.",
+      "html": "<span class=\"ds-date-flag\"><span class=\"ds-date-flag-sm\">NOV</span><span class=\"ds-date-flag-day\">24</span><span class=\"ds-date-flag-sm\">2026</span></span>",
+      "css": ".ds-date-flag { display: inline-flex; flex-direction: column; align-items: center; background: var(--accent, #D7262D); color: #FFFFFF; font-family: var(--font-narrow, 'Archivo Narrow', sans-serif); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.05; padding: 4px 12px; } .ds-date-flag-sm { font-size: 10px; opacity: 0.9; } .ds-date-flag-day { font-size: 1.125rem; font-weight: 700; line-height: 1; }"
+    },
+    {
+      "name": "Method Chip (selected)",
+      "kind": "chip",
+      "refersTo": "chip-method-selected",
+      "description": "Payment-method toggle in its selected state: carrier navy fill, white text.",
+      "html": "<button class=\"ds-chip-selected\" aria-pressed=\"true\">Cash</button>",
+      "css": ".ds-chip-selected { background: var(--accent-2, #0D1B3D); color: #FFFFFF; border: 1px solid transparent; border-radius: 9999px; padding: 6px 12px; font-size: 0.75rem; font-weight: 500; font-family: var(--font-sans, 'Archivo', sans-serif); cursor: pointer; } .ds-chip-selected:focus-visible { outline: 2px solid var(--accent-2, #0D1B3D); outline-offset: 2px; }"
+    },
+    {
+      "name": "Method Chip (unselected)",
+      "kind": "chip",
+      "refersTo": "chip-method-unselected",
+      "description": "Payment-method toggle at rest: white wash over the stub, hairline border, ink text.",
+      "html": "<button class=\"ds-chip-unselected\" aria-pressed=\"false\">bKash</button>",
+      "css": ".ds-chip-unselected { background: rgba(255,255,255,0.4); color: var(--ink, #1D2333); border: 1px solid rgba(29,35,51,0.1); border-radius: 9999px; padding: 6px 12px; font-size: 0.75rem; font-weight: 500; font-family: var(--font-sans, 'Archivo', sans-serif); cursor: pointer; transition: background 120ms ease; } .ds-chip-unselected:hover { background: rgba(255,255,255,0.7); } .ds-chip-unselected:focus-visible { outline: 2px solid var(--accent-2, #0D1B3D); outline-offset: 2px; } [data-theme='dark'] .ds-chip-unselected { background: rgba(255,255,255,0.06); border-color: rgba(233,237,246,0.1); }"
+    },
+    {
+      "name": "Money Input (hero gross)",
+      "kind": "input",
+      "description": "The gross-figure field: hero carbon mono at text-2xl, placeholder at full carbon ink.",
+      "html": "<input class=\"ds-input-money\" type=\"text\" inputmode=\"decimal\" placeholder=\"0.00\" aria-label=\"Gross Collected (BDT)\">",
+      "css": ".ds-input-money { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(29,35,51,0.1); background: rgba(255,255,255,0.5); color: var(--carbon, #4B2E83); font-family: var(--font-mono, 'Spline Sans Mono', monospace); font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.5rem; letter-spacing: -0.01em; caret-color: var(--accent-2, #0D1B3D); } .ds-input-money::placeholder { color: var(--carbon, #4B2E83); opacity: 1; } .ds-input-money:focus-visible { outline: 2px solid var(--accent-2, #0D1B3D); outline-offset: 2px; } [data-theme='dark'] .ds-input-money { border-color: rgba(233,237,246,0.1); color: var(--carbon, #B9A7EC); caret-color: var(--carbon, #B9A7EC); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": null,
+      "description": "Standard field: hairline border, white-50 fill, 8px radius; focus ring navy (carbon in dark).",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"e.g. Rahim Ahmed\" aria-label=\"Customer Name\">",
+      "css": ".ds-input { width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(29,35,51,0.1); background: rgba(255,255,255,0.5); color: var(--ink, #1D2333); font-size: 0.875rem; font-family: var(--font-sans, 'Archivo', sans-serif); caret-color: var(--accent-2, #0D1B3D); min-height: 44px; } .ds-input::placeholder { color: var(--muted, #5A6373); opacity: 1; } .ds-input:focus-visible { outline: 2px solid var(--accent-2, #0D1B3D); outline-offset: 2px; } [data-theme='dark'] .ds-input { border-color: rgba(233,237,246,0.1); caret-color: var(--carbon, #B9A7EC); }"
+    },
+    {
+      "name": "Coupon Stub Card",
+      "kind": "card",
+      "refersTo": "card-stub",
+      "description": "The paper stub surface: solid white, hairline border, stub radius, quiet paper lift.",
+      "html": "<div class=\"ds-card-stub\">Stub content rides here.</div>",
+      "css": ".ds-card-stub { background: var(--surface, #FFFFFF); border: 1px solid var(--pearl-border, rgba(29,35,51,0.16)); border-radius: var(--radius, 10px); padding: 20px; box-shadow: 0 1px 2px rgba(13,27,61,0.05), 0 12px 28px -16px rgba(13,27,61,0.14); color: var(--ink, #1D2333); font-family: var(--font-sans, 'Archivo', sans-serif); } [data-theme='dark'] .ds-card-stub { box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 28px -16px rgba(0,0,0,0.5); }"
+    },
+    {
+      "name": "Ledger Row (status washes)",
+      "kind": "card",
+      "refersTo": null,
+      "description": "A filed stub row. Void, superseded and pending states carry internal amber/red/blue wash chips at the 10px micro-label step — approved status accents inside the stub, not structure.",
+      "html": "<div class=\"ds-ledger-row\"><span class=\"ds-status-chip ds-status-void\">VOID</span><span class=\"ds-status-chip ds-status-pending\">PENDING</span></div>",
+      "css": ".ds-ledger-row { background: var(--surface, #FFFFFF); border: 1px solid var(--pearl-border, rgba(29,35,51,0.16)); border-radius: var(--radius, 10px); padding: 20px; font-family: var(--font-sans, 'Archivo', sans-serif); display: flex; gap: 8px; align-items: center; } .ds-status-chip { font-family: var(--font-narrow, 'Archivo Narrow', sans-serif); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; padding: 2px 6px; border-radius: 4px; } .ds-status-void { background: rgba(239,68,68,0.1); color: #B91C1C; } .ds-status-pending { background: rgba(245,158,11,0.1); color: #B45309; } [data-theme='dark'] .ds-status-void { color: #F87171; } [data-theme='dark'] .ds-status-pending { color: #FBBF24; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Jet-Age Coupon Wallet",
+    "overview": "The month is a coupon wallet. Every payment is filed as a carbon stub — a notched tab-cap head carrying a serial, a red date flag riding the edge, a hairline fare-box split of the money, and a dashed tear-off perforation above the one red action that stamps the stub into the wallet. Nothing behind a filed stub changes: a voided entry is stamped VOID, a closed month carries the seal, corrections are new stubs that supersede old ones. The world refuses the category default of floating white cards on a grey SaaS ground; colour owns whole regions instead of accenting chips.\n\nCarrier navy #0D1B3D is the shell: the desktop rail, the mobile pill, and every page's coupon-head band are navy regions set with the .on-navy scope, which re-points the ink tokens so ordinary markup reads correctly on the band. Jet red #D7262D is scarce by design — the primary action, the date flag, and alert accents and nothing else. Carbon purple #4B2E83 is the ink of money: every entered figure and every amount sets in tabular mono at carbon. Coupon white stubs are paper — solid, crisp, never blurred; the old frosted chrome is retired, and .glass is now a paper material with a quiet navy-tinted lift.\n\nWCAG AA (>= 4.5:1 body, >= 3:1 large) in light and dark themes is a hard constraint, as are 44px minimum touch targets and the prefers-reduced-motion, prefers-reduced-transparency, and prefers-contrast: more media contracts. The dark theme is the same wallet at night: navy night ground, lifted band, carbon figures set in lavender.",
+    "keyCharacteristics": [
+      "Colour owns regions (navy bands), not accent chips.",
+      "Money always sets in tabular mono at carbon; labels set in narrow caps.",
+      "Stubs are paper: solid fills, hairline borders, no backdrop blur anywhere.",
+      "One red primary per screen — the stamp action.",
+      "Dashed perforations separate the stub from its action zone.",
+      "Reserved devices held as headroom: security-dot guilloche, void-red hatch, carbon-copy lavender treatment, chamfered ticket corners, /// hatch marks."
+    ],
+    "rules": [
+      { "name": "The Colour Owns Regions Rule", "body": "Navy owns whole regions — bands, rails, pills — through the .on-navy scope, which re-points --ink, --muted, --surface and --pearl-border so children read navy-safe without markup changes. Colour is never applied as a chip-level accent to fake structure; red accents an action, navy declares a region.", "section": "colors" },
+      { "name": "Approved status washes", "body": "LedgerRow's internal amber/red/blue washes are approved status accents — they mark void, superseded and pending states inside a stub, not structure, so they do not break the Colour Owns Regions Rule.", "section": "colors" },
+      { "name": "The Carbon Ink Rule", "body": "Every entered figure, amount, serial and money value sets in Spline Sans Mono with tabular-nums (.carbon-nums), in carbon purple. Money never sets in the sans face and never in a colour other than carbon (dark: carbon night).", "section": "colors" },
+      { "name": "The Paper Rule", "body": "Stubs are paper. Solid fills, one hairline border, no backdrop-filter, no translucency in primary surfaces; .glass-subtle translucency exists only as a background wash and collapses to solid under prefers-reduced-transparency and browsers without backdrop-filter support.", "section": "colors" },
+      { "name": "The Two Ink Voices Rule", "body": "Uppercase text is always Archivo Narrow 700 with tracking (labels, tabs, stamps); mono is always tabular and always for numbers. Sans never fakes either voice — no letter-spaced sans caps, no proportional digits in money.", "section": "typography" }
+    ],
+    "dos": [
+      "Do wrap any navy region in .on-navy so ink tokens flip automatically; never hand-pick light text colours per child.",
+      "Do set every amount, serial and numeric figure in .carbon-nums (tabular mono, carbon in light / carbon-night lavender in dark).",
+      "Do use .tab-caps (Archivo Narrow 700 uppercase, +0.08em) for field labels and table heads.",
+      "Do separate action zones from the stub with .perf perforations.",
+      "Do keep 44px touch targets, AA contrast in both themes, and the reduced-motion/transparency/contrast media contracts on every new surface.",
+      "Do keep the red primary to one action per screen; use stub buttons and semantic fills for everything else.",
+      "Do keep UI strings in the i18n message catalog (src/lib/i18n/messages.ts)."
+    ],
+    "donts": [
+      "Don't apply backdrop blur or translucency to primary surfaces — stubs are paper (.glass is now a solid material despite its name).",
+      "Don't use jet red as decoration, for selection states, or for more than the primary action, the date flag, and alert/void accents.",
+      "Don't re-import pearl/jade or frosted-glass values into the legacy token names (--pearl-*, .glass); the names are load-bearing for consumers, the old values are gone.",
+      "Don't reference Geist/Geist Mono (files remain in static/fonts/ unreferenced; new faces must come from the self-hosted world stack).",
+      "Don't invent serial digits or fixture amounts — serials preview as E-{CODE}-{YYYYMM}-······ until the server allocates, and paper-ledger fixtures are quoted exactly.",
+      "Don't convert entered figures to sans type or proportional digits; money's voice is fixed.",
+      "Don't rebuild the navy shell by hand-tinting each element — without .on-navy the token scope breaks for every child."
+    ]
+  }
+}

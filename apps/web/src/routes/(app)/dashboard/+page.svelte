@@ -20,12 +20,12 @@
   {#if session.loading || !session.user}
     <!-- Skeleton loader prevents flash of Staff UI while session resolves -->
     <div class="flex flex-col gap-6 animate-pulse">
-      <div class="h-8 bg-slate-200 rounded w-1/3"></div>
+      <div class="h-8 bg-[var(--pearl-b)] rounded w-1/3"></div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div class="h-28 bg-slate-200 rounded-2xl"></div>
-        <div class="h-28 bg-slate-200 rounded-2xl"></div>
+        <div class="h-28 bg-[var(--pearl-b)] rounded-[var(--radius)]"></div>
+        <div class="h-28 bg-[var(--pearl-b)] rounded-[var(--radius)]"></div>
       </div>
-      <div class="h-64 bg-slate-200 rounded-2xl"></div>
+      <div class="h-64 bg-[var(--pearl-b)] rounded-[var(--radius)]"></div>
     </div>
   {:else if isOwnerView}
     <OwnerDashboard ownerName={userDisplayName} />

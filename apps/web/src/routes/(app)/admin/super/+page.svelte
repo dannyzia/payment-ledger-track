@@ -4,6 +4,7 @@
   import { hasCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
   import { adminFetchError } from '$lib/api/offline';
@@ -72,14 +73,14 @@
   }
 </script>
 
-<div class="p-4 sm:p-6 max-w-6xl mx-auto w-full flex flex-col gap-5">
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h1 class="text-xl font-bold text-[var(--ink)]">Fleet Dashboard</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Every franchise center at a glance. Figures count active entries only.
-      </p>
-    </div>
+<div class="p-6 max-w-6xl mx-auto w-full flex flex-col gap-5">
+  <CouponHead
+    tab="Fleet"
+    title="Fleet Dashboard"
+    subtitle="Every franchise center at a glance. Figures count active entries only."
+  />
+
+  <div class="flex flex-wrap items-center justify-end gap-3">
     {#if canUsePanel}
       <Button variant="default" onclick={() => void load()} disabled={loading}>Refresh</Button>
     {/if}

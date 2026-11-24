@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
@@ -140,15 +141,13 @@
 </script>
 
 <div class="p-6 max-w-5xl mx-auto w-full">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">
-        Payables & Settlement Schedule
-      </h1>
-      <p class="text-sm text-[var(--muted)]">
-        Configure recipient settlement accounts, authorities, and recurring due dates (1–28).
-      </p>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Payables & Settlement Schedule"
+    subtitle="Configure recipient settlement accounts, authorities, and recurring due dates (1–28)."
+  />
+
+  <div class="mb-6 flex items-center justify-end">
     <Button variant="default" onclick={openCreateModal}>Add Payable</Button>
   </div>
 

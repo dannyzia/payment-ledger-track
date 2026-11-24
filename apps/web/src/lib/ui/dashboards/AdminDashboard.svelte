@@ -1,6 +1,7 @@
 <script lang="ts">
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import { db, type LocalEntry, type CachedPaymentMethod } from '$lib/db';
   import {
     computeShopMethodCollections,
@@ -334,27 +335,22 @@
 </script>
 
 <div class="admin-dashboard flex flex-col gap-6">
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-        Admin Operations Dashboard
-      </h1>
-      <p class="text-sm text-[var(--c-muted,#6b7280)]">
-        Overview of counter operations, review queues, and anomaly alerts.
-      </p>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Admin Operations Dashboard"
+    subtitle="Overview of counter operations, review queues, and anomaly alerts."
+  />
 
-    <div class="flex items-center gap-2">
-      <div
-        class="px-3 py-1.5 rounded-xl border border-black/10 text-xs font-semibold flex items-center gap-2"
-      >
-        <span
-          class="w-2 h-2 rounded-full {pendingSyncCount > 0
-            ? 'bg-amber-500 animate-pulse'
-            : 'bg-emerald-500'}"
-        ></span>
-        <span>{pendingSyncCount} Outbox Pending</span>
-      </div>
+  <div class="flex flex-wrap items-center justify-end gap-3">
+    <div
+      class="px-3 py-1.5 rounded-xl border border-[var(--pearl-border)] text-xs font-semibold flex items-center gap-2"
+    >
+      <span
+        class="w-2 h-2 rounded-full {pendingSyncCount > 0
+          ? 'bg-amber-500 animate-pulse'
+          : 'bg-emerald-500'}"
+      ></span>
+      <span class="carbon-nums text-[var(--carbon)]">{pendingSyncCount} Outbox Pending</span>
     </div>
   </div>
 
@@ -400,7 +396,7 @@
           >Open Reconciliation Recovery</a
         >
       </div>
-      <p class="text-[var(--c-muted,#6b7280)]">
+      <p class="text-[var(--muted)]">
         Transactions recorded offline on historical dates after those calendar months were closed.
         Reassign to an open period or discard via Reconciliation.
       </p>
@@ -422,25 +418,25 @@
   <!-- Overall Shop Turnover (PRD §8.5) -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">
         Total Shop Collections Today
       </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--c-ink,#111827)]">
+      <div class="text-3xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(overallShop.todayGrossPoisha)}
       </div>
-      <div class="text-xs text-[var(--c-muted,#6b7280)] mt-2">
+      <div class="text-xs text-[var(--muted)] mt-2">
         {overallShop.todayEntriesCount} shop transactions recorded today ({todayStr})
       </div>
     </Card>
 
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">
         Total Shop Month-to-Date Collections
       </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--c-commission,#10b981)]">
+      <div class="text-2xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(overallShop.mtdGrossPoisha)}
       </div>
-      <div class="text-xs text-[var(--c-muted,#6b7280)] mt-2">
+      <div class="text-xs text-[var(--muted)] mt-2">
         {overallShop.mtdEntriesCount} shop transactions this month ({currentMonth})
       </div>
     </Card>
@@ -450,12 +446,12 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">
           Stale Reviews (>৳50k)
         </div>
         <div class="text-2xl font-bold text-amber-600">{highValueStaleCount} Pending</div>
         {#if lowValueStaleCount > 0}
-          <div class="text-[10px] text-[var(--c-muted,#6b7280)] mt-1">
+          <div class="text-[10px] text-[var(--muted)] mt-1">
             {lowValueStaleCount} auto-accepted (&lt;৳50k)
           </div>
         {/if}
@@ -471,8 +467,8 @@
 
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">Void Requests</div>
-        <div class="text-2xl font-bold text-[var(--c-ink,#111827)]">{voidRequestCount} Pending</div>
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">Void Requests</div>
+        <div class="text-2xl font-bold text-[var(--ink)]">{voidRequestCount} Pending</div>
       </div>
       <div class="mt-3">
         <a href="/ledger?filter=void_requested"
@@ -485,7 +481,7 @@
 
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">
           Duplicate Txn Flags
         </div>
         <div
@@ -507,7 +503,7 @@
 
     <Card class="p-5 flex flex-col justify-between">
       <div>
-        <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+        <div class="text-xs font-semibold text-[var(--muted)] mb-1">
           Closed-Month Offline
         </div>
         <div
@@ -534,13 +530,13 @@
 
   <!-- Shop Collections by Payment Method (PRD §8.5) -->
   <Card class="p-6">
-    <h2 class="font-bold text-base text-[var(--c-ink,#111827)] mb-4">
+    <h2 class="font-bold text-base text-[var(--ink)] mb-4">
       Shop Collections by Payment Method
     </h2>
     <div class="overflow-x-auto">
       <table class="w-full text-left text-sm">
         <thead>
-          <tr class="border-b border-black/10 text-xs text-[var(--c-muted,#6b7280)]">
+          <tr class="border-b border-black/10 text-xs text-[var(--muted)]">
             <th class="py-2">Payment Method</th>
             <th class="py-2 text-right">Today Gross</th>
             <th class="py-2 text-right">Today Txns</th>
@@ -555,14 +551,14 @@
               <td class="py-2.5 text-right font-bold tabular-nums"
                 >{formatPoishaToBdt(m.todayGrossPoisha)}</td
               >
-              <td class="py-2.5 text-right tabular-nums text-xs text-[var(--c-muted,#6b7280)]"
+              <td class="py-2.5 text-right tabular-nums text-xs text-[var(--muted)]"
                 >{m.todayCount}</td
               >
               <td
                 class="py-2.5 text-right font-bold tabular-nums text-[var(--c-commission,#10b981)]"
                 >{formatPoishaToBdt(m.mtdGrossPoisha)}</td
               >
-              <td class="py-2.5 text-right tabular-nums text-xs text-[var(--c-muted,#6b7280)]"
+              <td class="py-2.5 text-right tabular-nums text-xs text-[var(--muted)]"
                 >{m.mtdCount}</td
               >
             </tr>
@@ -575,16 +571,16 @@
   <!-- Settlement Payment Due Checklist (PRD §8.5) -->
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">
+      <h2 class="font-bold text-base text-[var(--ink)]">
         Settlement Payment Due Checklist (Due in {currentMonth})
       </h2>
-      <a href="/settlements" class="text-xs text-[var(--c-muted,#6b7280)] hover:underline"
+      <a href="/settlements" class="text-xs text-[var(--muted)] hover:underline"
         >Manage Settlements</a
       >
     </div>
 
     {#if currentSettlements.length === 0}
-      <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">
+      <div class="p-4 text-center text-xs text-[var(--muted)]">
         No settlement records active for {priorMonth} liabilities.
       </div>
     {:else}
@@ -595,7 +591,7 @@
           >
             <div>
               <span class="font-bold">{s.payableName}</span>
-              <span class="text-xs text-[var(--c-muted,#6b7280)] ml-2"
+              <span class="text-xs text-[var(--muted)] ml-2"
                 >Due Date: {s.dueDate} ({s.formattedDueDay})</span
               >
               {#if s.isOverdue}
@@ -631,12 +627,12 @@
   <!-- Staff Counter Activity (PRD §8.5) -->
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">Staff Counter Activity</h2>
-      <span class="text-xs text-[var(--c-muted,#6b7280)]">Recent transactions across staff</span>
+      <h2 class="font-bold text-base text-[var(--ink)]">Staff Counter Activity</h2>
+      <span class="text-xs text-[var(--muted)]">Recent transactions across staff</span>
     </div>
 
     {#if staffActivity.length === 0}
-      <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">
+      <div class="p-4 text-center text-xs text-[var(--muted)]">
         No recent counter transactions found.
       </div>
     {:else}
@@ -647,11 +643,11 @@
           >
             <div class="flex items-center gap-2">
               <span class="text-xs font-semibold text-slate-700">{act.staffName}:</span>
-              <span class="font-medium text-[var(--c-ink,#111827)]">{act.customerName}</span>
-              <span class="text-xs text-[var(--c-muted,#6b7280)]">({act.methodName})</span>
+              <span class="font-medium text-[var(--ink)]">{act.customerName}</span>
+              <span class="text-xs text-[var(--muted)]">({act.methodName})</span>
             </div>
             <div class="flex items-center gap-3">
-              <span class="text-xs text-[var(--c-muted,#6b7280)]">{act.timeStr}</span>
+              <span class="text-xs text-[var(--muted)]">{act.timeStr}</span>
               <span class="font-bold tabular-nums"
                 >{formatPoishaToBdt(BigInt(act.grossPoisha))}</span
               >

@@ -4,6 +4,8 @@
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
+  import Stamp from '$lib/ui/Stamp.svelte';
   import RecordPaymentModal from '$lib/ui/RecordPaymentModal.svelte';
   import OverpaymentApprovalModal from '$lib/ui/OverpaymentApprovalModal.svelte';
   import {
@@ -200,40 +202,36 @@
       Loading settlement record or record not found...
     </div>
   {:else}
-    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <div class="flex items-center gap-2">
-          {#if payable?.kind === 'vat'}
-            <span
-              class="px-1.5 py-0.5 rounded text-[10px] bg-[var(--c-vat)]/10 text-[var(--c-vat)] font-bold"
-              >VAT</span
-            >
-          {:else if method}
-            <Chip variant={getChipVariant(method.code)}>
-              {method.code}
-            </Chip>
-          {/if}
-          <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">
-            {payable?.name ?? 'Settlement Liability'}
-          </h1>
-        </div>
-        <p class="text-sm text-[var(--muted)] font-mono">Statement Month: {settlement.month}</p>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <Button variant="default" onclick={() => goto('/settlements')}>
-          ← Back to Settlements
-        </Button>
-        <Button
-          variant="commission"
-          onclick={() => {
-            recordModalOpen = true;
-          }}
-          disabled={!canRecordPayment}
+    <CouponHead
+      tab="Settlement"
+      title={payable?.name ?? 'Settlement Liability'}
+      subtitle={`Statement month ${settlement.month}`}
+    >
+      {#if payable?.kind === 'vat'}
+        <span
+          class="tab-caps px-2 py-1 rounded-full text-[10px] bg-[var(--c-vat-bg)] text-[var(--c-vat)] border border-[var(--c-vat)]"
+          >VAT</span
         >
-          + Record Payment
-        </Button>
-      </div>
+      {:else if method}
+        <Chip variant={getChipVariant(method.code)}>
+          {method.code}
+        </Chip>
+      {/if}
+    </CouponHead>
+
+    <div class="mb-6 flex flex-wrap items-center justify-end gap-2">
+      <Button variant="default" onclick={() => goto('/settlements')}>
+        ← Back to Settlements
+      </Button>
+      <Button
+        class="btn-stamp min-h-[44px]"
+        onclick={() => {
+          recordModalOpen = true;
+        }}
+        disabled={!canRecordPayment}
+      >
+        + Record Payment
+      </Button>
     </div>
 
     {#if isMonthClosed}
@@ -247,27 +245,46 @@
     <!-- Financial Status Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <Card class="p-5">
-        <div class="text-xs text-[var(--muted)] mb-1">Expected Liability</div>
-        <div class="text-xl font-bold tabular-nums text-[var(--ink)]">
+        <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Expected Liability</div>
+        <div class="text-xl font-bold carbon-nums text-[var(--carbon)]">
           {formatPoishaToBdt(BigInt(settlement.expected_poisha))}
         </div>
         <div class="text-[10px] text-[var(--muted)] mt-1">Calculated from active entries</div>
       </Card>
 
       <Card class="p-5">
-        <div class="text-xs text-[var(--muted)] mb-1">Total Paid to Date</div>
-        <div class="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+        <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Total Paid to Date</div>
+        <div class="text-xl font-bold carbon-nums text-[var(--carbon)]">
           {formatPoishaToBdt(BigInt(settlement.paid_poisha))}
         </div>
         <div class="text-[10px] text-[var(--muted)] mt-1">{payments.length} payment records</div>
       </Card>
 
       <Card class="p-5">
-        <div class="text-xs text-[var(--muted)] mb-1">Settlement Status</div>
-        <div class="text-xl font-bold capitalize text-[var(--ink)]">
-          {settlement.status.replace('_', ' ')}
+        <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">Settlement Status</div>
+        <div class="flex items-center min-h-[32px]">
+          {#if settlement.status === 'paid'}
+            <Stamp label="PAID" class="-rotate-6" />
+          {:else if settlement.status === 'due'}
+            <span
+              class="tab-caps px-2.5 py-1 rounded-full text-[10px] bg-[var(--accent-2)] text-[var(--navy-ink)]"
+              >Due</span
+            >
+          {:else if settlement.status === 'partly_paid'}
+            <span
+              class="tab-caps px-2.5 py-1 rounded-full text-[10px] bg-[var(--c-vat-bg)] text-[var(--c-vat)] border border-[var(--c-vat)]"
+              >Partly Paid</span
+            >
+          {:else if settlement.status === 'overpaid'}
+            <Stamp label="Overpaid" />
+          {:else}
+            <span
+              class="tab-caps px-2.5 py-1 rounded-full text-[10px] border border-[var(--muted)] text-[var(--muted)]"
+              >Not Applicable</span
+            >
+          {/if}
         </div>
-        <div class="text-[10px] text-[var(--muted)] mt-1">
+        <div class="text-[10px] carbon-nums text-[var(--muted)] mt-1">
           Variance: {formatPoishaToBdt(
             BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha),
           )}
@@ -278,18 +295,18 @@
     <!-- Overpayment Review Status Section (PRD §8.4) -->
     {#if settlement.status === 'overpaid'}
       <div class="mb-6">
-        <Card class="p-5 border-purple-500/20 bg-purple-500/5">
+        <Card class="p-5 border-[var(--accent)]/25 bg-[var(--accent)]/5">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div class="flex items-center gap-2">
                 <span
-                  class="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold"
+                  class="tab-caps text-[10px] px-2.5 py-1 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-bold border border-[var(--accent)]/40"
                 >
                   {settlement.overpayment_review_status === 'approved'
                     ? '✓ Overpayment Approved'
                     : '⚠️ Overpayment Pending Approval'}
                 </span>
-                <span class="text-xs text-purple-900 dark:text-purple-200 font-bold">
+                <span class="text-xs text-[var(--ink)] font-bold carbon-nums">
                   Surplus: +{formatPoishaToBdt(
                     BigInt(settlement.paid_poisha) - BigInt(settlement.expected_poisha),
                   )}
@@ -297,14 +314,14 @@
               </div>
 
               {#if settlement.overpayment_review_status === 'approved'}
-                <p class="text-xs text-purple-700/80 dark:text-purple-300/80 mt-1">
+                <p class="text-xs text-[var(--muted)] mt-1">
                   Reason: "{settlement.overpayment_reason}" &bull; Authorized: {settlement.overpayment_approved_at?.slice(
                     0,
                     10,
                   )}
                 </p>
               {:else}
-                <p class="text-xs text-purple-700/80 dark:text-purple-300/80 mt-1">
+                <p class="text-xs text-[var(--muted)] mt-1">
                   Owner approval is required to authorize surplus prior to month close (PRD §8.4).
                 </p>
               {/if}
@@ -312,7 +329,7 @@
 
             {#if settlement.overpayment_review_status !== 'approved' && hasCenterCapability(session.user?.role ?? 'staff', 'settlement.approve_overpayment')}
               <Button
-                variant="commission"
+                class="btn-stamp min-h-[44px]"
                 onclick={() => {
                   overpaymentModalOpen = true;
                 }}
@@ -342,9 +359,7 @@
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
-              <tr
-                class="text-xs text-[var(--muted)] border-b border-black/5 uppercase tracking-wider"
-              >
+              <tr class="tab-caps text-[11px] text-[var(--muted)] border-b border-[var(--pearl-border)]">
                 <th class="pb-2">Date</th>
                 <th class="pb-2 text-right">Amount (BDT)</th>
                 <th class="pb-2">Reference</th>
@@ -353,7 +368,7 @@
                 <th class="pb-2 text-right">Action</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-black/5 dark:divide-white/5 font-mono text-xs">
+                            <tbody class="divide-y divide-[var(--pearl-border)] text-xs">
               {#each payments as p (p.id)}
                 {@const reversibleBalance = getReversibleBalance(p, payments)}
                 {@const isFullyReversed = !p.is_reversal && reversibleBalance === 0n}
@@ -363,7 +378,7 @@
                   reversibleBalance < BigInt(p.amount_poisha)}
                 {@const receiptPath = p.receipt_storage_path ?? p.receipt_path}
                 <tr class="hover:bg-black/[0.02] dark:hover:bg-white/[0.02]">
-                  <td class="py-3 text-[var(--ink)]">
+                  <td class="py-3 carbon-nums text-[var(--ink)]">
                     {p.paid_on}
                     {#if p.is_reversal}
                       <span
@@ -383,13 +398,13 @@
                     {/if}
                   </td>
                   <td
-                    class="py-3 text-right font-bold tabular-nums {p.is_reversal
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-emerald-600 dark:text-emerald-400'}"
+                    class="py-3 text-right font-bold carbon-nums {p.is_reversal
+                      ? 'text-red-600 dark:text-red-400 line-through decoration-[var(--accent)]'
+                      : 'text-[var(--carbon)]'}"
                   >
                     {p.is_reversal ? '-' : ''}{formatPoishaToBdt(BigInt(p.amount_poisha))}
                   </td>
-                  <td class="py-3 text-[var(--muted)]">{p.reference || '—'}</td>
+                  <td class="py-3 carbon-nums text-[var(--muted)]">{p.reference || '—'}</td>
                   <td class="py-3">
                     {#if receiptPath}
                       <button

@@ -69,7 +69,7 @@
   onkeydown={handleKeydown}
 >
   <div
-    class="glass rounded-full p-2 flex items-center gap-2 shadow-xl border border-[var(--pearl-border)]"
+    class="glass on-navy rounded-full p-2 flex items-center gap-2 shadow-xl border border-[var(--pearl-border)]"
   >
     <!-- PRD §14.5: the collapsed pill shows "the primary action plus a handle".
          The grip is a 44x44 touch target that is deliberately *not* a control,
@@ -86,22 +86,24 @@
 
     <a
       href="/entries/new"
-      class="btn-glass btn--commission rounded-full px-4 py-2 flex items-center gap-1.5 text-sm font-semibold"
+      class="btn-glass btn-stamp rounded-full px-4 py-2 flex items-center gap-1.5 text-sm font-semibold"
       aria-label={messages.menu.newEntry}
     >
       <span aria-hidden="true">+</span>
-      <span class="btn-label">{messages.menu.newEntry}</span>
+      <span class="btn-label text-white">{messages.menu.newEntry}</span>
     </a>
 
     <button
       type="button"
       onclick={toggleMenu}
-      class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+      class="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full hover:bg-white/10"
       aria-expanded={expanded}
       aria-controls="mobile-nav-panel"
       aria-label={messages.ui.toggleMenu}
     >
-      <span class="text-xs" aria-hidden="true">☰</span>
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none" aria-hidden="true">
+        <path d="M1 1h16M1 7h16M1 13h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
     </button>
   </div>
 
@@ -109,19 +111,19 @@
     <nav
       id="mobile-nav-panel"
       aria-label={messages.ui.mainNav}
-      class="glass rounded-2xl p-3 {isLowerHalf
+      class="glass on-navy rounded-2xl p-3 {isLowerHalf
         ? 'mb-2'
         : 'mt-2'} flex flex-col gap-1 shadow-2xl max-h-[70vh] overflow-y-auto"
     >
       <a
         href="/dashboard"
-        class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
       >
         {messages.menu.dashboard}
       </a>
       <a
         href="/ledger"
-        class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+        class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
       >
         {messages.menu.ledger}
       </a>
@@ -130,25 +132,25 @@
              the link (CLT-R-031). -->
         <a
           href="/reports"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           {messages.menu.reports}
         </a>
         <a
           href="/settlements"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           {messages.menu.settlements}
         </a>
         <a
           href="/reconcile"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           {messages.menu.reconcile}
         </a>
         <a
           href="/admin"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           {messages.menu.admin}
         </a>
@@ -156,7 +158,7 @@
              the old /settings href led to a 404 (found by the E2E link sweep). -->
         <a
           href="/admin/settings"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center border-t border-black/10 dark:border-white/10 mt-1"
         >
           {messages.menu.settings}
         </a>
@@ -165,25 +167,25 @@
       {#if hasCapability(role, 'center.read_all')}
         <a
           href="/admin/super"
-          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl bg-white/10 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Fleet Dashboard
         </a>
         <a
           href="/admin/super/users"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Fleet Users
         </a>
         <a
           href="/admin/super/devices"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Fleet Devices
         </a>
         <a
           href="/admin/super/centers"
-          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl bg-white/10 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Franchise Centers
         </a>
@@ -191,13 +193,13 @@
       {#if hasCapability(role, 'ledger.read_all')}
         <a
           href="/admin/super/ledger"
-          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl bg-white/10 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Cross-Center Ledger
         </a>
         <a
           href="/admin/super/search"
-          class="px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl bg-white/10 text-sm font-semibold text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Global Search
         </a>
@@ -205,7 +207,7 @@
       {#if hasCapability(role, 'audit.read_all')}
         <a
           href="/admin/audit"
-          class="px-4 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
+          class="px-4 py-2.5 rounded-xl hover:bg-white/10 text-sm text-[var(--ink)] min-h-[44px] flex items-center"
         >
           Audit Trail
         </a>

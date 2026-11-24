@@ -4,6 +4,7 @@
   import { hasCapability } from '$lib/capabilities';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
@@ -262,13 +263,13 @@
   </div>
 {:else}
   <div class="p-6 max-w-5xl mx-auto w-full">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Franchise Centers</h1>
-        <p class="text-sm text-[var(--muted)]">
-          Provision and monitor independent franchise learning centers (Head Office).
-        </p>
-      </div>
+    <CouponHead
+      tab="Fleet"
+      title="Franchise Centers"
+      subtitle="Provision and monitor independent franchise learning centers (Head Office)."
+    />
+
+    <div class="mb-6 flex items-center justify-end gap-2">
       <div class="flex items-center gap-2">
         <select
           class="min-h-[44px] rounded-lg border border-[var(--pearl-border)] bg-[var(--surface)] px-2 text-sm text-[var(--ink)]"

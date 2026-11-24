@@ -3,6 +3,7 @@
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
   import Chip from '$lib/ui/Chip.svelte';
+  import SyncIndicator from '$lib/ui/SyncIndicator.svelte';
   import ReceiptBreakdown from '$lib/ui/ReceiptBreakdown.svelte';
   import DuplicateWarning from '$lib/ui/DuplicateWarning.svelte';
   import { resolveEffectiveRateProfile, getMaxKnownRateVersion } from '$lib/db/rates';
@@ -29,6 +30,24 @@
   let vatOverridePercentInput = $state('');
   let vatOverrideReason = $state('Counter override');
   let notes = $state('');
+
+  // Presentation derivation for the coupon-head date flag (visual only — no save logic).
+  let dateFlag = $derived.by(() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(entryDate);
+    if (!m) return null;
+    const mon = new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(
+      new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))),
+    );
+    return { mon: mon.toUpperCase(), day: m[3] };
+  });
+
+  // Honest serial preview: the display shape with no invented number — the real
+  // serial is allocated per centre server-side at sync time.
+  let serialPreview = $derived.by(() => {
+    const code = session.user?.centerCode;
+    const ym = entryDate.slice(0, 7).replace('-', '');
+    return code ? `E-${code}-${ym}-······` : '#LOCAL-······';
+  });
 
   // Operational State
   let methods = $state<CachedPaymentMethod[]>([]);
@@ -478,19 +497,35 @@
 </script>
 
 <div class="p-6 max-w-4xl mx-auto w-full">
-  <!-- Header with Local-First Badge -->
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Record Transaction</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Local-first payment recording completes in &lt;100ms and syncs automatically.
-      </p>
-    </div>
-    <div class="flex items-center gap-2">
-      <Chip variant="default">{session.isOnline ? 'Online' : 'Offline'}</Chip>
-      <Chip variant="default">
-        {session.user?.centerCode ? `E-${session.user.centerCode}-…` : '#LOCAL-xxxx'}
-      </Chip>
+  <!-- Coupon head: navy band with the ENTRY tab-cap, serial chip and red date flag. -->
+  <div class="on-navy relative -mx-6 px-6 pt-2.5 pb-3.5 mb-6">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="coupon-tab shrink-0">Entry</span>
+        <div class="min-w-0">
+          <h1 class="text-xl font-bold tracking-tight text-[var(--ink)]">Record Transaction</h1>
+          <p class="hidden sm:block text-xs text-[var(--muted)]">
+            Files on this device first — syncs automatically when online.
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="hidden sm:flex items-center">
+          <SyncIndicator />
+        </span>
+        <Chip variant="default">{session.isOnline ? 'Online' : 'Offline'}</Chip>
+        <span
+          class="hidden sm:inline carbon-nums text-[11px] tracking-[0.08em]"
+          style="color: var(--navy-muted)">{serialPreview}</span
+        >
+        {#if dateFlag}
+          <span class="date-flag text-center shrink-0" aria-hidden="true">
+            <span class="text-[10px] opacity-90">{dateFlag.mon}</span>
+            <span class="text-lg font-bold leading-none">{dateFlag.day}</span>
+            <span class="text-[10px] opacity-90">{entryDate.slice(0, 4)}</span>
+          </span>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -552,10 +587,12 @@
     </div>
   {/if}
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Form Card -->
-    <div class="lg:col-span-2">
-      <Card class="p-6">
+  <div>
+    <!-- Form Card — the entry stub with its notched tab-cap -->
+    <div>
+      <div class="relative">
+        <span class="coupon-tab absolute -top-[11px] left-6 z-10">Stub</span>
+        <Card class="p-6">
         {#if supersedingOriginalId}
           <div
             class="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-800 dark:text-blue-300 text-xs flex items-center justify-between"
@@ -577,7 +614,8 @@
           </div>
         {/if}
 
-        <form onsubmit={handleLocalSave} class="flex flex-col gap-4">
+        <form onsubmit={handleLocalSave} class="flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-8">
+          <div class="flex flex-col gap-4 lg:col-span-3">
           <DuplicateWarning visible={duplicateVisible} />
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -651,7 +689,7 @@
               placeholder="0.00"
               bind:value={grossInput}
               oninput={triggerDuplicateCheck}
-              class="w-full px-3 py-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-lg font-bold font-mono tracking-tight"
+              class="w-full px-3 py-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-2xl font-bold carbon-nums text-[var(--carbon)] tracking-tight"
             />
             {#if grossInputError}
               <p class="text-xs text-red-600 mt-1">{grossInputError}</p>
@@ -672,7 +710,7 @@
                   aria-pressed={selectedMethodId === m.id}
                   class="px-3 py-1.5 rounded-full text-xs font-medium border transition-all {selectedMethodId ===
                   m.id
-                    ? 'bg-[var(--ink)] text-[var(--bg)] border-transparent'
+                    ? 'bg-[var(--accent-2)] text-white border-transparent'
                     : 'bg-white/40 border-black/10 text-[var(--ink)] hover:bg-white/70'}"
                   onclick={() => {
                     selectedMethodId = m.id;
@@ -685,6 +723,11 @@
                   {m.name}
                 </button>
               {/each}
+              {#if selectableMethods.length === 0}
+                <p class="text-xs text-[var(--muted)] py-1.5">
+                  No payment methods on this device yet — connect once online to sync them.
+                </p>
+              {/if}
             </div>
           </div>
 
@@ -777,7 +820,7 @@
                     <button
                       type="button"
                       class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'amount'
-                        ? 'bg-[var(--ink)] text-[var(--bg)] font-medium'
+                        ? 'bg-[var(--accent-2)] text-white font-medium'
                         : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
                       onclick={() => (vatOverrideMode = 'amount')}
                     >
@@ -786,7 +829,7 @@
                     <button
                       type="button"
                       class="px-2 py-0.5 rounded text-xs {vatOverrideMode === 'percent'
-                        ? 'bg-[var(--ink)] text-[var(--bg)] font-medium'
+                        ? 'bg-[var(--accent-2)] text-white font-medium'
                         : 'bg-black/5 dark:bg-white/5 text-[var(--ink)]'}"
                       onclick={() => (vatOverrideMode = 'percent')}
                     >
@@ -864,12 +907,35 @@
               class="w-full px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-white/50 text-sm"
             ></textarea>
           </div>
+          </div>
 
+          <div class="flex flex-col gap-4 lg:col-span-2">
+            <div class="mt-5 lg:mt-0">
+            <ReceiptBreakdown
+              grossPoisha={calculated.grossPoisha}
+              vatPoisha={calculated.vatPoisha}
+              commissionPoisha={calculated.commissionPoisha}
+              chargePoisha={calculated.chargePoisha}
+              netPoisha={calculated.netAfterDeductionsPoisha}
+              chargesBorneBy={activeProfile?.method_rates[selectedMethodId]?.charges_borne_by ??
+                'business'}
+              methodName={currentMethod?.name ?? 'Method Charge'}
+              vatMode={activeProfile?.vat_mode}
+              vatBp={activeProfile?.vat_bp}
+              isVatOverridden={activeProfile?.vat_mode !== 'manual' &&
+                isVatOverridden &&
+                vatOverridePoisha !== undefined}
+              commissionBp={activeProfile?.commission_bp}
+              chargeBp={activeProfile?.method_rates[selectedMethodId]?.fee_bp}
+            />
+          </div>
+
+          <div class="perf mt-5"></div>
           <Button
             id="btn-save"
             variant="default"
             type="submit"
-            class="w-full py-3 text-sm font-semibold mt-2"
+            class="btn-stamp w-full py-3 text-sm mt-2"
             disabled={isSaving ||
               isMonthClosed ||
               grossPoisha <= 0n ||
@@ -881,34 +947,23 @@
               !!calculationError}
           >
             {isSaving
-              ? 'Saving...'
+              ? 'Stamping…'
               : supersedingOriginalId
-                ? 'Supersede & Save Entry'
-                : 'Save Entry (<100ms)'}
+                ? 'Supersede & File'
+                : 'Stamp & File'}
           </Button>
+          </div>
         </form>
       </Card>
-    </div>
-
-    <!-- Live Receipt Breakdown -->
-    <div class="lg:col-span-1">
-      <ReceiptBreakdown
-        grossPoisha={calculated.grossPoisha}
-        vatPoisha={calculated.vatPoisha}
-        commissionPoisha={calculated.commissionPoisha}
-        chargePoisha={calculated.chargePoisha}
-        netPoisha={calculated.netAfterDeductionsPoisha}
-        chargesBorneBy={activeProfile?.method_rates[selectedMethodId]?.charges_borne_by ??
-          'business'}
-        methodName={currentMethod?.name ?? 'Method Charge'}
-        vatMode={activeProfile?.vat_mode}
-        vatBp={activeProfile?.vat_bp}
-        isVatOverridden={activeProfile?.vat_mode !== 'manual' &&
-          isVatOverridden &&
-          vatOverridePoisha !== undefined}
-        commissionBp={activeProfile?.commission_bp}
-        chargeBp={activeProfile?.method_rates[selectedMethodId]?.fee_bp}
-      />
+      </div>
     </div>
   </div>
 </div>
+
+<style>
+  /* Empty-state gross figure reads at full carbon ink (placeholder AA). */
+  #input-gross::placeholder {
+    color: var(--carbon);
+    opacity: 1;
+  }
+</style>

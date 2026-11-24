@@ -1,6 +1,8 @@
 <script lang="ts">
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
+  import Stamp from '$lib/ui/Stamp.svelte';
   import { db, type LocalEntry } from '$lib/db';
   import { computeStaffPersonalMetrics } from '$lib/dashboards/metrics';
   import { discardRejectedOp } from '$lib/sync/recovery';
@@ -137,47 +139,34 @@
 </script>
 
 <div class="staff-dashboard flex flex-col gap-6">
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--c-ink,#111827)]">
-        Welcome, {userName}
-      </h1>
-      <p class="text-sm text-[var(--c-muted,#6b7280)]">
-        Staff counter terminal (Asia/Dhaka timezone).
-      </p>
-    </div>
+  <CouponHead
+    tab="Counter"
+    title={`Welcome, ${userName}`}
+    subtitle="Staff counter terminal (Asia/Dhaka timezone)."
+  />
 
-    <div class="flex items-center gap-3">
+  <!-- Action zone under the band: the band carries the headline only, so the
+       stamp and the attention chip never crush it at phone width. -->
+  <div class="flex flex-wrap items-center justify-end gap-3">
+    {#if rejectedOps.length > 0}
       <div
-        class="px-3 py-1.5 rounded-xl border border-black/10 text-xs font-semibold flex items-center gap-2"
+        class="px-3 py-1.5 rounded-xl border border-[var(--accent)]/30 bg-red-500/10 text-xs font-semibold flex items-center gap-2"
       >
-        {#if rejectedOps.length > 0}
-          <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-          <span class="text-red-800 font-bold">{rejectedOps.length} Attention Needed</span>
-        {:else if pendingSyncCount > 0}
-          <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-          <span class="text-amber-800">{pendingSyncCount} Pending Sync</span>
-        {:else}
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          <span class="text-emerald-800">All Synced</span>
-        {/if}
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-red-700 dark:text-red-300 font-bold">
+          {rejectedOps.length} Attention Needed
+        </span>
       </div>
+    {/if}
 
-      <a href="/entries/new">
-        <Button
-          id="btn-save"
-          variant="commission"
-          class="py-3 px-6 text-sm font-bold shadow-lg min-h-[44px]"
-        >
-          + New Transaction
-        </Button>
-      </a>
-    </div>
+    <a href="/entries/new">
+      <Button id="btn-save" class="btn-stamp py-3 px-6 text-sm">+ New Transaction</Button>
+    </a>
   </div>
 
   {#if rejectedOps.length > 0}
     <div
-      class="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-900 text-xs flex flex-col gap-2"
+      class="p-4 rounded-xl bg-red-500/10 border border-[var(--accent)]/30 text-red-800 dark:text-red-300 text-xs flex flex-col gap-2"
     >
       <div class="flex items-center justify-between">
         <span class="font-bold text-sm"
@@ -185,16 +174,18 @@
         >
         <a href="/ledger" class="underline font-semibold hover:text-red-700">Open Ledger</a>
       </div>
-      <p class="text-[var(--c-muted,#6b7280)]">
+      <p class="text-[var(--muted)]">
         Transactions rejected by server validation or month-close locks. Contact your Admin to
         review or reassign.
       </p>
       <div class="flex flex-col gap-1.5 mt-1">
         {#each rejectedOps as item (item.id)}
           <div class="flex items-center justify-between p-2 rounded-lg bg-white/60 text-xs">
-            <span class="font-medium text-slate-800"
-              >{item.customerName} ({formatPoishaToBdt(BigInt(item.grossPoisha))})</span
-            >
+            <span class="font-medium text-[var(--ink)]">
+              {item.customerName} <span class="carbon-nums text-[var(--carbon)]"
+                >({formatPoishaToBdt(BigInt(item.grossPoisha))})</span
+              >
+            </span>
             <div class="flex items-center gap-2">
               <span class="text-red-700 font-semibold">{item.reason}</span>
               <button
@@ -213,25 +204,23 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
-        My Collections Today
-      </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--c-ink,#111827)]">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">My Collections Today</div>
+      <div class="text-3xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(metrics.todayGrossPoisha)}
       </div>
-      <div class="text-xs text-[var(--c-muted,#6b7280)] mt-2">
+      <div class="text-xs text-[var(--muted)] mt-2">
         {metrics.todayEntriesCount} transactions recorded today
       </div>
     </Card>
 
     <Card class="p-6">
-      <div class="text-xs font-semibold text-[var(--c-muted,#6b7280)] mb-1">
+      <div class="tab-caps text-[11px] text-[var(--muted)] mb-1">
         My Month-to-Date Collections
       </div>
-      <div class="text-3xl font-bold tabular-nums text-[var(--c-commission,#10b981)]">
+      <div class="text-2xl font-bold carbon-nums text-[var(--carbon)]">
         {formatPoishaToBdt(metrics.mtdGrossPoisha)}
       </div>
-      <div class="text-xs text-[var(--c-muted,#6b7280)] mt-2">
+      <div class="text-xs text-[var(--muted)] mt-2">
         {metrics.mtdEntriesCount} transactions this month
       </div>
     </Card>
@@ -239,14 +228,14 @@
 
   <Card class="p-6">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-base text-[var(--c-ink,#111827)]">My Recent Transactions</h2>
-      <a href="/ledger" class="text-xs text-[var(--c-muted,#6b7280)] hover:underline"
+      <h2 class="font-bold text-base text-[var(--ink)]">My Recent Transactions</h2>
+      <a href="/ledger" class="text-xs text-[var(--muted)] hover:underline"
         >View All Ledger</a
       >
     </div>
 
     {#if recentEntries.length === 0}
-      <div class="p-4 text-center text-xs text-[var(--c-muted,#6b7280)]">
+      <div class="p-4 text-center text-xs text-[var(--muted)]">
         No recent transactions found. Tap "+ New Transaction" to record your first payment.
       </div>
     {:else}
@@ -277,14 +266,9 @@
               {/if}
 
               {#if e.status === 'voided'}
-                <span
-                  class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700"
-                  >[Voided]</span
-                >
+                <Stamp label="VOID" class="shrink-0 -rotate-6" />
               {:else if e.status === 'superseded'}
-                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700"
-                  >[Superseded]</span
-                >
+                <Stamp label="Superseded" tone="navy" class="shrink-0" />
               {:else if Boolean(e.void_requested_by)}
                 <span
                   class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700"
@@ -293,16 +277,16 @@
               {/if}
 
               <span
-                class="font-semibold text-[var(--c-ink,#111827)] {e.status === 'voided'
-                  ? 'line-through text-slate-400'
+                class="font-semibold text-[var(--ink)] {e.status === 'voided'
+                  ? 'line-through decoration-[var(--accent)]'
                   : ''}"
               >
                 {e.customer_name}
               </span>
             </div>
             <div
-              class="font-bold tabular-nums {e.status === 'voided'
-                ? 'line-through text-slate-400'
+              class="font-bold carbon-nums text-[var(--carbon)] {e.status === 'voided'
+                ? 'line-through decoration-[var(--accent)] decoration-2'
                 : ''}"
             >
               {formatPoishaToBdt(BigInt(e.gross_poisha))}

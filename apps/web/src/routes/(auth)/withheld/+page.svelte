@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { session } from '$lib/auth/session.svelte';
   import { withheldNoticeText } from '$lib/ui/withheld-notice';
+  import { messages } from '$lib/i18n/messages';
 
   /**
    * Plan 023 step 3 — the withheld-account screen.
@@ -17,11 +18,17 @@
   }
 </script>
 
-<div class="min-h-screen flex items-center justify-center p-6 bg-[var(--bg)]">
-  <div class="max-w-md w-full glass p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
-    <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Account withheld</h1>
-      <p class="text-xs text-[var(--muted)] mt-1">This device cannot record or sync payments.</p>
+<div class="min-h-screen flex items-center justify-center p-4 sm:p-6 app-bg">
+  <div class="max-w-md w-full glass p-6 sm:p-8 rounded-2xl border border-[var(--pearl-border)] shadow-xl">
+    <!-- Coupon head: navy band with the ACCOUNT tab-cap (login pattern) -->
+    <div class="on-navy -mx-6 sm:-mx-8 px-6 sm:px-8 py-3 mb-5">
+      <div class="flex items-center gap-3">
+        <span class="coupon-tab shrink-0">{messages.withheld.tab}</span>
+        <div class="min-w-0">
+          <h1 class="text-base font-semibold text-[var(--ink)]">{messages.withheld.heading}</h1>
+          <p class="text-xs text-[var(--muted)] mt-0.5">{messages.withheld.subheading}</p>
+        </div>
+      </div>
     </div>
 
     <div
@@ -31,24 +38,21 @@
       {#if session.withheldReason}
         {withheldNoticeText(session.withheldReason)}
       {:else}
-        This account is not available. Contact your head office.
+        {messages.withheld.fallback}
       {/if}
     </div>
 
     <ul class="text-xs text-[var(--muted)] space-y-2 mb-6">
-      <li>
-        Payments already entered on this device are kept and will sync once the center is active
-        again.
-      </li>
-      <li>You have been signed out. No data has been deleted.</li>
+      <li>{messages.withheld.keptNotice}</li>
+      <li>{messages.withheld.signedOutNotice}</li>
     </ul>
 
     <button
       type="button"
       onclick={backToLogin}
-      class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[var(--ink)] text-[var(--bg)] text-sm font-semibold hover:opacity-90 transition-opacity"
+      class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[var(--ink)] text-[var(--bg)] text-sm font-semibold hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
     >
-      Sign in with another account
+      {messages.withheld.signInOther}
     </button>
   </div>
 </div>

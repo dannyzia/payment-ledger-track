@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import Card from '$lib/ui/Card.svelte';
   import Button from '$lib/ui/Button.svelte';
+  import CouponHead from '$lib/ui/CouponHead.svelte';
   import Modal from '$lib/ui/Modal.svelte';
   import Chip from '$lib/ui/Chip.svelte';
   import { authFetch } from '$lib/api/client';
@@ -110,13 +111,13 @@
 </script>
 
 <div class="p-6 max-w-5xl mx-auto w-full">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight text-[var(--ink)]">Payment Methods</h1>
-      <p class="text-sm text-[var(--muted)]">
-        Configure active payment channels, transaction reference requirements, and display ordering.
-      </p>
-    </div>
+  <CouponHead
+    tab="Admin"
+    title="Payment Methods"
+    subtitle="Configure active payment channels, transaction reference requirements, and display ordering."
+  />
+
+  <div class="mb-6 flex items-center justify-end">
     <Button variant="default" onclick={openCreateModal}>Add Payment Method</Button>
   </div>
 
