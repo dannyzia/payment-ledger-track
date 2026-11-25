@@ -27,6 +27,9 @@ coverage/
 .nyc_output/
 test-results/
 playwright-report/
+playwright-report-live/
+# Saved sessions for the live production sweep (local only, never committed)
+.playwright/
 
 # OS metadata
 .DS_Store
