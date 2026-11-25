@@ -26,6 +26,13 @@ export default defineConfig({
       srcDir: 'src',
       strategies: 'generateSW',
       registerType: 'prompt', // Non-disruptive update prompt protecting active counter entry
+      // SvelteKit builds with relative asset paths (`vite.base = './'`), and the
+      // plugin derives the worker URL from that base: `new Workbox("./sw.js")`.
+      // Resolved against the current page it asks nested routes for
+      // `/entries/sw.js`, `/ledger/sw.js`, … and every one of those 404s, so the
+      // PWA never installs off the root. Both values must stay origin-absolute.
+      base: '/',
+      scope: '/',
       manifest: false, // External static/manifest.webmanifest, linked from app.html
       workbox: {
         // Precache all client chunks, styles, HTML shells, fonts, and icons (PRD §9.2);

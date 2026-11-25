@@ -11,7 +11,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: '**/live_site_sweep.spec.ts',
+  testMatch: ['**/live_site_sweep.spec.ts', '**/live_onboarding_and_surfaces.spec.ts'],
   globalSetup: './tests/e2e/live-global-setup.ts',
   timeout: 15000,
   expect: { timeout: 5000 },
