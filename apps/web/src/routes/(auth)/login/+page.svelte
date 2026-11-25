@@ -129,7 +129,7 @@
                 />
                 <button
                   type="button"
-                  class="absolute right-1 w-10 h-10 flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
+                  class="absolute right-0.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--ink)] focus:outline-none"
                   onclick={() => (showPassword = !showPassword)}
                   aria-label={showPassword
                     ? messages.login.hidePassword
@@ -213,7 +213,7 @@
                 <a
                   href="/downloads/kumon-ledger-track.apk"
                   download="kumon-ledger-track.apk"
-                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--ink)] text-[var(--bg)] hover:opacity-90 font-semibold text-xs transition-opacity shadow-sm shrink-0 min-h-[38px]"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--ink)] text-[var(--bg)] hover:opacity-90 font-semibold text-xs transition-opacity shadow-sm shrink-0 min-h-[44px]"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"

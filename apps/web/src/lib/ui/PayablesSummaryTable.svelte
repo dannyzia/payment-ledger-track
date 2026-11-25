@@ -239,7 +239,7 @@
                 <button
                   type="button"
                   onclick={() => ondrilldown?.(row.drillDownMethodId)}
-                  class="text-xs text-[var(--accent)] hover:underline font-medium cursor-pointer"
+                  class="inline-flex items-center justify-end min-h-[44px] px-2 text-xs text-[var(--accent)] hover:underline font-medium cursor-pointer"
                 >
                   View Entries ↗
                 </button>
